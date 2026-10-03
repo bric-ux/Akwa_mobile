@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { VehicleFilters, VehicleType, TransmissionType, FuelType } from '../types';
 import { TRAVELER_COLORS } from '../constants/colors';
+import { useLanguage } from '../contexts/LanguageContext';
 import { VEHICLE_BRANDS } from './VehicleBrandAutocomplete';
 
 interface VehicleFiltersModalProps {
@@ -63,6 +64,7 @@ const BrandAutocomplete: React.FC<{
   value: string;
   onChange: (brand: string) => void;
 }> = ({ value, onChange }) => {
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -98,7 +100,7 @@ const BrandAutocomplete: React.FC<{
         <Ionicons name="car" size={18} color={TRAVELER_COLORS.primary} />
         <TextInput
           style={styles.brandInput}
-          placeholder="Rechercher une marque..."
+          placeholder={t('vehicles.searchBrand')}
           placeholderTextColor="#94a3b8"
           value={searchQuery || value}
           onChangeText={(text) => {
@@ -155,6 +157,7 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
   onApply,
   initialFilters = {},
 }) => {
+  const { t } = useLanguage();
 
   const [filters, setFilters] = useState<VehicleFilters>(initialFilters);
   const [priceMin, setPriceMin] = useState(initialFilters.priceMin?.toString() || '');
@@ -230,7 +233,7 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#333" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Filtres</Text>
+            <Text style={styles.headerTitle}>{t('vehicles.filters')}</Text>
             {activeFiltersCount > 0 && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{activeFiltersCount}</Text>
@@ -241,7 +244,7 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
           <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
             {/* Marque */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Marque</Text>
+              <Text style={styles.sectionTitle}>{t('vehicles.brand')}</Text>
               <BrandAutocomplete
                 value={filters.brand || ''}
                 onChange={(brand) =>
@@ -284,9 +287,9 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
               </View>
             </View>
 
-            {/* Type de carburant */}
+            {/* Fuel type */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Type de carburant</Text>
+              <Text style={styles.sectionTitle}>{t('vehicles.fuelTypeLabel')}</Text>
               <View style={styles.optionsContainer}>
                 {FUEL_TYPES.map(type => (
                   <TouchableOpacity
@@ -308,7 +311,7 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
                         filters.fuelType === type.value && styles.optionTextSelected,
                       ]}
                     >
-                      {type.label}
+                      {t(`vehicles.fuel.${type.value}`)}
                     </Text>
                   </TouchableOpacity>
                 ))}

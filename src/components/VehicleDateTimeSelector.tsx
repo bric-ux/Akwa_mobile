@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getCommissionRates } from '../lib/commissions';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface VehicleDateTimeSelectorProps {
   startDateTime?: string; // ISO string
@@ -48,6 +49,9 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
   discountConfig,
   longStayDiscountConfig,
 }) => {
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
+
   const [showModal, setShowModal] = useState(false);
   const [pickingField, setPickingField] = useState<'startDate' | 'startTime' | 'endDate' | 'endTime' | 'rentalDays' | null>(null);
   
@@ -237,7 +241,7 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
   }, [hourlyRentalEnabled, tempStartDate, tempStartTime, tempEndDate, selectedStartHM]);
 
   const formatDate = (date: Date): string => {
-    return date.toLocaleDateString('fr-FR', {
+    return date.toLocaleDateString(dateLocale, {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -245,7 +249,7 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
   };
 
   const formatTime = (date: Date): string => {
-    return date.toLocaleTimeString('fr-FR', {
+    return date.toLocaleTimeString(dateLocale, {
       hour: '2-digit',
       minute: '2-digit',
     });
@@ -348,7 +352,7 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
         startDateOnlyCheck.setHours(0, 0, 0, 0);
         
         if (newEndDateOnly.getTime() < startDateOnlyCheck.getTime()) {
-          alert('La date de fin ne peut pas être avant la date de début');
+          alert(t('bookingMod.endBeforeStart'));
           if (Platform.OS === 'android') {
             setPickingField(null);
           }
@@ -410,7 +414,7 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
     if (!hourlyRentalEnabled) {
       const days = parseInt(rentalDays) || 1;
       if (days < 1) {
-        alert('Le nombre de jours doit être au moins 1');
+        alert(t('calendar.minDaysAlert'));
         return;
       }
       
@@ -460,19 +464,19 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
     // Vérifications finales
     const now = new Date();
     if (start <= now) {
-      alert('L\'heure de début doit être dans le futur');
+      alert(t('calendar.startMustBeFuture'));
       return;
     }
 
     // L'heure de rendu doit être après l'heure de prise (même jour autorisé)
     if (end <= start) {
-      alert('L\'heure de fin doit être après l\'heure de début');
+      alert(t('vehicleBooking.endAfterStart'));
       return;
     }
 
     const diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
     if (diffHours < 1) {
-      alert('La durée minimum de location est de 1 heure');
+      alert(t('calendar.minRentalOneHour'));
       return;
     }
 
@@ -1131,7 +1135,7 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
                     <View style={styles.previewRow}>
                       <Text style={styles.previewLabel}>Prix estimé :</Text>
                       <Text style={styles.previewPrice}>
-                        {estimatedPrice.toLocaleString('fr-FR')} FCFA
+                        {estimatedPrice.toLocaleString(dateLocale)} FCFA
                       </Text>
                     </View>
                   )}

@@ -29,6 +29,7 @@ import AppVideo from '../components/AppVideo';
 import MediaThumb from '../components/MediaThumb';
 import { getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
 import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -59,6 +60,7 @@ interface VehicleReviewItem {
 }
 
 const VehicleManagementScreen: React.FC = () => {
+  const { t } = useLanguage();
   const navigation = useNavigation();
   const route = useRoute<VehicleManagementRouteProp>();
   const { vehicleId } = route.params;
@@ -115,7 +117,7 @@ const VehicleManagementScreen: React.FC = () => {
       if (data) await loadReviews();
     } catch (err) {
       console.error('Erreur lors du chargement du véhicule:', err);
-      Alert.alert('Erreur', 'Impossible de charger le véhicule');
+      Alert.alert(t('common.error'), t('vehicleOwner.loadError'));
     } finally {
       setLoadingVehicle(false);
     }
@@ -281,7 +283,7 @@ const VehicleManagementScreen: React.FC = () => {
       vehicle.is_active ? 'Masquer le véhicule' : 'Afficher le véhicule',
       `Êtes-vous sûr de vouloir ${vehicle.is_active ? 'masquer' : 'afficher'} "${vehicle.title}" ?`,
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
           text: vehicle.is_active ? 'Masquer' : 'Afficher',
           onPress: async () => {
@@ -297,7 +299,7 @@ const VehicleManagementScreen: React.FC = () => {
                 Alert.alert('Erreur', result.error || 'Impossible de modifier la visibilité');
               }
             } catch (err) {
-              Alert.alert('Erreur', 'Une erreur est survenue');
+              Alert.alert(t('common.error'), t('common.errorOccurred'));
             }
           },
         },
@@ -312,7 +314,7 @@ const VehicleManagementScreen: React.FC = () => {
       'Supprimer le véhicule',
       `Êtes-vous sûr de vouloir supprimer définitivement "${vehicle.title}" ? Cette action est irréversible.`,
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
           text: 'Supprimer',
           style: 'destructive',
@@ -320,13 +322,13 @@ const VehicleManagementScreen: React.FC = () => {
             try {
               const result = await deleteVehicle(vehicleId);
               if (result.success) {
-                Alert.alert('Succès', 'Véhicule supprimé avec succès');
+                Alert.alert(t('common.success'), t('vehicleOwner.deletedSuccess'));
                 navigation.goBack();
               } else {
                 Alert.alert('Erreur', result.error || 'Impossible de supprimer le véhicule');
               }
             } catch (err) {
-              Alert.alert('Erreur', 'Une erreur est survenue');
+              Alert.alert(t('common.error'), t('common.errorOccurred'));
             }
           },
         },
@@ -384,7 +386,7 @@ const VehicleManagementScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={VEHICLE_COLORS.primary} />
-          <Text style={styles.loadingText}>Chargement...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -400,7 +402,7 @@ const VehicleManagementScreen: React.FC = () => {
           >
             <Ionicons name="arrow-back" size={24} color="#1e293b" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Véhicule non trouvé</Text>
+          <Text style={styles.headerTitle}>{t('vehicleOwner.notFound')}</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.emptyContainer}>
@@ -471,7 +473,7 @@ const VehicleManagementScreen: React.FC = () => {
           ) : (
             <View style={styles.emptyPhotos}>
               <Ionicons name="images-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyPhotosText}>Aucune photo disponible</Text>
+              <Text style={styles.emptyPhotosText}>{t('vehicleOwner.noPhotos')}</Text>
             </View>
           )}
         </View>
@@ -485,7 +487,7 @@ const VehicleManagementScreen: React.FC = () => {
             <View style={styles.actionIconContainer}>
               <Ionicons name="calendar-outline" size={24} color="#475569" />
             </View>
-            <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Calendrier</Text>
+            <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t('vehicleOwner.calendar')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -524,7 +526,7 @@ const VehicleManagementScreen: React.FC = () => {
             <View style={styles.actionIconContainer}>
               <Ionicons name="pricetag-outline" size={24} color="#475569" />
             </View>
-            <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Tarification</Text>
+            <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t('vehicleOwner.pricing')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -717,7 +719,7 @@ const VehicleManagementScreen: React.FC = () => {
                   setResponseRespectRulesRating(0);
                 }}
               >
-                <Text style={styles.responseModalCancelText}>Annuler</Text>
+                <Text style={styles.responseModalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.responseModalSubmitBtn, (!canSubmitResponseModal || submitting) && styles.responseModalSubmitBtnDisabled]}

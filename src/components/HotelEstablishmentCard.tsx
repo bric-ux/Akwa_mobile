@@ -5,6 +5,7 @@ import { useHotelFavorites } from '../hooks/useHotelFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import MediaThumb from './MediaThumb';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
+import { useLanguage } from '../contexts/LanguageContext';
 import {
   EXPLORE_SHELF_IMAGE_HEIGHT,
   LIST_CARD_IMAGE_HEIGHT,
@@ -12,13 +13,6 @@ import {
   formatExploreShelfRatingSubtitle,
   formatListCardTitle,
 } from '../constants/exploreShelfCard';
-
-const TYPE_LABEL: Record<string, string> = {
-  hotel: 'Hôtel',
-  guesthouse: 'Maison d’hôtes',
-  residence: 'Résidence',
-  aparthotel: 'Aparthotel',
-};
 
 type Props = {
   establishment: HotelEstablishmentPublic;
@@ -31,6 +25,7 @@ export default function HotelEstablishmentCard({
   onPress,
   variant = 'list',
 }: Props) {
+  const { t } = useLanguage();
   const { requireAuthForFavorites } = useAuthRedirect();
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading, cacheVersion, refreshCache } =
     useHotelFavorites();
@@ -48,12 +43,19 @@ export default function HotelEstablishmentCard({
         setIsFavorited(next);
         await refreshCache();
       } catch (error: any) {
-        Alert.alert('Erreur', error.message || 'Impossible de modifier les favoris');
+        Alert.alert(t('common.error'), error.message || t('hotelEstablishment.favoriteError'));
       }
     });
   };
 
-  const typeLabel = TYPE_LABEL[establishment.establishment_type] || 'Hôtel';
+  const typeMap: Record<string, string> = {
+    hotel: t('hotelEstablishment.typeHotel'),
+    guesthouse: t('hotelEstablishment.typeGuesthouse'),
+    residence: t('hotelEstablishment.typeResidence'),
+    aparthotel: t('hotelEstablishment.typeAparthotel'),
+  };
+  const typeLabel = typeMap[establishment.establishment_type] || t('hotelEstablishment.typeHotel');
+
   const imageUri =
     Array.isArray(establishment.images) && establishment.images.length > 0
       ? establishment.images[0]

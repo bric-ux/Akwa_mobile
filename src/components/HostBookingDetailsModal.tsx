@@ -17,6 +17,7 @@ import HostCancellationDialog from './HostCancellationDialog';
 import { useBookingModifications } from '../hooks/useBookingModifications';
 import HostModificationRequestCard from './HostModificationRequestCard';
 import HostBookingFinancialAlerts from './HostBookingFinancialAlerts';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface HostBookingDetailsModalProps {
   visible: boolean;
@@ -29,6 +30,7 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
   onClose,
   booking,
 }) => {
+  const { t, language } = useLanguage();
   const [payment, setPayment] = useState<any>(null);
   const [hostCancellationDialogVisible, setHostCancellationDialogVisible] = useState(false);
   const { getBookingPendingRequest } = useBookingModifications();
@@ -90,14 +92,16 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
   const effectiveStatus = getEffectiveStatus();
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'pending': return 'En attente';
-      case 'confirmed': return 'Confirmée';
-      case 'in_progress': return 'En cours';
-      case 'cancelled': return 'Annulée';
-      case 'completed': return 'Terminée';
+      case 'pending': return t('hostBookings.pending');
+      case 'confirmed': return t('bookings.confirmed');
+      case 'in_progress': return t('hostBookings.inProgress');
+      case 'cancelled': return t('bookings.cancelledStatus');
+      case 'completed': return t('bookings.completed');
       default: return status;
     }
   };
+
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
 
   const isConfirmed = booking.status === 'confirmed' || booking.status === 'completed' || booking.status === 'in_progress';
 
@@ -112,7 +116,7 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Détails de réservation</Text>
+            <Text style={styles.headerTitle}>{t('bookings.detailsTitle')}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#333" />
             </TouchableOpacity>
@@ -131,8 +135,8 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
                   request={pendingRequest}
                   guestName={booking.guest_profile 
                     ? `${booking.guest_profile.first_name} ${booking.guest_profile.last_name}`.trim()
-                    : 'Voyageur'}
-                  propertyTitle={booking.properties?.title || 'Propriété'}
+                    : t('hostBookings.guestFallback')}
+                  propertyTitle={booking.properties?.title || t('messages.property')}
                   onUpdated={() => {
                     loadPendingRequest();
                     onClose(); // Fermer le modal pour recharger la liste
@@ -148,15 +152,15 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
 
             {/* Informations de base */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Informations</Text>
+              <Text style={styles.sectionTitle}>{t('hostBookings.infoSection')}</Text>
               
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Propriété</Text>
+                <Text style={styles.infoLabel}>{t('hostBookings.propertyLabel')}</Text>
                 <Text style={styles.infoValue}>{booking.properties?.title || '-'}</Text>
               </View>
 
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Voyageur</Text>
+                <Text style={styles.infoLabel}>{t('hostBookings.guestLabel')}</Text>
                 <Text style={styles.infoValue}>
                   {booking.guest_profile 
                     ? `${booking.guest_profile.first_name} ${booking.guest_profile.last_name}`.trim()
@@ -165,27 +169,27 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
               </View>
 
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Dates</Text>
+                <Text style={styles.infoLabel}>{t('hostBookings.datesLabel')}</Text>
                 <Text style={styles.infoValue}>
-                  {new Date(booking.check_in_date).toLocaleDateString('fr-FR')} - {new Date(booking.check_out_date).toLocaleDateString('fr-FR')}
+                  {new Date(booking.check_in_date).toLocaleDateString(dateLocale)} - {new Date(booking.check_out_date).toLocaleDateString(dateLocale)}
                 </Text>
               </View>
 
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Voyageurs</Text>
+                <Text style={styles.infoLabel}>{t('booking.guests')}</Text>
                 <Text style={styles.infoValue}>{booking.guests_count}</Text>
               </View>
 
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Statut</Text>
+                <Text style={styles.infoLabel}>{t('hostBookings.statusLabel')}</Text>
                 <Text style={styles.infoValue}>{getStatusLabel(effectiveStatus)}</Text>
               </View>
 
               {(booking as any).created_at && (
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Date de réservation</Text>
+                  <Text style={styles.infoLabel}>{t('hostBookings.bookingDateLabel')}</Text>
                   <Text style={styles.infoValue}>
-                    {new Date((booking as any).created_at).toLocaleDateString('fr-FR', {
+                    {new Date((booking as any).created_at).toLocaleDateString(dateLocale, {
                       day: '2-digit',
                       month: 'long',
                       year: 'numeric',
@@ -229,7 +233,7 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
                 onPress={() => setHostCancellationDialogVisible(true)}
               >
                 <Ionicons name="close-circle-outline" size={20} color="#e74c3c" />
-                <Text style={styles.cancelButtonText}>Annuler la réservation</Text>
+                <Text style={styles.cancelButtonText}>{t('bookings.cancelBooking')}</Text>
               </TouchableOpacity>
             )}
           </ScrollView>
@@ -237,7 +241,7 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
           {/* Footer */}
           <View style={styles.footer}>
             <TouchableOpacity style={styles.closeFooterButton} onPress={onClose}>
-              <Text style={styles.closeFooterButtonText}>Fermer</Text>
+              <Text style={styles.closeFooterButtonText}>{t('common.close')}</Text>
             </TouchableOpacity>
           </View>
         </View>

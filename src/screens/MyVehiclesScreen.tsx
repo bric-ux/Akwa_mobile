@@ -99,11 +99,11 @@ const MyVehiclesScreen: React.FC = () => {
     const isApproved = (vehicle as any).is_approved === true;
     if (!isApproved) {
       const approvalStatus = (vehicle as any).approval_status;
-      if (approvalStatus === 'rejected') return 'Refusé';
-      return 'En attente';
+      if (approvalStatus === 'rejected') return t('vehicleOwner.status.rejected');
+      return t('vehicleOwner.status.pending');
     }
     // Pour les véhicules actifs
-    return vehicle.is_active ? 'Actif' : 'Masqué';
+    return vehicle.is_active ? t('vehicleOwner.status.active') : t('vehicleOwner.status.hidden');
   };
 
   // Filtrer les véhicules selon l'onglet actif
@@ -223,7 +223,7 @@ const MyVehiclesScreen: React.FC = () => {
             )}
             {activeTab === 'vehicles' && (
               <Text style={styles.price}>
-                {formatPrice(item.price_per_day)}/jour
+                {formatPrice(item.price_per_day)}{t('vehicles.perDay')}
               </Text>
             )}
           </View>
@@ -248,18 +248,18 @@ const MyVehiclesScreen: React.FC = () => {
           color="#9ca3af" 
         />
         <Text style={styles.emptyTitle}>
-          {isVehiclesTab ? 'Aucun véhicule' : 'Aucune candidature'}
+          {isVehiclesTab ? t('vehicleOwner.noVehicles') : t('vehicleOwner.noApplications')}
         </Text>
         <Text style={styles.emptySubtitle}>
           {isVehiclesTab
-            ? "Vous n'avez pas encore de véhicules actifs."
-            : "Vous n'avez pas de véhicule en attente d'approbation."}
+            ? t('vehicleOwner.noVehiclesActiveDesc')
+            : t('vehicleOwner.noApplicationsDesc')}
         </Text>
         <TouchableOpacity
           style={styles.addButton}
           onPress={() => navigation.navigate('AddVehicle' as never)}
         >
-          <Text style={styles.addButtonText}>Ajouter un véhicule</Text>
+          <Text style={styles.addButtonText}>{t('vehicleOwner.addVehicle')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -269,7 +269,7 @@ const MyVehiclesScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Véhicules</Text>
+        <Text style={styles.headerTitle}>{t('vehicleOwner.vehicles')}</Text>
       </View>
 
       {/* Onglets */}
@@ -286,7 +286,7 @@ const MyVehiclesScreen: React.FC = () => {
               color={activeTab === 'vehicles' ? '#1e293b' : '#64748b'} 
             />
             <Text style={[styles.tabText, activeTab === 'vehicles' && styles.tabTextActive]}>
-              Véhicules actifs
+              {t('vehicleOwner.activeVehicles')}
             </Text>
           </TouchableOpacity>
 
@@ -301,7 +301,7 @@ const MyVehiclesScreen: React.FC = () => {
               color={activeTab === 'applications' ? '#1e293b' : '#64748b'} 
             />
             <Text style={[styles.tabText, activeTab === 'applications' && styles.tabTextActive]}>
-              Candidatures
+              {t('vehicleOwner.applications')}
             </Text>
           </TouchableOpacity>
         </ScrollView>

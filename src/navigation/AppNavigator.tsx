@@ -9,6 +9,7 @@ import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS, MONTHLY_RENTAL_COLORS, HOTEL_COLORS } from '../constants/colors';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { PushNotificationBootstrap } from '../components/PushNotificationBootstrap';
 import { PushNotificationNavigationHandler } from '../components/PushNotificationNavigationHandler';
 import AuthSessionFade from '../components/AuthSessionFade';
@@ -143,6 +144,7 @@ const HotelOwnerTab = createBottomTabNavigator<HotelOwnerTabParamList>();
 // Tab Navigator
 const TabNavigator = () => {
   const badges = useTabNotificationBadges();
+  const { t } = useLanguage();
 
   return (
     <Tab.Navigator
@@ -185,27 +187,27 @@ const TabNavigator = () => {
       <Tab.Screen 
         name="HomeTab" 
         component={HomeScreen}
-        options={{ tabBarLabel: 'Explorer' }}
+        options={{ tabBarLabel: t('nav.explore') }}
       />
       <Tab.Screen 
         name="MessagingTab" 
         component={MessagingScreen}
-        options={{ tabBarLabel: 'Messages' }}
+        options={{ tabBarLabel: t('nav.messages') }}
       />
       <Tab.Screen
         name="BookingsTab"
         component={MyBookingsScreen}
-        options={{ tabBarLabel: 'Réservations' }}
+        options={{ tabBarLabel: t('nav.bookings') }}
       />
       <Tab.Screen 
         name="FavoritesTab" 
         component={FavoritesScreen}
-        options={{ tabBarLabel: 'Favoris' }}
+        options={{ tabBarLabel: t('nav.favorites') }}
       />
       <Tab.Screen 
         name="ProfileTab" 
         component={ProfileScreen}
-        options={{ tabBarLabel: 'Mon compte' }}
+        options={{ tabBarLabel: t('nav.myAccount') }}
       />
     </Tab.Navigator>
   );
@@ -214,6 +216,7 @@ const TabNavigator = () => {
 // Host Tab Navigator (pour les hôtes)
 const HostTabNavigator = () => {
   const badges = useTabNotificationBadges();
+  const { t } = useLanguage();
 
   return (
     <HostTab.Navigator
@@ -260,32 +263,32 @@ const HostTabNavigator = () => {
       <HostTab.Screen 
         name="HostPropertiesTab" 
         component={MyPropertiesScreen}
-        options={{ tabBarLabel: 'Propriétés' }}
+        options={{ tabBarLabel: t('nav.myProperties') }}
       />
       <HostTab.Screen
         name="HostBookingsTab"
         component={HostBookingsScreen}
-        options={{ tabBarLabel: 'Réservations' }}
+        options={{ tabBarLabel: t('nav.bookings') }}
       />
       <HostTab.Screen 
         name="HostMessagingTab" 
         component={MessagingScreen}
-        options={{ tabBarLabel: 'Messages' }}
+        options={{ tabBarLabel: t('nav.messages') }}
       />
       <HostTab.Screen 
         name="HostStatsTab" 
         component={HostStatsScreen}
-        options={{ tabBarLabel: 'Statistiques' }}
+        options={{ tabBarLabel: t('nav.stats') }}
       />
       <HostTab.Screen 
         name="HostPayoutsTab" 
         component={HostPayoutsScreen}
-        options={{ tabBarLabel: 'Paiements' }}
+        options={{ tabBarLabel: t('nav.payments') }}
       />
       <HostTab.Screen 
         name="HostProfileTab" 
         component={ProfileScreen}
-        options={{ tabBarLabel: 'Mon compte' }}
+        options={{ tabBarLabel: t('nav.myAccount') }}
       />
     </HostTab.Navigator>
   );
@@ -294,6 +297,7 @@ const HostTabNavigator = () => {
 // Vehicle Owner Tab Navigator (pour les propriétaires de véhicules)
 const VehicleOwnerTabNavigator = () => {
   const badges = useTabNotificationBadges();
+  const { t } = useLanguage();
 
   return (
     <VehicleOwnerTab.Navigator
@@ -340,32 +344,32 @@ const VehicleOwnerTabNavigator = () => {
       <VehicleOwnerTab.Screen 
         name="VehicleOwnerVehiclesTab" 
         component={MyVehiclesScreen}
-        options={{ tabBarLabel: 'Véhicules' }}
+        options={{ tabBarLabel: t('nav.vehicles') }}
       />
       <VehicleOwnerTab.Screen
         name="VehicleOwnerBookingsTab"
         component={HostVehicleBookingsScreen}
-        options={{ tabBarLabel: 'Réservations' }}
+        options={{ tabBarLabel: t('nav.bookings') }}
       />
       <VehicleOwnerTab.Screen 
         name="VehicleOwnerMessagingTab" 
         component={MessagingScreen}
-        options={{ tabBarLabel: 'Messages' }}
+        options={{ tabBarLabel: t('nav.messages') }}
       />
       <VehicleOwnerTab.Screen 
         name="VehicleOwnerStatsTab" 
         component={VehicleOwnerStatsScreen}
-        options={{ tabBarLabel: 'Statistiques' }}
+        options={{ tabBarLabel: t('nav.stats') }}
       />
       <VehicleOwnerTab.Screen 
         name="VehicleOwnerPayoutsTab" 
         component={VehicleOwnerPayoutsScreen}
-        options={{ tabBarLabel: 'Paiements' }}
+        options={{ tabBarLabel: t('nav.payments') }}
       />
       <VehicleOwnerTab.Screen 
         name="VehicleOwnerProfileTab" 
         component={ProfileScreen}
-        options={{ tabBarLabel: 'Mon compte' }}
+        options={{ tabBarLabel: t('nav.myAccount') }}
       />
     </VehicleOwnerTab.Navigator>
   );
@@ -374,6 +378,7 @@ const VehicleOwnerTabNavigator = () => {
 // Vehicle Tab Navigator (pour la recherche de véhicules par les voyageurs)
 const VehicleTabNavigator = () => {
   const badges = useTabNotificationBadges();
+  const { t } = useLanguage();
 
   return (
     <VehicleTab.Navigator
@@ -417,27 +422,27 @@ const VehicleTabNavigator = () => {
       <VehicleTab.Screen 
         name="VehiclesTab" 
         component={VehiclesScreen}
-        options={{ tabBarLabel: 'Recherche' }}
+        options={{ tabBarLabel: t('nav.search') }}
       />
       <VehicleTab.Screen 
         name="VehicleBookingsTab" 
         component={MyVehicleBookingsScreen}
-        options={{ tabBarLabel: 'Réservations' }}
+        options={{ tabBarLabel: t('nav.bookings') }}
       />
       <VehicleTab.Screen 
         name="VehicleMessagingTab" 
         component={MessagingScreen}
-        options={{ tabBarLabel: 'Messages' }}
+        options={{ tabBarLabel: t('nav.messages') }}
       />
       <VehicleTab.Screen 
         name="VehicleFavoritesTab" 
         component={FavoritesScreen}
-        options={{ tabBarLabel: 'Favoris' }}
+        options={{ tabBarLabel: t('nav.favorites') }}
       />
       <VehicleTab.Screen 
         name="VehicleProfileTab" 
         component={ProfileScreen}
-        options={{ tabBarLabel: 'Mon compte' }}
+        options={{ tabBarLabel: t('nav.myAccount') }}
       />
     </VehicleTab.Navigator>
   );
@@ -446,6 +451,7 @@ const VehicleTabNavigator = () => {
 // Mode bail longue durée (propriétaire : logements, candidatures, messages, stats, compte)
 const MonthlyRentalOwnerTabNavigator = () => {
   const badges = useTabNotificationBadges();
+  const { t } = useLanguage();
 
   return (
     <MonthlyRentalTab.Navigator
@@ -486,27 +492,27 @@ const MonthlyRentalOwnerTabNavigator = () => {
       <MonthlyRentalTab.Screen
         name="MonthlyRentalListingsTab"
         component={MyMonthlyRentalListingsScreen}
-        options={{ tabBarLabel: 'Mes logements' }}
+        options={{ tabBarLabel: t('nav.myListings') }}
       />
       <MonthlyRentalTab.Screen
         name="MonthlyRentalCandidaturesTab"
         component={MonthlyRentalOwnerCandidaturesScreen}
-        options={{ tabBarLabel: 'Candidatures' }}
+        options={{ tabBarLabel: t('nav.applications') }}
       />
       <MonthlyRentalTab.Screen
         name="MonthlyRentalMessagesTab"
         component={MessagingScreen}
-        options={{ tabBarLabel: 'Messages' }}
+        options={{ tabBarLabel: t('nav.messages') }}
       />
       <MonthlyRentalTab.Screen
         name="MonthlyRentalStatsTab"
         component={MonthlyRentalStatsScreen}
-        options={{ tabBarLabel: 'Statistiques' }}
+        options={{ tabBarLabel: t('nav.stats') }}
       />
       <MonthlyRentalTab.Screen
         name="MonthlyRentalProfileTab"
         component={ProfileScreen}
-        options={{ tabBarLabel: 'Mon compte' }}
+        options={{ tabBarLabel: t('nav.myAccount') }}
       />
     </MonthlyRentalTab.Navigator>
   );
@@ -515,6 +521,7 @@ const MonthlyRentalOwnerTabNavigator = () => {
 // Mode Hôtel (établissements, réservations, messages, compte)
 const HotelOwnerTabNavigator = () => {
   const badges = useTabNotificationBadges();
+  const { t } = useLanguage();
 
   return (
     <HotelOwnerTab.Navigator
@@ -553,27 +560,27 @@ const HotelOwnerTabNavigator = () => {
       <HotelOwnerTab.Screen
         name="HotelEstablishmentsTab"
         component={MyHotelEstablishmentsScreen}
-        options={{ tabBarLabel: 'Établissements' }}
+        options={{ tabBarLabel: t('nav.establishments') }}
       />
       <HotelOwnerTab.Screen
         name="HotelBookingsTab"
         component={HotelOwnerBookingsScreen}
-        options={{ tabBarLabel: 'Réservations' }}
+        options={{ tabBarLabel: t('nav.bookings') }}
       />
       <HotelOwnerTab.Screen
         name="HotelPayoutsTab"
         component={HotelOwnerPayoutsScreen}
-        options={{ tabBarLabel: 'Paiements' }}
+        options={{ tabBarLabel: t('nav.payments') }}
       />
       <HotelOwnerTab.Screen
         name="HotelMessagesTab"
         component={MessagingScreen}
-        options={{ tabBarLabel: 'Messages' }}
+        options={{ tabBarLabel: t('nav.messages') }}
       />
       <HotelOwnerTab.Screen
         name="HotelProfileTab"
         component={ProfileScreen}
-        options={{ tabBarLabel: 'Mon compte' }}
+        options={{ tabBarLabel: t('nav.myAccount') }}
       />
     </HotelOwnerTab.Navigator>
   );

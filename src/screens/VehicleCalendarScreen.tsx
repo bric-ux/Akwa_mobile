@@ -1,3 +1,4 @@
+import { useLanguage } from '../contexts/LanguageContext';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -38,6 +39,7 @@ const formatDateToISO = (date: Date): string => {
 };
 
 const VehicleCalendarScreen: React.FC = () => {
+  const { t } = useLanguage();
   const navigation = useNavigation();
   const route = useRoute<VehicleCalendarRouteProp>();
   const { vehicleId } = route.params;
@@ -93,7 +95,7 @@ const VehicleCalendarScreen: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Erreur lors du chargement des dates:', error);
-      Alert.alert('Erreur', 'Impossible de charger les dates');
+      Alert.alert(t('common.error'), t('vehicleOwner.loadDatesError'));
     } finally {
       setRefreshing(false);
     }
@@ -151,7 +153,7 @@ const VehicleCalendarScreen: React.FC = () => {
         'Débloquer cette période',
         `Voulez-vous débloquer la période du ${formatDate(new Date(blocked.start_date))} au ${formatDate(new Date(blocked.end_date))} ?`,
         [
-          { text: 'Annuler', style: 'cancel' },
+          { text: t('common.cancel'), style: 'cancel' },
           {
             text: 'Débloquer',
             style: 'destructive',
@@ -346,7 +348,7 @@ const VehicleCalendarScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Calendrier</Text>
+        <Text style={styles.headerTitle}>{t('vehicleOwner.calendar')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -451,7 +453,7 @@ const VehicleCalendarScreen: React.FC = () => {
                 }}
               >
                 <Ionicons name="close" size={20} color="#fff" />
-                <Text style={styles.actionButtonText}>Annuler</Text>
+                <Text style={styles.actionButtonText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -595,7 +597,7 @@ const VehicleCalendarScreen: React.FC = () => {
                 }}
               >
                 <Ionicons name="close" size={20} color="#fff" />
-                <Text style={styles.actionButtonText}>Annuler</Text>
+                <Text style={styles.actionButtonText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -607,7 +609,7 @@ const VehicleCalendarScreen: React.FC = () => {
           {refreshing ? (
             <ActivityIndicator size="small" color={VEHICLE_COLORS.primary} />
           ) : bookings.length === 0 ? (
-            <Text style={styles.emptyText}>Aucune réservation</Text>
+            <Text style={styles.emptyText}>{t('bookings.noBookings')}</Text>
           ) : (
             bookings.map((booking) => {
               const today = new Date();
@@ -617,7 +619,7 @@ const VehicleCalendarScreen: React.FC = () => {
               const endDate = new Date(booking.end_date);
               endDate.setHours(0, 0, 0, 0);
               const isInProgress = booking.status === 'confirmed' && startDate <= today && endDate >= today;
-              const statusLabel = booking.status === 'pending' ? 'En attente' : isInProgress ? 'En cours' : 'Confirmée';
+              const statusLabel = booking.status === 'pending' ? t('bookings.pending') : isInProgress ? t('bookings.inProgress') : t('bookings.confirmed');
               return (
               <View key={booking.id} style={styles.periodCard}>
                 <View style={styles.periodInfo}>
@@ -648,7 +650,7 @@ const VehicleCalendarScreen: React.FC = () => {
           {refreshing ? (
             <ActivityIndicator size="small" color={VEHICLE_COLORS.primary} />
           ) : blockedDates.length === 0 ? (
-            <Text style={styles.emptyText}>Aucune période bloquée</Text>
+            <Text style={styles.emptyText}>{t('vehicleOwner.noBlockedPeriods')}</Text>
           ) : (
             blockedDates.map((blocked) => (
               <View key={blocked.id} style={styles.periodCard}>
@@ -676,7 +678,7 @@ const VehicleCalendarScreen: React.FC = () => {
                       'Débloquer cette période',
                       `Voulez-vous débloquer la période du ${formatDate(new Date(blocked.start_date))} au ${formatDate(new Date(blocked.end_date))} ?`,
                       [
-                        { text: 'Annuler', style: 'cancel' },
+                        { text: t('common.cancel'), style: 'cancel' },
                         {
                           text: 'Débloquer',
                           style: 'destructive',

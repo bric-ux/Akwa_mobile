@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { TRAVELER_COLORS } from '../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { computeVehicleRentalDurationFromIso } from '../lib/vehicleRentalDuration';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -46,6 +47,9 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   onConfirm,
   beforeConfirm,
 }) => {
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
+
   /** Parse l'ISO en date d'affichage : les chiffres de l'ISO (ex. 11:30) = heure affichée (pas de conversion timezone). */
   const isoToDisplayDate = (iso: string): Date => {
     const d = new Date(iso);
@@ -284,19 +288,23 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
     dateToFormat.setHours(0, 0, 0, 0);
     
     if (dateToFormat.getTime() === today.getTime()) {
-      return "Aujourd'hui";
+      return t('calendar.today');
     }
     
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     if (dateToFormat.getTime() === tomorrow.getTime()) {
-      return date.getFullYear() !== today.getFullYear() ? `Demain (${date.getFullYear()})` : "Demain";
+      return date.getFullYear() !== today.getFullYear()
+        ? t('calendar.tomorrowYear', { year: String(date.getFullYear()) })
+        : t('calendar.tomorrow');
     }
     
-    const days = ['Dim.', 'Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.'];
-    const months = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-    const year = date.getFullYear();
-    return `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]} ${year}`;
+    return date.toLocaleDateString(dateLocale, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
   };
 
   const formatTime = (date: Date): string => {
@@ -483,13 +491,13 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       <>
         <View style={styles.pickerContainer}>
           <View style={styles.pickerColumnHeader}>
-            <Text style={styles.pickerColumnTitle}>Date</Text>
+            <Text style={styles.pickerColumnTitle}>{t('calendar.date')}</Text>
           </View>
           <View style={styles.pickerColumnHeader}>
-            <Text style={styles.pickerColumnTitle}>Heure</Text>
+            <Text style={styles.pickerColumnTitle}>{t('calendar.hour')}</Text>
           </View>
           <View style={styles.pickerColumnHeader}>
-            <Text style={styles.pickerColumnTitle}>Minutes</Text>
+            <Text style={styles.pickerColumnTitle}>{t('calendar.minutes')}</Text>
           </View>
         </View>
 
@@ -672,9 +680,18 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   if (!visible) return null;
 
   const duration = calculateDuration();
-  const durationText = duration.days > 0 
-    ? `${duration.days} jour${duration.days > 1 ? 's' : ''}${duration.hours > 0 ? ` et ${duration.hours}h` : ''}`
-    : `${duration.hours}h`;
+  const daysCount = parseInt(rentalDays, 10) || 0;
+  const daysLabel = t(
+    daysCount === 1 ? 'vehicleBooking.days_one' : 'vehicleBooking.days_other',
+    { count: String(daysCount || rentalDays) }
+  );
+  const durationText = duration.days > 0
+    ? t(duration.days === 1 ? 'vehicleBooking.days_one' : 'vehicleBooking.days_other', {
+        count: String(duration.days),
+      }) + (duration.hours > 0
+        ? t('vehicleBooking.and') + t('calendar.hoursShort', { count: String(duration.hours) })
+        : '')
+    : t('calendar.hoursShort', { count: String(duration.hours) });
 
   return (
     <View style={styles.overlay}>
@@ -703,7 +720,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
             >
               <Ionicons name="calendar-number-outline" size={18} color={mode === 'days' ? TRAVELER_COLORS.primary : '#666'} />
               <Text style={[styles.modeButtonText, mode === 'days' && styles.modeButtonTextActive]}>
-                Par nombre de jours
+                {t('calendar.byDaysMode')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -712,7 +729,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
             >
               <Ionicons name="time-outline" size={18} color={mode === 'manual' ? TRAVELER_COLORS.primary : '#666'} />
               <Text style={[styles.modeButtonText, mode === 'manual' && styles.modeButtonTextActive]}>
-                Sélection manuelle
+                {t('calendar.manualMode')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -722,7 +739,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
             <>
               {/* Nombre de jours */}
               <View style={styles.daysInputContainer}>
-                <Text style={styles.daysInputLabel}>Nombre de jours de location</Text>
+                <Text style={styles.daysInputLabel}>{t('calendar.rentalDaysLabel')}</Text>
                 <View style={styles.daysInputRow}>
                   <TouchableOpacity
                     style={styles.daysButton}
@@ -762,7 +779,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.daysInputHint}>
-                  {rentalDays === '1' ? '1 jour' : `${rentalDays} jours`}
+                  {daysLabel}
                 </Text>
               </View>
 
@@ -772,10 +789,13 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                   style={[styles.tabButton, styles.tabButtonFull]}
                 >
                   <Text style={styles.tabButtonTextActive}>
-                    Date et heure de début
+                    {t('calendar.startDateTime')}
                   </Text>
                   <Text style={styles.tabButtonSubtextActive}>
-                    {formatDate(tempStartDate)} à {formatTime(tempStartDate)}
+                    {t('calendar.atTime', {
+                      date: formatDate(tempStartDate),
+                      time: formatTime(tempStartDate),
+                    })}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -789,10 +809,13 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                   onPress={() => setActiveTab('start')}
                 >
                   <Text style={[styles.tabButtonText, activeTab === 'start' && styles.tabButtonTextActive]}>
-                    Début
+                    {t('calendar.start')}
                   </Text>
                   <Text style={[styles.tabButtonSubtext, activeTab === 'start' && styles.tabButtonSubtextActive]}>
-                    {formatDate(tempStartDate)} à {formatTime(tempStartDate)}
+                    {t('calendar.atTime', {
+                      date: formatDate(tempStartDate),
+                      time: formatTime(tempStartDate),
+                    })}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -800,10 +823,13 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                   onPress={() => setActiveTab('end')}
                 >
                   <Text style={[styles.tabButtonText, activeTab === 'end' && styles.tabButtonTextActive]}>
-                    Fin
+                    {t('calendar.end')}
                   </Text>
                   <Text style={[styles.tabButtonSubtext, activeTab === 'end' && styles.tabButtonSubtextActive]}>
-                    {formatDate(tempEndDate)} à {formatTime(tempEndDate)}
+                    {t('calendar.atTime', {
+                      date: formatDate(tempEndDate),
+                      time: formatTime(tempEndDate),
+                    })}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -817,9 +843,12 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
               <View style={styles.calculatedEndContainer}>
                 <Ionicons name="information-circle-outline" size={20} color={TRAVELER_COLORS.primary} />
                 <View style={styles.calculatedEndContent}>
-                  <Text style={styles.calculatedEndLabel}>Date et heure de fin (calculée automatiquement)</Text>
+                  <Text style={styles.calculatedEndLabel}>{t('calendar.calculatedEndLabel')}</Text>
                   <Text style={styles.calculatedEndValue}>
-                    {formatDate(tempEndDate)} à {formatTime(tempEndDate)}
+                    {t('calendar.atTime', {
+                      date: formatDate(tempEndDate),
+                      time: formatTime(tempEndDate),
+                    })}
                   </Text>
                 </View>
               </View>
@@ -837,7 +866,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <Text style={styles.confirmButtonText}>
-                  Rechercher pour {durationText}
+                  {t('calendar.searchFor', { duration: durationText })}
                 </Text>
               )}
             </TouchableOpacity>

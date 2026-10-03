@@ -14,15 +14,9 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useMonthlyRentalCandidatures } from '../hooks/useMonthlyRentalCandidatures';
 import type { MonthlyRentalCandidature } from '../types';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type CandidatureWithListing = MonthlyRentalCandidature & { listing_title?: string };
-
-const statusLabel = (s: string) => {
-  if (s === 'sent') return 'Envoyée';
-  if (s === 'viewed') return 'Vue';
-  if (s === 'accepted') return 'Acceptée';
-  return 'Refusée';
-};
 
 const statusColor = (s: string) => {
   if (s === 'sent') return '#f59e0b';
@@ -33,7 +27,16 @@ const statusColor = (s: string) => {
 
 const MonthlyRentalOwnerCandidaturesScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
   const { getByOwnerId, loading } = useMonthlyRentalCandidatures();
+
+  const statusLabel = (s: string) => {
+    if (s === 'sent') return t('monthlyHost.statusSentShort');
+    if (s === 'viewed') return t('monthlyHost.statusViewedShort');
+    if (s === 'accepted') return t('monthlyHost.statusAcceptedShort');
+    return t('monthlyHost.statusRejectedShort');
+  };
   const [candidatures, setCandidatures] = useState<CandidatureWithListing[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -77,10 +80,10 @@ const MonthlyRentalOwnerCandidaturesScreen: React.FC = () => {
       ) : null}
       <Text style={styles.email}>{item.email}</Text>
       <Text style={styles.date}>
-        Demande du {new Date(item.created_at).toLocaleDateString('fr-FR')}
+        {t('monthlyHost.requestDate', { date: new Date(item.created_at).toLocaleDateString(dateLocale) })}
       </Text>
       <View style={styles.voirRow}>
-        <Text style={styles.voirText}>Voir les détails</Text>
+        <Text style={styles.voirText}>{t('monthlyHost.seeDetails')}</Text>
         <Ionicons name="chevron-forward" size={18} color={MONTHLY_RENTAL_COLORS.primary} />
       </View>
     </TouchableOpacity>
@@ -89,9 +92,12 @@ const MonthlyRentalOwnerCandidaturesScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Candidatures</Text>
+        <Text style={styles.headerTitle}>{t('monthlyHost.allCandidaturesTitle')}</Text>
         <Text style={styles.headerSubtitle}>
-          {candidatures.length} dossier{candidatures.length !== 1 ? 's' : ''} au total
+          {t('monthlyHost.allCandidaturesSubtitle', {
+            count: String(candidatures.length),
+            plural: candidatures.length !== 1 ? 's' : '',
+          })}
         </Text>
       </View>
       {loading && candidatures.length === 0 ? (
@@ -114,10 +120,9 @@ const MonthlyRentalOwnerCandidaturesScreen: React.FC = () => {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={56} color="#ccc" />
-              <Text style={styles.emptyTitle}>Aucune candidature</Text>
+              <Text style={styles.emptyTitle}>{t('monthlyHost.candidaturesEmpty')}</Text>
               <Text style={styles.emptySubtitle}>
-                Les dossiers des candidats apparaîtront ici. Acceptez un dossier avant d’organiser
-                une visite.
+                {t('monthlyHost.candidaturesEmptyOwnerDesc')}
               </Text>
             </View>
           }

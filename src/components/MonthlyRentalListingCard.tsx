@@ -4,6 +4,7 @@ import type { MonthlyRentalListing } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { useMonthlyFavorites } from '../hooks/useMonthlyFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
+import { useLanguage } from '../contexts/LanguageContext';
 import MediaThumb from './MediaThumb';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 import {
@@ -34,6 +35,7 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
   variant = 'list',
 }) => {
   const { formatPrice } = useCurrency();
+  const { t } = useLanguage();
   const { requireAuthForFavorites } = useAuthRedirect();
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading, cacheVersion, refreshCache } =
     useMonthlyFavorites();
@@ -51,21 +53,21 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
         setIsFavorited(next);
         await refreshCache();
       } catch (error: any) {
-        Alert.alert('Erreur', error.message || 'Impossible de modifier les favoris');
+        Alert.alert(t('common.error'), error.message || t('monthlyHost.favoritesError'));
       }
     });
   };
 
   const imageUri = coverUri(listing);
-  const typeLabel = 'Bail longue durée';
-  const priceLabel = `${formatPrice(listing.monthly_rent_price)}/mois`;
+  const typeLabel = t('monthly.longTermBail');
+  const priceLabel = `${formatPrice(listing.monthly_rent_price)}${t('monthly.perMonth')}`;
   const location = listing.location?.trim() || undefined;
   const detailBits = [
     listing.surface_m2 ? `${listing.surface_m2} m²` : null,
     listing.number_of_rooms
-      ? `${listing.number_of_rooms} pièce${listing.number_of_rooms > 1 ? 's' : ''}`
+      ? t('monthly.roomsCount', { count: String(listing.number_of_rooms) })
       : null,
-    listing.is_furnished ? 'Meublé' : 'Non meublé',
+    listing.is_furnished ? t('monthly.furnished') : t('monthly.unfurnished'),
   ].filter(Boolean);
   const detailLine = detailBits.length > 0 ? detailBits.join(' · ') : undefined;
 

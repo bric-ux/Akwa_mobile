@@ -17,6 +17,7 @@ import { supabase } from '../services/supabase';
 import { notifyHotelBookingStatusChange } from '../services/hotelBookingNotifications';
 import { HOTEL_COLORS } from '../constants/colors';
 import { useCurrency } from '../hooks/useCurrency';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type BookingRow = {
   id: string;
@@ -35,23 +36,9 @@ type BookingRow = {
   room_name?: string;
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: 'En attente',
-  confirmed: 'Confirmée',
-  cancelled: 'Annulée',
-  completed: 'Terminée',
-};
-
-const PAY_STATUS_LABEL: Record<string, string> = {
-  unpaid: 'Espèces à encaisser',
-  paid: 'Payé',
-  refunded: 'Remboursé',
-  waived: 'Offert',
-};
-
-function formatFr(iso: string) {
+function formatDate(iso: string, locale: string) {
   try {
-    return new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR', {
+    return new Date(iso + 'T12:00:00').toLocaleDateString(locale === 'en' ? 'en-GB' : 'fr-FR', {
       day: 'numeric',
       month: 'short',
     });
@@ -63,7 +50,28 @@ function formatFr(iso: string) {
 export default function HotelOwnerBookingsScreen() {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const { formatPrice } = useCurrency();
+
+  const statusLabel = (s: string) => {
+    const map: Record<string, string> = {
+      pending: t('hotelOwner.statusPending'),
+      confirmed: t('hotelOwner.statusConfirmed'),
+      cancelled: t('hotelOwner.statusCancelled'),
+      completed: t('hotelOwner.statusCompleted'),
+    };
+    return map[s] || s;
+  };
+
+  const payStatusLabel = (s: string) => {
+    const map: Record<string, string> = {
+      unpaid: t('hotelOwner.payUnpaid'),
+      paid: t('hotelOwner.payPaid'),
+      refunded: t('hotelOwner.payRefunded'),
+      waived: t('hotelOwner.payWaived'),
+    };
+    return map[s] || s;
+  };
   const [rows, setRows] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -102,8 +110,8 @@ export default function HotelOwnerBookingsScreen() {
         ((data as any[]) || []).map((b) => ({
           ...b,
           payment_status: b.payment_status || 'unpaid',
-          hotel_establishments: { title: titleById[b.establishment_id] || 'Établissement' },
-          room_name: b.hotel_booking_items?.[0]?.hotel_room_types?.name || 'Chambre',
+            hotel_establishments: { title: titleById[b.establishment_id] || '' },
+          room_name: b.hotel_booking_items?.[0]?.hotel_room_types?.name || '',
         })),
       );
     } catch (e) {
@@ -133,7 +141,7 @@ export default function HotelOwnerBookingsScreen() {
       })
       .eq('id', id);
     if (error) {
-      Alert.alert('Erreur', error.message);
+      Alert.alert(t('common.error'), error.message);
     } else {
       notifyHotelBookingStatusChange(id, status).catch(() => {});
       void load();
@@ -155,7 +163,7 @@ export default function HotelOwnerBookingsScreen() {
               updated_at: new Date().toISOString(),
             } as any)
             .eq('id', id);
-          if (error) Alert.alert('Erreur', error.message);
+          if (error) Alert.alert(t('common.error'), error.message);
           else void load();
         },
       },
@@ -165,7 +173,7 @@ export default function HotelOwnerBookingsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Réservations</Text>
+        <Text style={styles.headerTitle}>{t('hotelOwner.bookings')}</Text>
       </View>
 
       {loading ? (
@@ -188,10 +196,8 @@ export default function HotelOwnerBookingsScreen() {
           ListEmptyComponent={
             <View style={styles.center}>
               <Ionicons name="calendar-outline" size={48} color="#cbd5e1" />
-              <Text style={styles.title}>Aucune réservation</Text>
-              <Text style={styles.text}>
-                Les demandes de réservation de vos chambres apparaîtront ici.
-              </Text>
+              <Text style={styles.title}>{t('hotelOwner.bookingsEmpty')}</Text>
+              <Text style={styles.text}>{t('hotelOwner.bookingsEmptyDesc')}</Text>
             </View>
           }
           renderItem={({ item }) => {
@@ -213,9 +219,11 @@ export default function HotelOwnerBookingsScreen() {
                 <View style={styles.cardTop}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardTitle}>
-                      {item.hotel_establishments?.title || 'Établissement'}
+                      {item.hotel_establishments?.title || t('hotelOwner.establishmentFallback')}
                     </Text>
-                    <Text style={styles.cardRoom}>{item.room_name}</Text>
+                    <Text style={styles.cardRoom}>
+                      {item.room_name || t('hotel.defaultRoom')}
+                    </Text>
                   </View>
                   {item.booking_code ? (
                     <View style={styles.codeBadge}>
@@ -225,8 +233,8 @@ export default function HotelOwnerBookingsScreen() {
                 </View>
 
                 <Text style={styles.cardMeta}>
-                  {formatFr(item.check_in_date)} → {formatFr(item.check_out_date)} ·{' '}
-                  {item.guests_count} pers.
+                  {formatDate(item.check_in_date, language)} → {formatDate(item.check_out_date, language)} ·{' '}
+                  {t('hotelOwner.persons', { count: String(item.guests_count) })}
                 </Text>
 
                 <View style={styles.badges}>
@@ -241,7 +249,7 @@ export default function HotelOwnerBookingsScreen() {
                     ]}
                   >
                     <Text style={styles.badgeText}>
-                      {STATUS_LABEL[item.status] || item.status}
+                      {statusLabel(item.status)}
                     </Text>
                   </View>
                   <View style={[styles.badge, unpaid ? styles.badgeCash : styles.badgePaid]}>
@@ -256,8 +264,7 @@ export default function HotelOwnerBookingsScreen() {
                         { color: unpaid ? '#92400e' : '#166534' },
                       ]}
                     >
-                      {PAY_STATUS_LABEL[item.payment_status || 'unpaid'] ||
-                        item.payment_status}
+                      {payStatusLabel(item.payment_status || 'unpaid')}
                     </Text>
                   </View>
                 </View>
@@ -270,7 +277,7 @@ export default function HotelOwnerBookingsScreen() {
                 {item.host_net_amount != null &&
                 item.host_net_amount !== item.total_price ? (
                   <Text style={styles.cardNetHint}>
-                    Vous recevez · voyageur {formatPrice(item.total_price)}
+                    {t('hotelOwner.youReceive', { amount: formatPrice(item.total_price) })}
                   </Text>
                 ) : null}
 
@@ -286,13 +293,13 @@ export default function HotelOwnerBookingsScreen() {
                       style={styles.confirmBtn}
                       onPress={() => void updateStatus(item.id, 'confirmed')}
                     >
-                      <Text style={styles.confirmText}>Confirmer</Text>
+                      <Text style={styles.confirmText}>{t('hotelOwner.confirm')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.cancelBtn}
                       onPress={() => void updateStatus(item.id, 'cancelled')}
                     >
-                      <Text style={styles.cancelText}>Refuser</Text>
+                      <Text style={styles.cancelText}>{t('hotelOwner.refuse')}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : null}
@@ -303,11 +310,11 @@ export default function HotelOwnerBookingsScreen() {
                     onPress={() => markPaid(item.id)}
                   >
                     <Ionicons name="cash" size={16} color="#fff" />
-                    <Text style={styles.cashBtnText}>Encaisser à l’arrivée</Text>
+                    <Text style={styles.cashBtnText}>{t('hotelOwner.collectCash')}</Text>
                   </TouchableOpacity>
                 ) : null}
 
-                <Text style={styles.detailLink}>Voir facture →</Text>
+                <Text style={styles.detailLink}>{t('hotelOwner.viewInvoice')}</Text>
               </TouchableOpacity>
             );
           }}

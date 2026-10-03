@@ -20,6 +20,7 @@ import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { notifyHotelEstablishmentSubmitted } from '../services/moderationNotifications';
 import { HOTEL_COLORS } from '../constants/colors';
+import { useLanguage } from '../contexts/LanguageContext';
 import type { RootStackParamList } from '../types';
 import PropertyLocationPicker, {
   type PropertyLocationPickerValue,
@@ -48,20 +49,13 @@ type DraftRoom = {
 const emptyDraftRoom = (): DraftRoom => ({
   key: `r-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   room_category: 'standard',
-  name: 'Chambre Standard',
+  name: '',
   price_per_night: '',
   inventory_count: '1',
   max_guests: '2',
   cleaning_fee: '0',
   imageUris: [],
 });
-
-const ESTABLISHMENT_TYPES = [
-  { value: 'hotel', label: 'Hôtel' },
-  { value: 'guesthouse', label: 'Maison d’hôtes' },
-  { value: 'residence', label: 'Résidence' },
-  { value: 'aparthotel', label: 'Aparthotel' },
-] as const;
 
 const MAX_PHOTOS = 20;
 const MAX_ROOM_PHOTOS = 10;
@@ -96,6 +90,15 @@ export default function AddHotelEstablishmentScreen() {
   const establishmentId = route.params?.establishmentId;
   const isEdit = !!establishmentId;
   const { user } = useAuth();
+  const { t } = useLanguage();
+
+  const establishmentTypes = [
+    { value: 'hotel', label: t('hotelEstablishment.typeHotel') },
+    { value: 'guesthouse', label: t('hotelEstablishment.typeGuesthouse') },
+    { value: 'residence', label: t('hotelEstablishment.typeResidence') },
+    { value: 'aparthotel', label: t('hotelEstablishment.typeAparthotel') },
+  ];
+
   const [title, setTitle] = useState('');
   const [establishmentType, setEstablishmentType] = useState<string>('hotel');
   const [address, setAddress] = useState('');
@@ -134,7 +137,7 @@ export default function AddHotelEstablishmentScreen() {
         .maybeSingle();
       if (error) throw error;
       if (!data) {
-        Alert.alert('Introuvable', 'Établissement introuvable.');
+        Alert.alert(t('hotelEstablishment.notFoundTitle'), t('hotelEstablishment.notFound'));
         navigation.goBack();
         return;
       }
@@ -180,7 +183,7 @@ export default function AddHotelEstablishmentScreen() {
         });
       }
     } catch (e) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Chargement impossible');
+      Alert.alert(t('common.error'), e instanceof Error ? e.message : t('hotelEstablishment.loadError'));
     } finally {
       setLoading(false);
     }
@@ -193,12 +196,12 @@ export default function AddHotelEstablishmentScreen() {
   const pickImages = async () => {
     const { status: perm } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm !== 'granted') {
-      Alert.alert('Permission requise', 'Autorisez l’accès à vos photos.');
+      Alert.alert(t('hotelEstablishment.permissionTitle'), t('hotelEstablishment.permissionDesc'));
       return;
     }
     const limit = MAX_PHOTOS - imageUris.length;
     if (limit <= 0) {
-      Alert.alert('Limite', `Vous pouvez ajouter jusqu’à ${MAX_PHOTOS} photos.`);
+      Alert.alert(t('hotelEstablishment.photoLimitTitle'), t('hotelEstablishment.photoLimit', { count: String(MAX_PHOTOS) }));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -221,12 +224,12 @@ export default function AddHotelEstablishmentScreen() {
     if (!room) return;
     const { status: perm } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm !== 'granted') {
-      Alert.alert('Permission requise', 'Autorisez l’accès à vos photos.');
+      Alert.alert(t('hotelEstablishment.permissionTitle'), t('hotelEstablishment.permissionDesc'));
       return;
     }
     const limit = MAX_ROOM_PHOTOS - room.imageUris.length;
     if (limit <= 0) {
-      Alert.alert('Limite', `Max. ${MAX_ROOM_PHOTOS} photos par type de chambre.`);
+      Alert.alert(t('hotelEstablishment.photoLimitTitle'), t('hotelEstablishment.roomPhotoLimit', { count: String(MAX_ROOM_PHOTOS) }));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -307,7 +310,7 @@ export default function AddHotelEstablishmentScreen() {
       return;
     }
     if (!title.trim()) {
-      Alert.alert('Champ requis', 'Indiquez le nom de l’établissement.');
+      Alert.alert(t('hotelEstablishment.fieldRequired'), t('hotelEstablishment.nameRequired'));
       return;
     }
     if (!asDraft) {
@@ -316,7 +319,7 @@ export default function AddHotelEstablishmentScreen() {
         return r.name.trim() && (!Number.isFinite(price) || price <= 0);
       });
       if (incomplete) {
-        Alert.alert('Chambres', 'Chaque chambre ajoutée doit avoir un prix / nuit valide.');
+        Alert.alert(t('hotelEstablishment.roomTypes'), t('hotelEstablishment.roomsPriceRequired'));
         return;
       }
     }
@@ -389,14 +392,17 @@ export default function AddHotelEstablishmentScreen() {
             .eq('user_id', user.id)
             .maybeSingle();
           const hostName =
-            [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Hôtelier';
+            [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || t('hotelEstablishment.hotelierFallback');
           notifyHotelEstablishmentSubmitted(establishmentId, title.trim(), hostName).catch(() => {});
           setStatus('pending');
-          Alert.alert('Soumis', 'Établissement envoyé pour validation.');
+          Alert.alert(t('hotelEstablishment.submittedTitle'), t('hotelEstablishment.submitted'));
         } else {
-          Alert.alert(asDraft ? 'Brouillon enregistré' : 'Enregistré', asDraft
-            ? 'Vous pourrez continuer plus tard depuis votre espace hôtel.'
-            : 'Établissement mis à jour.');
+          Alert.alert(
+            asDraft ? t('hotelEstablishment.draftSavedTitle') : t('hotelEstablishment.savedTitle'),
+            asDraft
+              ? t('hotelEstablishment.draftSavedDesc')
+              : t('hotelEstablishment.updated'),
+          );
         }
         goHotelSpace();
         return;
@@ -427,7 +433,7 @@ export default function AddHotelEstablishmentScreen() {
       }
 
       if (asDraft) {
-        Alert.alert('Brouillon enregistré', 'Continuez quand vous voulez depuis votre espace hôtel.');
+        Alert.alert(t('hotelEstablishment.draftSavedTitle'), t('hotelEstablishment.draftSavedDesc'));
         goHotelSpace();
         return;
       }
@@ -458,12 +464,12 @@ export default function AddHotelEstablishmentScreen() {
         .eq('user_id', user.id)
         .maybeSingle();
       const hostName =
-        [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Hôtelier';
+        [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || t('hotelEstablishment.hotelierFallback');
       notifyHotelEstablishmentSubmitted(created.id, title.trim(), hostName).catch(() => {});
-      Alert.alert('Soumis', 'Votre établissement a été envoyé pour validation.');
+      Alert.alert(t('hotelEstablishment.submittedTitle'), t('hotelEstablishment.submitted'));
       goHotelSpace();
     } catch (e) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Enregistrement impossible');
+      Alert.alert(t('common.error'), e instanceof Error ? e.message : t('hotelEstablishment.saveError'));
     } finally {
       setSaving(false);
     }
@@ -494,21 +500,21 @@ export default function AddHotelEstablishmentScreen() {
           .eq('user_id', user.id)
           .maybeSingle();
         const hostName =
-          [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Hôtelier';
+          [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || t('hotelEstablishment.hotelierFallback');
         notifyHotelEstablishmentSubmitted(establishmentId, title.trim(), hostName).catch(() => {});
       }
       Alert.alert(
-        'OK',
+        t('common.ok'),
         next === 'pending'
-          ? 'Soumis pour validation. Un admin doit approuver avant affichage public.'
+          ? t('hotelEstablishment.submittedPendingMsg')
           : next === 'active'
-            ? 'Établissement publié.'
+            ? t('hotelEstablishment.publishedMsg')
             : next === 'hidden'
-              ? 'Établissement masqué.'
-              : 'Repassé en brouillon.',
+              ? t('hotelEstablishment.hiddenMsg')
+              : t('hotelEstablishment.backToDraftMsg'),
       );
     } catch (e) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Action impossible');
+      Alert.alert(t('common.error'), e instanceof Error ? e.message : t('hotelEstablishment.actionImpossible'));
     } finally {
       setSaving(false);
     }
@@ -516,10 +522,10 @@ export default function AddHotelEstablishmentScreen() {
 
   const handleDelete = () => {
     if (!user || !establishmentId) return;
-    Alert.alert('Supprimer', 'Supprimer définitivement cet établissement ?', [
-      { text: 'Annuler', style: 'cancel' },
+    Alert.alert(t('common.delete'), t('hotelEstablishment.deleteConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Supprimer',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           setSaving(true);
@@ -532,7 +538,7 @@ export default function AddHotelEstablishmentScreen() {
             if (error) throw error;
             navigation.goBack();
           } catch (e) {
-            Alert.alert('Erreur', e instanceof Error ? e.message : 'Suppression impossible');
+            Alert.alert(t('common.error'), e instanceof Error ? e.message : t('hotelEstablishment.deleteError'));
           } finally {
             setSaving(false);
           }
@@ -556,7 +562,7 @@ export default function AddHotelEstablishmentScreen() {
           <Ionicons name="arrow-back" size={22} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {isEdit ? 'Modifier l’établissement' : 'Nouvel établissement'}
+          {isEdit ? t('hotelEstablishment.editTitle') : t('hotelEstablishment.createTitle')}
         </Text>
         <View style={{ width: 40 }} />
       </View>
@@ -571,41 +577,44 @@ export default function AddHotelEstablishmentScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
-          <Text style={styles.eyebrow}>Hôtel</Text>
+          <Text style={styles.eyebrow}>{t('hotelEstablishment.eyebrow')}</Text>
           <Text style={styles.title}>
-            {isEdit ? 'Modifier votre établissement' : 'Créer votre établissement'}
+            {isEdit
+              ? t('hotelEstablishment.editHeading')
+              : t('hotelEstablishment.createHeading')}
           </Text>
 
-          <Text style={styles.label}>Nom de l’établissement *</Text>
+          <Text style={styles.label}>{t('hotelEstablishment.name')}</Text>
           <TextInput
             style={styles.input}
             value={title}
             onChangeText={setTitle}
-            placeholder="Ex. Hôtel Palm Abidjan"
+            placeholder={t('hotelEstablishment.estNamePlaceholder')}
             placeholderTextColor="#94a3b8"
           />
 
-          <Text style={styles.label}>Type</Text>
+          <Text style={styles.label}>{t('hotelEstablishment.type')}</Text>
           <View style={styles.chips}>
-            {ESTABLISHMENT_TYPES.map((t) => (
+            {establishmentTypes.map((typ) => (
               <TouchableOpacity
-                key={t.value}
-                onPress={() => setEstablishmentType(t.value)}
-                style={[styles.chip, establishmentType === t.value && styles.chipActive]}
+                key={typ.value}
+                onPress={() => setEstablishmentType(typ.value)}
+                style={[styles.chip, establishmentType === typ.value && styles.chipActive]}
               >
                 <Text
-                  style={[styles.chipText, establishmentType === t.value && styles.chipTextActive]}
+                  style={[
+                    styles.chipText,
+                    establishmentType === typ.value && styles.chipTextActive,
+                  ]}
                 >
-                  {t.label}
+                  {typ.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <Text style={styles.label}>Localisation *</Text>
-          <Text style={styles.hint}>
-            Recherchez une ville, commune ou quartier avec autocomplétion.
-          </Text>
+          <Text style={styles.label}>{t('hotelEstablishment.location')}</Text>
+          <Text style={styles.hint}>{t('hotelEstablishment.locationHint')}</Text>
           <CitySearchInputModal
             value={address}
             onChange={(result) => {
@@ -644,22 +653,24 @@ export default function AddHotelEstablishmentScreen() {
                 matchedLocation: matched,
               });
             }}
-            placeholder="Rechercher ville, commune ou quartier…"
+            placeholder={t('hotelEstablishment.citySearchPlaceholder')}
           />
 
-          <Text style={[styles.label, { marginTop: 16 }]}>Complément d’adresse</Text>
+          <Text style={[styles.label, { marginTop: 16 }]}>
+            {t('hotelEstablishment.addressDetails')}
+          </Text>
           <TextInput
             style={styles.input}
             value={addressDetails}
             onChangeText={setAddressDetails}
-            placeholder="Rue, immeuble, repère…"
+            placeholder={t('hotelEstablishment.addressDetailsPlaceholder')}
             placeholderTextColor="#94a3b8"
           />
 
-          <Text style={[styles.label, { marginTop: 16 }]}>Étoiles (optionnel)</Text>
+          <Text style={[styles.label, { marginTop: 16 }]}>{t('hotelEstablishment.stars')}</Text>
           <View style={styles.chips}>
             {['', '1', '2', '3', '4', '5'].map((v) => {
-              const label = v === '' ? 'Aucune' : `${v}★`;
+              const label = v === '' ? t('hotelEstablishment.starsNone') : `${v}★`;
               const selected = starRating === v;
               return (
                 <TouchableOpacity
@@ -673,10 +684,8 @@ export default function AddHotelEstablishmentScreen() {
             })}
           </View>
 
-          <Text style={styles.label}>Position sur la carte</Text>
-          <Text style={styles.hint}>
-            Affinez avec le GPS ou en déplaçant le pin après la sélection.
-          </Text>
+          <Text style={styles.label}>{t('hotelEstablishment.mapPosition')}</Text>
+          <Text style={styles.hint}>{t('hotelEstablishment.mapHint')}</Text>
           <PropertyLocationPicker
             value={preciseLocation}
             onChange={(next) => {
@@ -691,21 +700,23 @@ export default function AddHotelEstablishmentScreen() {
             height={220}
           />
 
-          <Text style={[styles.label, { marginTop: 16 }]}>Description</Text>
+          <Text style={[styles.label, { marginTop: 16 }]}>
+            {t('hotelEstablishment.description')}
+          </Text>
           <TextInput
             style={[styles.input, styles.textarea]}
             value={description}
             onChangeText={setDescription}
-            placeholder="Présentez votre établissement…"
+            placeholder={t('hotelEstablishment.descriptionPlaceholder')}
             placeholderTextColor="#94a3b8"
             multiline
             textAlignVertical="top"
           />
 
-          <Text style={styles.label}>Horaires d’arrivée / départ</Text>
+          <Text style={styles.label}>{t('hotelEstablishment.checkTimes')}</Text>
           <View style={styles.row}>
             <View style={styles.half}>
-              <Text style={styles.subLabel}>Arrivée (HH:MM)</Text>
+              <Text style={styles.subLabel}>{t('hotelEstablishment.checkIn')}</Text>
               <TextInput
                 style={styles.input}
                 value={checkInTime}
@@ -716,7 +727,7 @@ export default function AddHotelEstablishmentScreen() {
               />
             </View>
             <View style={styles.half}>
-              <Text style={styles.subLabel}>Départ (HH:MM)</Text>
+              <Text style={styles.subLabel}>{t('hotelEstablishment.checkOut')}</Text>
               <TextInput
                 style={styles.input}
                 value={checkOutTime}
@@ -728,7 +739,7 @@ export default function AddHotelEstablishmentScreen() {
             </View>
           </View>
 
-          <Text style={styles.label}>Équipements inclus</Text>
+          <Text style={styles.label}>{t('hotelEstablishment.amenities')}</Text>
           <View style={styles.chips}>
             {HOTEL_AMENITY_OPTIONS.map((a) => {
               const on = amenities.includes(a.value);
@@ -744,7 +755,7 @@ export default function AddHotelEstablishmentScreen() {
             })}
           </View>
 
-          <Text style={styles.label}>Langues parlées</Text>
+          <Text style={styles.label}>{t('hotelEstablishment.languages')}</Text>
           <View style={styles.chips}>
             {HOTEL_LANGUAGE_OPTIONS.map((l) => {
               const on = spokenLanguages.includes(l.value);
@@ -766,8 +777,8 @@ export default function AddHotelEstablishmentScreen() {
             activeOpacity={0.8}
           >
             <View style={{ flex: 1 }}>
-              <Text style={styles.toggleTitle}>Animaux autorisés</Text>
-              <Text style={styles.hint}>Indiquez si les animaux de compagnie sont acceptés.</Text>
+              <Text style={styles.toggleTitle}>{t('hotelEstablishment.petsAllowed')}</Text>
+              <Text style={styles.hint}>{t('hotelEstablishment.petsHint')}</Text>
             </View>
             <Ionicons
               name={petsAllowed ? 'checkbox' : 'square-outline'}
@@ -776,7 +787,7 @@ export default function AddHotelEstablishmentScreen() {
             />
           </TouchableOpacity>
 
-          <Text style={styles.label}>Politique d’annulation</Text>
+          <Text style={styles.label}>{t('hotelEstablishment.cancellation')}</Text>
           <View style={styles.chips}>
             {HOTEL_CANCELLATION_OPTIONS.map((c) => {
               const on = cancellationPolicy === c.value;
@@ -795,19 +806,21 @@ export default function AddHotelEstablishmentScreen() {
             {HOTEL_CANCELLATION_OPTIONS.find((c) => c.value === cancellationPolicy)?.hint}
           </Text>
 
-          <Text style={styles.label}>Règlement / conditions</Text>
+          <Text style={styles.label}>{t('hotelEstablishment.houseRules')}</Text>
           <TextInput
             style={[styles.input, styles.textarea]}
             value={houseRules}
             onChangeText={setHouseRules}
-            placeholder="Ex. : pièce d’identité à l’arrivée, silence après 22h…"
+            placeholder={t('hotelEstablishment.rulesPlaceholder')}
             placeholderTextColor="#94a3b8"
             multiline
             textAlignVertical="top"
           />
 
-          <Text style={styles.label}>Photos de l’établissement</Text>
-          <Text style={styles.hint}>Ajoutez vos photos depuis la galerie (max. {MAX_PHOTOS}).</Text>
+          <Text style={styles.label}>{t('hotelEstablishment.photos')}</Text>
+          <Text style={styles.hint}>
+            {t('hotelEstablishment.photosHint', { count: String(MAX_PHOTOS) })}
+          </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosRow}>
             {imageUris.map((uri, index) => (
               <View key={`${uri}-${index}`} style={styles.photoWrap}>
@@ -820,19 +833,17 @@ export default function AddHotelEstablishmentScreen() {
             {imageUris.length < MAX_PHOTOS ? (
               <TouchableOpacity style={styles.photoAdd} onPress={pickImages}>
                 <Ionicons name="camera-outline" size={28} color="#64748b" />
-                <Text style={styles.photoAddText}>Ajouter</Text>
+                <Text style={styles.photoAddText}>{t('hotelEstablishment.add')}</Text>
               </TouchableOpacity>
             ) : null}
           </ScrollView>
 
-          <Text style={styles.label}>Types de chambres</Text>
-          <Text style={styles.hint}>
-            Ajoutez vos chambres ici (photos, nom, prix, capacité). Vous pourrez les modifier ensuite.
-          </Text>
+          <Text style={styles.label}>{t('hotelEstablishment.roomTypes')}</Text>
+          <Text style={styles.hint}>{t('hotelEstablishment.roomTypesHint')}</Text>
           {draftRooms.map((room, index) => (
             <View key={room.key} style={styles.roomCard}>
               <View style={styles.roomCardHeader}>
-                <Text style={styles.roomCardTitle}>Chambre {index + 1}</Text>
+                <Text style={styles.roomCardTitle}>{t('hotelEstablishment.roomN', { n: String(index + 1) })}</Text>
                 <TouchableOpacity
                   onPress={() => setDraftRooms((prev) => prev.filter((r) => r.key !== room.key))}
                 >
@@ -872,7 +883,7 @@ export default function AddHotelEstablishmentScreen() {
                 onChangeText={(v) =>
                   setDraftRooms((prev) => prev.map((r) => (r.key === room.key ? { ...r, name: v } : r)))
                 }
-                placeholder="Nom du type"
+                placeholder={t('hotelEstablishment.roomTypeNamePlaceholder')}
                 placeholderTextColor="#94a3b8"
               />
               <View style={styles.roomRow}>
@@ -884,7 +895,7 @@ export default function AddHotelEstablishmentScreen() {
                       prev.map((r) => (r.key === room.key ? { ...r, price_per_night: v } : r)),
                     )
                   }
-                  placeholder="Prix / nuit"
+                  placeholder={t('hotelEstablishment.pricePlaceholder')}
                   placeholderTextColor="#94a3b8"
                   keyboardType="number-pad"
                 />
@@ -896,7 +907,7 @@ export default function AddHotelEstablishmentScreen() {
                       prev.map((r) => (r.key === room.key ? { ...r, inventory_count: v } : r)),
                     )
                   }
-                  placeholder="Nb unités"
+                  placeholder={t('hotelEstablishment.unitsPlaceholder')}
                   placeholderTextColor="#94a3b8"
                   keyboardType="number-pad"
                 />
@@ -910,7 +921,7 @@ export default function AddHotelEstablishmentScreen() {
                       prev.map((r) => (r.key === room.key ? { ...r, max_guests: v } : r)),
                     )
                   }
-                  placeholder="Max voyageurs"
+                  placeholder={t('hotelEstablishment.maxGuestsPlaceholder')}
                   placeholderTextColor="#94a3b8"
                   keyboardType="number-pad"
                 />
@@ -922,13 +933,13 @@ export default function AddHotelEstablishmentScreen() {
                       prev.map((r) => (r.key === room.key ? { ...r, cleaning_fee: v } : r)),
                     )
                   }
-                  placeholder="Ménage"
+                  placeholder={t('hotelEstablishment.cleaningPlaceholder')}
                   placeholderTextColor="#94a3b8"
                   keyboardType="number-pad"
                 />
               </View>
               <Text style={[styles.hint, { marginTop: 4 }]}>
-                Photos de la chambre (max. {MAX_ROOM_PHOTOS})
+                {t('hotelEstablishment.roomPhotosDraft', { count: String(MAX_ROOM_PHOTOS) })}
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosRow}>
                 {room.imageUris.map((uri, imgIndex) => (
@@ -948,7 +959,7 @@ export default function AddHotelEstablishmentScreen() {
                     onPress={() => void pickRoomImages(room.key)}
                   >
                     <Ionicons name="camera-outline" size={28} color="#64748b" />
-                    <Text style={styles.photoAddText}>Photos</Text>
+                    <Text style={styles.photoAddText}>{t('hotelEstablishment.photosBtn')}</Text>
                   </TouchableOpacity>
                 ) : null}
               </ScrollView>
@@ -956,10 +967,15 @@ export default function AddHotelEstablishmentScreen() {
           ))}
           <TouchableOpacity
             style={styles.addRoomBtn}
-            onPress={() => setDraftRooms((prev) => [...prev, emptyDraftRoom()])}
+            onPress={() =>
+              setDraftRooms((prev) => [
+                ...prev,
+                { ...emptyDraftRoom(), name: t('hotelEstablishment.defaultStandard') },
+              ])
+            }
           >
             <Ionicons name="add-circle-outline" size={20} color={HOTEL_COLORS.primary} />
-            <Text style={styles.addRoomText}>Ajouter un type de chambre</Text>
+            <Text style={styles.addRoomText}>{t('hotelEstablishment.addRoomType')}</Text>
           </TouchableOpacity>
 
           {!isEdit || status === 'draft' || status === 'rejected' || status === 'hidden' ? (
@@ -968,7 +984,7 @@ export default function AddHotelEstablishmentScreen() {
               onPress={() => void handleSave(true)}
               disabled={saving}
             >
-              <Text style={styles.draftBtnText}>Enregistrer un brouillon</Text>
+              <Text style={styles.draftBtnText}>{t('hotelEstablishment.saveDraft')}</Text>
             </TouchableOpacity>
           ) : null}
 
@@ -983,27 +999,27 @@ export default function AddHotelEstablishmentScreen() {
               <Text style={styles.submitText}>
                 {isEdit
                   ? status === 'draft' || status === 'rejected' || status === 'hidden'
-                    ? 'Soumettre pour validation'
-                    : 'Enregistrer'
-                  : 'Soumettre pour validation'}
+                    ? t('hotelEstablishment.submit')
+                    : t('common.save')
+                  : t('hotelEstablishment.submit')}
               </Text>
             )}
           </TouchableOpacity>
 
           {isEdit && establishmentId ? (
             <View style={styles.manageBlock}>
-              <Text style={styles.manageTitle}>Gestion</Text>
+              <Text style={styles.manageTitle}>{t('hotelEstablishment.management')}</Text>
               <Text style={styles.statusLine}>
-                Statut :{' '}
+                {t('hotelEstablishment.statusPrefix')}{' '}
                 {status === 'active'
-                  ? 'Publié'
+                  ? t('hotelEstablishment.statusPublished')
                   : status === 'pending'
-                    ? 'En attente de validation'
+                    ? t('hotelEstablishment.statusPending')
                     : status === 'rejected'
-                      ? 'Refusé par l’admin'
+                      ? t('hotelEstablishment.statusRejected')
                       : status === 'hidden'
-                        ? 'Masqué'
-                        : 'Brouillon'}
+                        ? t('hotelEstablishment.statusHidden')
+                        : t('hotelEstablishment.statusDraft')}
               </Text>
 
               <TouchableOpacity
@@ -1016,7 +1032,7 @@ export default function AddHotelEstablishmentScreen() {
                 }
               >
                 <Ionicons name="bed-outline" size={18} color={HOTEL_COLORS.primary} />
-                <Text style={styles.secondaryBtnText}>Types de chambres</Text>
+                <Text style={styles.secondaryBtnText}>{t('hotelEstablishment.roomTypes')}</Text>
               </TouchableOpacity>
 
               {status === 'active' ? (
@@ -1025,12 +1041,12 @@ export default function AddHotelEstablishmentScreen() {
                   onPress={() => void setVisibility('hidden')}
                   disabled={saving}
                 >
-                  <Text style={styles.hideBtnText}>Masquer</Text>
+                  <Text style={styles.hideBtnText}>{t('hotelEstablishment.hide')}</Text>
                 </TouchableOpacity>
               ) : status === 'pending' ? (
                 <View style={styles.pendingHint}>
                   <Text style={styles.pendingHintText}>
-                    En cours de validation admin. L’annonce sera visible après approbation.
+                    {t('hotelEstablishment.pendingHint')}
                   </Text>
                 </View>
               ) : (
@@ -1041,14 +1057,14 @@ export default function AddHotelEstablishmentScreen() {
                 >
                   <Text style={styles.publishBtnText}>
                     {status === 'rejected' || status === 'hidden'
-                      ? 'Resoumettre pour validation'
-                      : 'Soumettre pour validation'}
+                      ? t('hotelEstablishment.resubmit')
+                      : t('hotelEstablishment.submit')}
                   </Text>
                 </TouchableOpacity>
               )}
 
               <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} disabled={saving}>
-                <Text style={styles.deleteBtnText}>Supprimer l’établissement</Text>
+                <Text style={styles.deleteBtnText}>{t('common.delete')}</Text>
               </TouchableOpacity>
             </View>
           ) : null}

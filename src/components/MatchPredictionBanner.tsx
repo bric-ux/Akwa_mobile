@@ -3,13 +3,18 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { isMatchPredictionHomeBannerVisible } from '../constants/matchPrediction';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const MatchPredictionBanner: React.FC = () => {
   const navigation = useNavigation();
+  const { t } = useLanguage();
 
   if (!isMatchPredictionHomeBannerVisible()) {
     return null;
   }
+
+  const match = '🇩🇪 vs 🇨🇮';
+  const titleParts = t('contest.predictTitle', { match }).split(match);
 
   return (
     <TouchableOpacity
@@ -24,9 +29,11 @@ const MatchPredictionBanner: React.FC = () => {
           <Text style={styles.iconEmoji}>🏆</Text>
         </View>
         <View style={styles.content}>
-          <Text style={styles.kicker}>Concours · Coupe du Monde 2026</Text>
+          <Text style={styles.kicker}>{t('contest.kicker')}</Text>
           <Text style={styles.title} numberOfLines={2}>
-            Pronostique <Text style={styles.highlight}>🇩🇪 vs 🇨🇮</Text> · 1 nuit à gagner 🎁
+            {titleParts[0]}
+            <Text style={styles.highlight}>{match}</Text>
+            {titleParts[1] ?? ''}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />

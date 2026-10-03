@@ -54,14 +54,14 @@ const KEYBOX_WHATSAPP_URL =
 const EXPLORE_CARD_WIDTH = EXPLORE_SHELF_CARD_WIDTH;
 
 // Données du carrousel en dehors du composant pour éviter re-création à chaque rendu
-const CAROUSEL_IMAGES = [
-  { id: '1', source: require('../../assets/images/pont.jpg'), title: 'Pont Ado', description: 'Pont emblématique d\'Abidjan, symbole de modernité' },
-  { id: '2', source: require('../../assets/images/basilique-yamoussoukro.jpg'), title: 'Basilique Notre-Dame de la Paix', description: 'Plus grande basilique au monde, chef-d\'œuvre de Yamoussoukro' },
-  { id: '3', source: require('../../assets/images/elephants.jpg'), title: 'Parc National de la Comoé', description: 'Réserve de biosphère UNESCO, sanctuaire de la faune africaine' },
-  { id: '4', source: require('../../assets/images/culture.jpg'), title: 'Masques Baoulé', description: 'Patrimoine culturel immatériel de l\'UNESCO' },
-  { id: '5', source: require('../../assets/images/abidjan.jpg'), title: 'Abidjan by Night', description: 'La perle des lagunes illuminée' },
-  { id: '6', source: require('../../assets/images/plages-assinie.jpg'), title: 'Côte d\'Assinie', description: 'Plages paradisiaques et villages de pêcheurs traditionnels' },
-];
+const CAROUSEL_IMAGE_DEFS = [
+  { id: '1', source: require('../../assets/images/pont.jpg'), titleKey: 'home.carousel.pont.title', descKey: 'home.carousel.pont.desc' },
+  { id: '2', source: require('../../assets/images/basilique-yamoussoukro.jpg'), titleKey: 'home.carousel.basilique.title', descKey: 'home.carousel.basilique.desc' },
+  { id: '3', source: require('../../assets/images/elephants.jpg'), titleKey: 'home.carousel.comoe.title', descKey: 'home.carousel.comoe.desc' },
+  { id: '4', source: require('../../assets/images/culture.jpg'), titleKey: 'home.carousel.masks.title', descKey: 'home.carousel.masks.desc' },
+  { id: '5', source: require('../../assets/images/abidjan.jpg'), titleKey: 'home.carousel.abidjan.title', descKey: 'home.carousel.abidjan.desc' },
+  { id: '6', source: require('../../assets/images/plages-assinie.jpg'), titleKey: 'home.carousel.assinie.title', descKey: 'home.carousel.assinie.desc' },
+] as const;
 
 /** Espace sous la liste pour le FAB Teddy (remplace l’ancien bouton +) */
 const TEDDY_FAB_SCROLL_PADDING = 72;
@@ -265,6 +265,17 @@ const HomeScreen: React.FC = () => {
     );
   }, [exploreFailureKind, isOffline, t, refreshExploreCityHome]);
 
+  const carouselImages = useMemo(
+    () =>
+      CAROUSEL_IMAGE_DEFS.map((item) => ({
+        id: item.id,
+        source: item.source,
+        title: t(item.titleKey),
+        description: t(item.descKey),
+      })),
+    [t],
+  );
+
   const listHeader = useMemo(() => (
     <>
       <HeroSection onSearchPress={handleSearchPress} />
@@ -276,7 +287,7 @@ const HomeScreen: React.FC = () => {
           <HomeWeatherChip />
           <ZipDailyCard />
           <ImageCarousel
-            images={CAROUSEL_IMAGES}
+            images={carouselImages}
             onImagePress={() => {}}
           />
         </>
@@ -294,7 +305,7 @@ const HomeScreen: React.FC = () => {
         {exploreErrorCard}
       </View>
     </>
-  ), [handleSearchPress, showDeferredHeaderContent, exploreErrorCard, homeShelfRefreshKey, t]);
+  ), [handleSearchPress, showDeferredHeaderContent, exploreErrorCard, homeShelfRefreshKey, carouselImages, t]);
 
   const listFooter = useMemo(
     () => (

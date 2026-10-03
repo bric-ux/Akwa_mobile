@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { TRAVELER_COLORS } from '../constants/colors';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface BottomNavigationBarProps {
   activeScreen?: 'explorer' | 'recherche' | 'messages' | 'favoris' | 'compte';
@@ -12,6 +13,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
   activeScreen = 'recherche' 
 }) => {
   const navigation = useNavigation();
+  const { t } = useLanguage();
 
   return (
     <View style={styles.bottomNavigation}>
@@ -43,15 +45,15 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
           if (isInVehicleSection) {
             // Demander confirmation avant de quitter la section véhicule
             Alert.alert(
-              'Retour à la recherche',
-              'Voulez-vous vraiment retourner sur la recherche de résidences meublées ?',
+              t('nav.backToSearch'),
+              t('nav.backToSearchDesc'),
               [
                 {
-                  text: 'Annuler',
+                  text: t('common.cancel'),
                   style: 'cancel',
                 },
                 {
-                  text: 'Oui',
+                  text: t('common.yes'),
                   onPress: () => {
                     // Naviguer vers HomeTab (Explorer pour résidences meublées)
                     (navigation as any).navigate('Home', { screen: 'HomeTab' });
@@ -74,7 +76,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
           styles.navLabel,
           activeScreen === 'explorer' && styles.navLabelActive
         ]}>
-          Explorer
+          {t('nav.explore')}
         </Text>
       </TouchableOpacity>
       
@@ -94,7 +96,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
           styles.navLabel,
           activeScreen === 'recherche' && styles.navLabelActive
         ]}>
-          Recherche
+          {t('nav.search')}
         </Text>
       </TouchableOpacity>
       
@@ -114,7 +116,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
           styles.navLabel,
           activeScreen === 'messages' && styles.navLabelActive
         ]}>
-          Messages
+          {t('nav.messages')}
         </Text>
       </TouchableOpacity>
       
@@ -134,7 +136,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
           styles.navLabel,
           activeScreen === 'favoris' && styles.navLabelActive
         ]}>
-          Favoris
+          {t('nav.favorites')}
         </Text>
       </TouchableOpacity>
       
@@ -166,7 +168,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
           styles.navLabel,
           activeScreen === 'compte' && styles.navLabelActive
         ]}>
-          Mon compte
+          {t('nav.myAccount')}
         </Text>
       </TouchableOpacity>
     </View>
@@ -179,32 +181,23 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingBottom: 20,
-    paddingHorizontal: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 10,
-    zIndex: 20,
+    backgroundColor: '#fff',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e5e5e5',
+    paddingBottom: 8,
+    paddingTop: 8,
+    zIndex: 100,
   },
   navItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
+    gap: 2,
   },
   navLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#999',
-    marginTop: 4,
     fontWeight: '500',
   },
   navLabelActive: {
@@ -214,4 +207,3 @@ const styles = StyleSheet.create({
 });
 
 export default BottomNavigationBar;
-

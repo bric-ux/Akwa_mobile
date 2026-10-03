@@ -15,6 +15,7 @@ import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { HOTEL_COLORS } from '../constants/colors';
 import MediaThumb from '../components/MediaThumb';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type HotelRow = {
   id: string;
@@ -23,13 +24,6 @@ type HotelRow = {
   status: string;
   address: string | null;
   images?: string[] | null;
-};
-
-const ESTABLISHMENT_TYPE_LABEL: Record<string, string> = {
-  hotel: 'Hôtel',
-  guesthouse: 'Maison d’hôtes',
-  residence: 'Résidence',
-  aparthotel: 'Aparthotel',
 };
 
 function coverUri(item: HotelRow): string {
@@ -41,10 +35,21 @@ function coverUri(item: HotelRow): string {
 
 export default function MyHotelEstablishmentsScreen() {
   const navigation = useNavigation<any>();
+  const { t } = useLanguage();
   const { user } = useAuth();
   const [rows, setRows] = useState<HotelRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const typeLabel = (type: string) => {
+    const map: Record<string, string> = {
+      hotel: t('hotelEstablishment.typeHotel'),
+      guesthouse: t('hotelEstablishment.typeGuesthouse'),
+      residence: t('hotelEstablishment.typeResidence'),
+      aparthotel: t('hotelEstablishment.typeAparthotel'),
+    };
+    return map[type] || type;
+  };
 
   const load = useCallback(async () => {
     if (!user) {
@@ -76,17 +81,17 @@ export default function MyHotelEstablishmentsScreen() {
   );
 
   const statusLabel = (s: string) => {
-    if (s === 'active') return 'Publié';
-    if (s === 'pending') return 'En validation';
-    if (s === 'rejected') return 'Refusé';
-    if (s === 'hidden') return 'Masqué';
-    return 'Brouillon';
+    if (s === 'active') return t('hotelOwner.statusPublished');
+    if (s === 'pending') return t('hotelOwner.statusValidating');
+    if (s === 'rejected') return t('hotelOwner.statusRejected');
+    if (s === 'hidden') return t('hotelOwner.statusHidden');
+    return t('hotelOwner.statusDraft');
   };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Mes établissements</Text>
+        <Text style={styles.headerTitle}>{t('hotelOwner.myEstablishments')}</Text>
         <TouchableOpacity
           style={styles.addBtn}
           onPress={() => navigation.navigate('AddHotelEstablishment')}
@@ -117,15 +122,13 @@ export default function MyHotelEstablishmentsScreen() {
           ListEmptyComponent={
             <View style={styles.center}>
               <Ionicons name="business-outline" size={48} color="#cbd5e1" />
-              <Text style={styles.emptyTitle}>Aucun établissement</Text>
-              <Text style={styles.emptyText}>
-                Créez votre premier hôtel ou maison d’hôtes pour commencer.
-              </Text>
+              <Text style={styles.emptyTitle}>{t('hotelOwner.emptyTitle')}</Text>
+              <Text style={styles.emptyText}>{t('hotelOwner.emptyDesc')}</Text>
               <TouchableOpacity
                 style={styles.cta}
                 onPress={() => navigation.navigate('AddHotelEstablishment')}
               >
-                <Text style={styles.ctaText}>Ajouter un établissement</Text>
+                <Text style={styles.ctaText}>{t('hotelOwner.addEstablishment')}</Text>
               </TouchableOpacity>
             </View>
           }
@@ -150,7 +153,7 @@ export default function MyHotelEstablishmentsScreen() {
                   {item.title}
                 </Text>
                 <Text style={styles.cardMeta}>
-                  {ESTABLISHMENT_TYPE_LABEL[item.establishment_type] || item.establishment_type}
+                  {typeLabel(item.establishment_type)}
                   {' · '}
                   {statusLabel(item.status)}
                 </Text>

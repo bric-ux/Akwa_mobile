@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const SCREEN_W = Dimensions.get('window').width;
 const CAROUSEL_SIDE_MARGIN = HOME_EXPLORE_HORIZONTAL_GUTTER;
@@ -30,6 +31,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
   images,
   onImagePress,
 }) => {
+  const { t } = useLanguage();
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -60,7 +62,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Explorez les trésors de la Côte d'Ivoire</Text>
+      <Text style={styles.sectionTitle}>{t('home.carouselTitle')}</Text>
 
       <View style={styles.carouselContainer}>
         <ScrollView

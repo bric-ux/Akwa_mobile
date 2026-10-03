@@ -585,13 +585,13 @@ const HostBookingsScreen: React.FC = () => {
             {(financialOverview.commissionDueByBookingId[item.id] ?? 0) > 0 && (
               <View style={styles.overviewChipDanger}>
                 <Ionicons name="alert-circle" size={14} color="#991b1b" />
-                <Text style={styles.overviewChipDangerText}>Commission à régler</Text>
+                <Text style={styles.overviewChipDangerText}>{t('hostBookings.commissionDue')}</Text>
               </View>
             )}
             {(financialOverview.penaltiesByBookingId[item.id]?.length ?? 0) > 0 && (
               <View style={styles.overviewChipWarn}>
                 <Ionicons name="warning" size={14} color="#92400e" />
-                <Text style={styles.overviewChipWarnText}>Pénalité</Text>
+                <Text style={styles.overviewChipWarnText}>{t('hostBookings.penalty')}</Text>
               </View>
             )}
           </View>
@@ -637,22 +637,22 @@ const HostBookingsScreen: React.FC = () => {
             const due = financialOverview.commissionDueByBookingId[item.id];
             if (due != null && due > 0) {
               Alert.alert(
-                'Commission plateforme',
-                'Confirmez avoir bien reçu le paiement du voyageur avant de régler la commission Akwahome. Que souhaitez-vous faire ?',
+                t('hostBookings.commissionPlatform'),
+                t('hostBookings.commissionPlatformDesc'),
                 [
                   {
-                    text: 'Annuler',
+                    text: t('common.cancel'),
                     style: 'cancel',
                   },
                   {
-                    text: 'Voir détails réservation',
+                    text: t('hostBookings.viewBookingDetails'),
                     onPress: () => {
                       setSelectedBookingForDetails(item);
                       setBookingDetailsModalVisible(true);
                     },
                   },
                   {
-                    text: 'Régler la commission',
+                    text: t('hostBookings.payCommission'),
                     onPress: () =>
                       navigation.navigate('Penalties' as never, {
                         initialTab: 'commissions',
@@ -667,7 +667,7 @@ const HostBookingsScreen: React.FC = () => {
           }}
         >
           <Ionicons name="receipt-outline" size={16} color="#2E7D32" />
-          <Text style={styles.actionButtonText}>Voir détails</Text>
+          <Text style={styles.actionButtonText}>{t('hostBookings.viewDetailsShort')}</Text>
         </TouchableOpacity>
 
         {/* Bouton Contacter le voyageur - disponible pour toutes les réservations sauf annulées */}
@@ -692,7 +692,7 @@ const HostBookingsScreen: React.FC = () => {
               }}
             >
               <Ionicons name="chatbubble-outline" size={16} color="#e67e22" />
-              <Text style={[styles.actionButtonText, styles.contactButtonText]}>Contacter</Text>
+              <Text style={[styles.actionButtonText, styles.contactButtonText]}>{t('bookings.contact')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.profileButton]}
@@ -702,7 +702,7 @@ const HostBookingsScreen: React.FC = () => {
               }}
             >
               <Ionicons name="person-outline" size={16} color="#2563eb" />
-              <Text style={[styles.actionButtonText, styles.profileButtonText]}>Voir profil</Text>
+              <Text style={[styles.actionButtonText, styles.profileButtonText]}>{t('hostBookings.viewProfile')}</Text>
             </TouchableOpacity>
           </>
         )}
@@ -766,7 +766,7 @@ const HostBookingsScreen: React.FC = () => {
             }}
           >
             <Ionicons name="close-outline" size={16} color="#e74c3c" />
-            <Text style={[styles.actionButtonText, styles.cancelActionButtonText]}>Annuler</Text>
+            <Text style={[styles.actionButtonText, styles.cancelActionButtonText]}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -785,7 +785,7 @@ const HostBookingsScreen: React.FC = () => {
             }}
           >
             <Ionicons name="star" size={16} color="#FFA500" />
-            <Text style={styles.reviewButtonText}>Évaluer l'invité</Text>
+            <Text style={styles.reviewButtonText}>{t('hostBookings.evaluateGuest')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -991,7 +991,7 @@ const HostBookingsScreen: React.FC = () => {
               }}
             >
               <Ionicons name="arrow-back" size={20} color="#e67e22" />
-              <Text style={styles.backToPropertiesText}>Retour aux propriétés</Text>
+              <Text style={styles.backToPropertiesText}>{t('hostBookings.backToProperties')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -1028,12 +1028,12 @@ const HostBookingsScreen: React.FC = () => {
               contentContainerStyle={styles.filtersScrollContent}
             >
               {[
-                { key: 'all', label: 'Toutes' },
-                { key: 'in_progress', label: 'En cours' },
-                { key: 'pending', label: 'En attente' },
-                { key: 'confirmed', label: 'Confirmées' },
-                { key: 'cancelled', label: 'Annulées' },
-                { key: 'completed', label: 'Terminées' },
+                { key: 'all', label: t('bookings.all') },
+                { key: 'in_progress', label: t('hostBookings.inProgress') },
+                { key: 'pending', label: t('hostBookings.pending') },
+                { key: 'confirmed', label: t('hostBookings.confirmed') },
+                { key: 'cancelled', label: t('hostBookings.cancelled') },
+                { key: 'completed', label: t('hostBookings.completed') },
               ].map((filter) => (
                 <TouchableOpacity
                   key={filter.key}

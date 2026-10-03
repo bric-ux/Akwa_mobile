@@ -14,9 +14,11 @@ import { useAuth } from '../services/AuthContext';
 import { useMonthlyRentalListings } from '../hooks/useMonthlyRentalListings';
 import { useMonthlyRentalCandidatures } from '../hooks/useMonthlyRentalCandidatures';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const MonthlyRentalStatsScreen: React.FC = () => {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const { getMyListings } = useMonthlyRentalListings(user?.id);
   const { getByOwnerId } = useMonthlyRentalCandidatures();
 
@@ -83,7 +85,7 @@ const MonthlyRentalStatsScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Statistiques</Text>
+          <Text style={styles.headerTitle}>{t('monthlyHost.statsTitle')}</Text>
         </View>
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={MONTHLY_RENTAL_COLORS.primary} />
@@ -95,8 +97,8 @@ const MonthlyRentalStatsScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Statistiques</Text>
-        <Text style={styles.headerSubtitle}>Vues et candidatures sur vos logements</Text>
+        <Text style={styles.headerTitle}>{t('monthlyHost.statsTitle')}</Text>
+        <Text style={styles.headerSubtitle}>{t('monthlyHost.statsSubtitle')}</Text>
       </View>
       <ScrollView
         style={styles.scroll}
@@ -109,30 +111,30 @@ const MonthlyRentalStatsScreen: React.FC = () => {
           />
         }
       >
-        <Text style={styles.sectionTitle}>Vues sur les annonces</Text>
+        <Text style={styles.sectionTitle}>{t('monthlyHost.statsViewsSection')}</Text>
         <View style={styles.row}>
           <StatCard
             icon="eye"
-            label="Total vues"
+            label={t('monthlyHost.statsTotalViews')}
             value={totalViews}
           />
           <StatCard
             icon="business"
-            label="Logements"
+            label={t('monthlyHost.statsListings')}
             value={totalListings}
           />
         </View>
 
-        <Text style={styles.sectionTitle}>Candidatures</Text>
+        <Text style={styles.sectionTitle}>{t('monthlyHost.statsCandidaturesSection')}</Text>
         <View style={styles.row}>
           <StatCard
             icon="people"
-            label="Total"
+            label={t('monthlyHost.statsTotal')}
             value={candidaturesTotal}
           />
           <StatCard
             icon="mail-unread"
-            label="En attente"
+            label={t('monthlyHost.statsPending')}
             value={candidaturesSent}
             color="#f59e0b"
           />
@@ -140,19 +142,19 @@ const MonthlyRentalStatsScreen: React.FC = () => {
         <View style={styles.row}>
           <StatCard
             icon="eye"
-            label="Vues par vous"
+            label={t('monthlyHost.statsViewedByYou')}
             value={candidaturesViewed}
             color="#1976d2"
           />
           <StatCard
             icon="checkmark-circle"
-            label="Acceptées"
+            label={t('monthlyHost.statsAccepted')}
             value={candidaturesAccepted}
             color="#2E7D32"
           />
           <StatCard
             icon="close-circle"
-            label="Refusées"
+            label={t('monthlyHost.statsRejected')}
             value={candidaturesRejected}
             color="#c62828"
           />

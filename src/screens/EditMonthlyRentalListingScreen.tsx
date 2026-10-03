@@ -30,17 +30,19 @@ import {
 } from '../constants/monthlyRentalDocuments';
 import { MONTHLY_FURNITURE_OPTIONS } from '../constants/monthlyFurniture';
 import { MONTHLY_FURNISHED_OPTIONS } from '../constants/monthlyFurnished';
+import { useLanguage } from '../contexts/LanguageContext';
 
-const PROPERTY_TYPES = [
-  { value: 'apartment', label: 'Appartement' },
-  { value: 'house', label: 'Maison' },
-  { value: 'villa', label: 'Villa' },
-  { value: 'studio', label: 'Studio' },
-];
 
 type RouteParams = { listingId: string };
 
 const EditMonthlyRentalListingScreen: React.FC = () => {
+  const { t } = useLanguage();
+  const PROPERTY_TYPES = [
+    { value: 'apartment', label: t('monthlyHost.typeApartment') },
+    { value: 'house', label: t('monthlyHost.typeHouse') },
+    { value: 'villa', label: t('monthlyHost.typeVilla') },
+    { value: 'studio', label: t('monthlyHost.typeStudio') },
+  ];
   const navigation = useNavigation();
   const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
   const listingId = route.params?.listingId;
@@ -177,12 +179,12 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
   const pickImages = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Nous avons besoin de l\'accès à vos photos.');
+      Alert.alert(t('monthlyHost.permissionRequired'), t('monthlyHost.permissionPhotos'));
       return;
     }
     const limit = 30 - imageUris.length;
     if (limit <= 0) {
-      Alert.alert('Limite', 'Vous pouvez ajouter jusqu\'à 30 photos.');
+      Alert.alert(t('monthlyHost.photoLimit'), t('monthlyHost.photoLimitDesc'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -208,23 +210,23 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
     const baths = parseInt(form.bathrooms, 10);
     const rent = parseInt(form.monthly_rent_price, 10);
     if (!form.title.trim()) {
-      Alert.alert('Champ requis', 'Saisissez un titre.');
+      Alert.alert(t('monthlyHost.fieldRequired'), t('monthlyHost.titleRequired'));
       return;
     }
     if (!form.location.trim()) {
-      Alert.alert('Champ requis', 'Saisissez une localisation.');
+      Alert.alert(t('monthlyHost.fieldRequired'), t('monthlyHost.locationRequired'));
       return;
     }
     if (isNaN(surface) || surface < 1) {
-      Alert.alert('Surface invalide', 'Surface habitable au moins 1 m².');
+      Alert.alert(t('monthlyHost.surfaceInvalid'), t('monthlyHost.surfaceInvalidDesc'));
       return;
     }
     if (isNaN(rooms) || rooms < 1 || isNaN(beds) || beds < 1 || isNaN(baths) || baths < 1) {
-      Alert.alert('Champs invalides', 'Pièces, chambres et salles de bain au moins 1.');
+      Alert.alert(t('monthlyHost.fieldsInvalid'), t('monthlyHost.roomsInvalidDesc'));
       return;
     }
     if (isNaN(rent) || rent < 10000) {
-      Alert.alert('Loyer invalide', 'Loyer mensuel au moins 10 000 FCFA.');
+      Alert.alert(t('monthlyHost.rentInvalid'), t('monthlyHost.rentInvalidDesc'));
       return;
     }
 
@@ -239,7 +241,7 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
         }
       } catch (e) {
         setUploadingImages(false);
-        Alert.alert('Erreur', 'Impossible d\'envoyer certaines photos. Réessayez.');
+        Alert.alert(t('common.error'), t('monthlyHost.photosError'));
         return;
       }
       setUploadingImages(false);
@@ -275,11 +277,11 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
     });
 
     if (result.success) {
-      Alert.alert('Succès', 'Logement mis à jour.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+      Alert.alert(t('common.success'), t('monthlyHost.updateSuccess'), [
+        { text: t('common.ok'), onPress: () => navigation.goBack() },
       ]);
     } else {
-      Alert.alert('Erreur', result.error || 'Impossible de modifier.');
+      Alert.alert(t('common.error'), result.error || t('monthlyHost.updateError'));
     }
   };
 
@@ -290,7 +292,7 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Modifier le logement</Text>
+          <Text style={styles.headerTitle}>{t('monthlyHost.editTitle')}</Text>
         </View>
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#2E7D32" />
@@ -305,7 +307,7 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Modifier le logement</Text>
+        <Text style={styles.headerTitle}>{t('monthlyHost.editTitle')}</Text>
       </View>
       <KeyboardAvoidingView
         style={styles.flex}
@@ -319,17 +321,17 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
           keyboardDismissMode="on-drag"
         >
           <View style={styles.block}>
-            <Text style={styles.label}>Titre *</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelTitle')}</Text>
             <TextInput
               style={styles.input}
               value={form.title}
               onChangeText={(v) => set('title', v)}
-              placeholder="Ex: Appartement 3 pièces centre-ville"
+              placeholder={t('monthlyHost.placeholderTitle')}
               placeholderTextColor="#999"
             />
           </View>
           <View style={styles.block}>
-            <Text style={styles.label}>Localisation *</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelLocation')}</Text>
             <CitySearchInputModal
               value={typeof form.location === 'string' ? form.location : ''}
               onChange={async (result) => {
@@ -385,13 +387,13 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
                   });
                 }
               }}
-              placeholder="Ville, commune ou quartier..."
+              placeholder={t('monthlyHost.placeholderLocation')}
             />
           </View>
           <View style={styles.block}>
-            <Text style={styles.label}>Position précise</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelPrecisePosition')}</Text>
             <Text style={styles.hint}>
-              Affinez avec le GPS ou en déplaçant le pin sur la carte.
+              {t('monthlyHost.hintPreciseLocation')}
             </Text>
             <PropertyLocationPicker
               value={preciseLocation}
@@ -408,17 +410,17 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
             />
           </View>
           <View style={styles.block}>
-            <Text style={styles.label}>Type de bien</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelPropertyType')}</Text>
             <TouchableOpacity style={styles.select} onPress={() => setShowPropertyTypeModal(true)}>
               <Text style={styles.selectText}>
-                {PROPERTY_TYPES.find((t) => t.value === form.property_type)?.label || 'Choisir'}
+                {PROPERTY_TYPES.find((pt) => pt.value === form.property_type)?.label || t('monthlyHost.choose')}
               </Text>
               <Ionicons name="chevron-down" size={20} color="#666" />
             </TouchableOpacity>
           </View>
           <View style={styles.row}>
             <View style={[styles.block, styles.half]}>
-              <Text style={styles.label}>Surface (m²) *</Text>
+              <Text style={styles.label}>{t('monthlyHost.labelSurface')}</Text>
               <TextInput
                 style={styles.input}
                 value={form.surface_m2}
@@ -429,7 +431,7 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
               />
             </View>
             <View style={[styles.block, styles.half]}>
-              <Text style={styles.label}>Nombre de pièces *</Text>
+              <Text style={styles.label}>{t('monthlyHost.labelRooms')}</Text>
               <TextInput
                 style={styles.input}
                 value={form.number_of_rooms}
@@ -442,7 +444,7 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
           </View>
           <View style={styles.row}>
             <View style={[styles.block, styles.half]}>
-              <Text style={styles.label}>Chambres *</Text>
+              <Text style={styles.label}>{t('monthlyHost.labelBedrooms')}</Text>
               <TextInput
                 style={styles.input}
                 value={form.bedrooms}
@@ -453,7 +455,7 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
               />
             </View>
             <View style={[styles.block, styles.half]}>
-              <Text style={styles.label}>Salles de bain *</Text>
+              <Text style={styles.label}>{t('monthlyHost.labelBathrooms')}</Text>
               <TextInput
                 style={styles.input}
                 value={form.bathrooms}
@@ -466,12 +468,12 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
           </View>
           <View style={styles.row}>
             <View style={[styles.block, styles.half]}>
-              <Text style={styles.label}>Toilettes</Text>
+              <Text style={styles.label}>{t('monthlyHost.labelToilets')}</Text>
               <TextInput
                 style={styles.input}
                 value={form.toilets}
                 onChangeText={(v) => set('toilets', v)}
-                placeholder="WC"
+                placeholder={t('monthlyHost.placeholderToilets')}
                 keyboardType="numeric"
                 placeholderTextColor="#999"
               />
@@ -479,10 +481,9 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
             <View style={[styles.block, styles.half]} />
           </View>
           <View style={styles.block}>
-            <Text style={styles.label}>Type de location</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelRentalType')}</Text>
             <Text style={styles.helpText}>
-              Choisissez si le logement est loué meublé ou nu. Les deux options sont visibles pour
-              comparer avant de valider.
+              {t('monthlyHost.hintFurnished')}
             </Text>
             {MONTHLY_FURNISHED_OPTIONS.map((option) => {
               const selected = form.is_furnished === option.value;
@@ -513,9 +514,9 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
           </View>
           {form.is_furnished ? (
             <View style={styles.block}>
-              <Text style={styles.label}>Mobilier & équipements inclus</Text>
+              <Text style={styles.label}>{t('monthlyHost.labelFurnitureAmenities')}</Text>
               <Text style={styles.helpText}>
-                Indiquez ce qui est fourni avec le logement.
+                {t('monthlyHost.hintFurniture')}
               </Text>
               <View style={styles.furnitureWrap}>
                 {MONTHLY_FURNITURE_OPTIONS.map((item) => {
@@ -537,8 +538,8 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
             </View>
           ) : null}
           <View style={styles.block}>
-            <Text style={styles.label}>Photos</Text>
-            <Text style={styles.helpText}>Ajoutez ou modifiez les photos du logement (max. 30).</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelPhotos')}</Text>
+            <Text style={styles.helpText}>{t('monthlyHost.hintPhotosEdit')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosRow}>
               {imageUris.map((uri, index) => (
                 <View key={index} style={styles.photoWrap}>
@@ -551,25 +552,25 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
               {imageUris.length < 30 && (
                 <TouchableOpacity style={styles.photoAdd} onPress={pickImages}>
                   <Ionicons name="add" size={32} color="#666" />
-                  <Text style={styles.photoAddText}>Ajouter</Text>
+                  <Text style={styles.photoAddText}>{t('monthly.add')}</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
           </View>
           <View style={styles.block}>
-            <Text style={styles.label}>Description</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelDescription')}</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={form.description}
               onChangeText={(v) => set('description', v)}
-              placeholder="Décrivez le logement..."
+              placeholder={t('monthlyHost.placeholderDescription')}
               placeholderTextColor="#999"
               multiline
               numberOfLines={3}
             />
           </View>
           <View style={styles.block}>
-            <Text style={styles.label}>Loyer mensuel (FCFA) *</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelRent')}</Text>
             <TextInput
               style={styles.input}
               value={form.monthly_rent_price}
@@ -580,29 +581,29 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
             />
           </View>
           <View style={styles.block}>
-            <Text style={styles.label}>Mois de caution</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelDepositMonths')}</Text>
             <TextInput
               style={styles.input}
               value={form.deposit_months}
               onChangeText={(v) => set('deposit_months', v)}
-              placeholder="Ex. 2"
+              placeholder={t('monthlyHost.placeholderDeposit')}
               keyboardType="numeric"
               placeholderTextColor="#999"
             />
           </View>
           <View style={styles.block}>
-            <Text style={styles.label}>Mois d'avance</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelAdvanceMonths')}</Text>
             <TextInput
               style={styles.input}
               value={form.advance_months}
               onChangeText={(v) => set('advance_months', v)}
-              placeholder="Ex. 1"
+              placeholder={t('monthlyHost.placeholderAdvance')}
               keyboardType="numeric"
               placeholderTextColor="#999"
             />
           </View>
           <View style={styles.block}>
-            <Text style={styles.label}>Durée minimale (mois)</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelMinDuration')}</Text>
             <TextInput
               style={styles.input}
               value={form.minimum_duration_months}
@@ -613,7 +614,7 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
             />
           </View>
           <View style={[styles.block, styles.switchRow]}>
-            <Text style={styles.label}>Charges comprises</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelChargesIncluded')}</Text>
             <Switch
               value={form.charges_included}
               onValueChange={(v) => set('charges_included', v)}
@@ -622,21 +623,21 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
             />
           </View>
           <View style={styles.block}>
-            <Text style={styles.label}>Adresse / accès</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelAddress')}</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={form.address_details}
               onChangeText={(v) => set('address_details', v)}
-              placeholder="Étage, digicode..."
+              placeholder={t('monthlyHost.placeholderAddress')}
               placeholderTextColor="#999"
               multiline
               numberOfLines={2}
             />
           </View>
           <View style={styles.block}>
-            <Text style={styles.label}>Documents demandés aux candidats</Text>
+            <Text style={styles.label}>{t('monthlyHost.labelRequiredDocs')}</Text>
             <Text style={styles.hint}>
-              Sélectionnez les pièces que le candidat devra joindre avant de postuler.
+              {t('monthlyHost.hintDocs')}
             </Text>
             <View style={styles.docChips}>
               {MONTHLY_RENTAL_DOCUMENT_OPTIONS.map((doc) => {
@@ -669,7 +670,7 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
             {loading || uploadingImages ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitText}>Enregistrer les modifications</Text>
+              <Text style={styles.submitText}>{t('monthlyHost.saveChanges')}</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -678,21 +679,21 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
       {showPropertyTypeModal && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Type de bien</Text>
-            {PROPERTY_TYPES.map((t) => (
+            <Text style={styles.modalTitle}>{t('monthlyHost.labelPropertyType')}</Text>
+            {PROPERTY_TYPES.map((pt) => (
               <TouchableOpacity
-                key={t.value}
+                key={pt.value}
                 style={styles.modalItem}
                 onPress={() => {
-                  set('property_type', t.value);
+                  set('property_type', pt.value);
                   setShowPropertyTypeModal(false);
                 }}
               >
-                <Text style={styles.modalItemText}>{t.label}</Text>
+                <Text style={styles.modalItemText}>{pt.label}</Text>
               </TouchableOpacity>
             ))}
             <TouchableOpacity style={styles.modalCancel} onPress={() => setShowPropertyTypeModal(false)}>
-              <Text style={styles.modalCancelText}>Annuler</Text>
+              <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
           </View>
         </View>

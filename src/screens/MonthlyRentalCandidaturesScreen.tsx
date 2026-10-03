@@ -24,17 +24,9 @@ import {
 } from '../constants/monthlyRentalDocuments';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import SimpleMessageModal from '../components/SimpleMessageModal';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type RouteParams = { listingId: string };
-
-const STATUS_LABEL: Record<string, string> = {
-  sent: 'Dossier envoyé',
-  viewed: 'Vu',
-  accepted: 'Dossier accepté',
-  rejected: 'Refusé',
-  visit_authorized: 'Visite autorisée',
-  docs_requested: 'Documents demandés',
-};
 
 const STATUS_COLOR: Record<string, string> = {
   sent: '#f59e0b',
@@ -47,8 +39,22 @@ const STATUS_COLOR: Record<string, string> = {
 
 const MonthlyRentalCandidaturesScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
   const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
   const listingId = route.params?.listingId;
+
+  const statusLabel = (status: string) => {
+    const map: Record<string, string> = {
+      sent: t('monthlyHost.hostStatusSent'),
+      viewed: t('monthlyHost.hostStatusViewed'),
+      accepted: t('monthlyHost.hostStatusAccepted'),
+      rejected: t('monthlyHost.hostStatusRejected'),
+      visit_authorized: t('monthlyHost.hostStatusVisitAuthorized'),
+      docs_requested: t('monthlyHost.hostStatusDocsRequested'),
+    };
+    return map[status] || status;
+  };
   const {
     getByListingId,
     acceptCandidature,
@@ -96,29 +102,29 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
   };
 
   const handleAccept = (c: MonthlyRentalCandidature) => {
-    Alert.alert('Accepter le dossier', `Accepter le dossier de ${c.full_name} ?`, [
-      { text: 'Annuler', style: 'cancel' },
+    Alert.alert(t('monthlyHost.acceptTitle'), t('monthlyHost.acceptConfirm', { name: c.full_name }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Accepter',
+        text: t('monthlyHost.accept'),
         onPress: async () => {
           const r = await acceptCandidature(c.id);
           if (r.success) load();
-          else Alert.alert('Erreur', r.error);
+          else Alert.alert(t('common.error'), r.error);
         },
       },
     ]);
   };
 
   const handleReject = (c: MonthlyRentalCandidature) => {
-    Alert.alert('Refuser le dossier', `Refuser le dossier de ${c.full_name} ?`, [
-      { text: 'Annuler', style: 'cancel' },
+    Alert.alert(t('monthlyHost.rejectTitle'), t('monthlyHost.rejectConfirm', { name: c.full_name }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Refuser',
+        text: t('monthlyHost.reject'),
         style: 'destructive',
         onPress: async () => {
           const r = await rejectCandidature(c.id);
           if (r.success) load();
-          else Alert.alert('Erreur', r.error);
+          else Alert.alert(t('common.error'), r.error);
         },
       },
     ]);
@@ -126,17 +132,17 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
 
   const handleDelete = (c: MonthlyRentalCandidature) => {
     Alert.alert(
-      'Supprimer la demande',
-      `Supprimer définitivement la demande de ${c.full_name} ? Cette action est irréversible.`,
+      t('monthlyHost.deleteRequestTitle'),
+      t('monthlyHost.deleteRequestConfirm', { name: c.full_name }),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Supprimer',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             const r = await deleteCandidature(c.id);
             if (r.success) load();
-            else Alert.alert('Erreur', r.error);
+            else Alert.alert(t('common.error'), r.error);
           },
         },
       ],
@@ -144,16 +150,16 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
   };
 
   const handleAuthorizeVisit = (c: MonthlyRentalCandidature) => {
-    Alert.alert('Autoriser une visite', `Autoriser ${c.full_name} à visiter le logement ?`, [
-      { text: 'Annuler', style: 'cancel' },
+    Alert.alert(t('monthlyHost.authorizeTitle'), t('monthlyHost.authorizeConfirm', { name: c.full_name }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Autoriser',
+        text: t('monthlyHost.authorizeVisit'),
         onPress: async () => {
           const r = await authorizeVisit(c.id);
           if (r.success) {
-            Alert.alert('Visite autorisée', 'Le candidat peut organiser la visite via la messagerie.');
+            Alert.alert(t('monthlyHost.authorizeSuccess'), t('monthlyHost.authorizeSuccessDesc'));
             load();
-          } else Alert.alert('Erreur', r.error);
+          } else Alert.alert(t('common.error'), r.error);
         },
       },
     ]);
@@ -166,15 +172,15 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
 
   const confirmDocs = async () => {
     if (!docsTarget || selectedDocs.length === 0) {
-      Alert.alert('Sélection', 'Choisissez au moins un document.');
+      Alert.alert(t('monthlyHost.selection'), t('monthlyHost.docsSelectRequired'));
       return;
     }
     const r = await requestDocuments(docsTarget.id, selectedDocs);
     if (r.success) {
       setDocsTarget(null);
-      Alert.alert('Demande envoyée', 'Le candidat pourra déposer les documents.');
+      Alert.alert(t('monthlyHost.docsRequestSent'), t('monthlyHost.docsRequestSentDesc'));
       load();
-    } else Alert.alert('Erreur', r.error);
+    } else Alert.alert(t('common.error'), r.error);
   };
 
   const isOpen = (s: string) =>
@@ -186,7 +192,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
         <Text style={styles.name}>{item.full_name}</Text>
         <View style={[styles.badge, { backgroundColor: (STATUS_COLOR[item.status] || '#999') + '20' }]}>
           <Text style={[styles.badgeText, { color: STATUS_COLOR[item.status] || '#666' }]}>
-            {STATUS_LABEL[item.status] || item.status}
+            {statusLabel(item.status)}
           </Text>
         </View>
       </View>
@@ -199,7 +205,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
       ) : null}
       {Array.isArray(item.application_documents) && item.application_documents.length > 0 ? (
         <View style={styles.docs}>
-          <Text style={styles.docsTitle}>Documents joints</Text>
+          <Text style={styles.docsTitle}>{t('monthlyHost.attachedDocs')}</Text>
           {item.application_documents.map((doc) => (
             <TouchableOpacity
               key={`${doc.type}-${doc.url}`}
@@ -217,21 +223,21 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
       ) : null}
       {Array.isArray(item.requested_documents) && item.requested_documents.length > 0 ? (
         <Text style={styles.requestedHint}>
-          Docs demandés : {item.requested_documents.map(monthlyRentalDocumentLabel).join(', ')}
+          {t('monthlyHost.requestedDocs', { list: item.requested_documents.map(monthlyRentalDocumentLabel).join(', ') })}
         </Text>
       ) : null}
       {(item.desired_move_in_date || item.duration_months) && (
         <View style={styles.meta}>
           {item.desired_move_in_date && (
-            <Text style={styles.metaText}>Entrée souhaitée : {item.desired_move_in_date}</Text>
+            <Text style={styles.metaText}>{t('monthlyHost.desiredEntry', { date: item.desired_move_in_date })}</Text>
           )}
           {item.duration_months != null && (
-            <Text style={styles.metaText}>Durée : {item.duration_months} mois</Text>
+            <Text style={styles.metaText}>{t('monthlyHost.duration', { count: String(item.duration_months) })}</Text>
           )}
         </View>
       )}
       <Text style={styles.date}>
-        Candidature du {new Date(item.created_at).toLocaleDateString('fr-FR')}
+        {t('monthlyHost.applicationDate', { date: new Date(item.created_at).toLocaleDateString(dateLocale) })}
       </Text>
       <TouchableOpacity
         style={styles.btnMessage}
@@ -239,31 +245,31 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
         activeOpacity={0.85}
       >
         <Ionicons name="chatbubble-outline" size={18} color={MONTHLY_RENTAL_COLORS.primary} />
-        <Text style={styles.btnMessageText}>Répondre / écrire</Text>
+        <Text style={styles.btnMessageText}>{t('monthlyHost.reply')}</Text>
       </TouchableOpacity>
       {isOpen(item.status) ? (
         <View style={styles.actionsCol}>
           <TouchableOpacity style={styles.btnSecondary} onPress={() => handleAuthorizeVisit(item)}>
             <Ionicons name="calendar-outline" size={18} color={MONTHLY_RENTAL_COLORS.primary} />
-            <Text style={styles.btnSecondaryText}>Autoriser une visite</Text>
+            <Text style={styles.btnSecondaryText}>{t('monthlyHost.authorizeVisit')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.btnSecondary} onPress={() => openDocsModal(item)}>
             <Ionicons name="document-attach-outline" size={18} color={MONTHLY_RENTAL_COLORS.primary} />
-            <Text style={styles.btnSecondaryText}>Demander documents</Text>
+            <Text style={styles.btnSecondaryText}>{t('monthlyHost.requestDocs')}</Text>
           </TouchableOpacity>
           <View style={styles.actions}>
             <TouchableOpacity style={styles.btnAccept} onPress={() => handleAccept(item)}>
               <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-              <Text style={styles.btnAcceptText}>Accepter</Text>
+              <Text style={styles.btnAcceptText}>{t('monthlyHost.accept')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.btnReject} onPress={() => handleReject(item)}>
               <Ionicons name="close-circle-outline" size={20} color="#c62828" />
-              <Text style={styles.btnRejectText}>Refuser</Text>
+              <Text style={styles.btnRejectText}>{t('monthlyHost.reject')}</Text>
             </TouchableOpacity>
           </View>
           <TouchableOpacity style={styles.btnDelete} onPress={() => handleDelete(item)}>
             <Ionicons name="trash-outline" size={18} color="#b91c1c" />
-            <Text style={styles.btnDeleteText}>Supprimer la demande</Text>
+            <Text style={styles.btnDeleteText}>{t('monthlyHost.deleteRequest')}</Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -277,7 +283,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          Candidatures{listingTitle ? ` · ${listingTitle}` : ''}
+          {t('monthlyHost.candidaturesTitle')}{listingTitle ? ` · ${listingTitle}` : ''}
         </Text>
       </View>
       {loading && candidatures.length === 0 ? (
@@ -296,9 +302,9 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={56} color="#ccc" />
-              <Text style={styles.emptyTitle}>Aucune candidature</Text>
+              <Text style={styles.emptyTitle}>{t('monthlyHost.candidaturesEmpty')}</Text>
               <Text style={styles.emptySubtitle}>
-                Les dossiers des candidats apparaîtront ici.
+                {t('monthlyHost.candidaturesEmptyDesc')}
               </Text>
             </View>
           }
@@ -320,7 +326,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
       <Modal visible={!!docsTarget} animationType="slide" transparent onRequestClose={() => setDocsTarget(null)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Documents complémentaires</Text>
+            <Text style={styles.modalTitle}>{t('monthlyHost.docsModalTitle')}</Text>
             <ScrollView style={{ maxHeight: 360 }}>
               {MONTHLY_RENTAL_DOCUMENT_OPTIONS.map((opt) => {
                 const on = selectedDocs.includes(opt.id);
@@ -346,10 +352,10 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
             </ScrollView>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setDocsTarget(null)}>
-                <Text style={styles.modalCancelText}>Annuler</Text>
+                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalConfirm} onPress={() => void confirmDocs()}>
-                <Text style={styles.modalConfirmText}>Envoyer</Text>
+                <Text style={styles.modalConfirmText}>{t('monthlyHost.send')}</Text>
               </TouchableOpacity>
             </View>
           </View>

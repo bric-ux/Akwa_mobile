@@ -354,15 +354,15 @@ const MyPropertiesScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
           <Ionicons name="person-circle-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyTitle}>Non connecté</Text>
+          <Text style={styles.emptyTitle}>{t('host.notLoggedIn')}</Text>
           <Text style={styles.emptySubtitle}>
-            Veuillez vous connecter pour gérer vos propriétés.
+            {t('host.loginGateDesc')}
           </Text>
           <TouchableOpacity
             style={styles.becomeHostButton}
             onPress={() => navigation.navigate('Auth')}
           >
-            <Text style={styles.becomeHostButtonText}>Se connecter</Text>
+            <Text style={styles.becomeHostButtonText}>{t('auth.login')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>

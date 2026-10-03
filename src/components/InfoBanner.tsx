@@ -8,6 +8,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type InfoBannerProps = {
   /** Conservé pour compatibilité. */
@@ -17,6 +18,7 @@ type InfoBannerProps = {
 export const InfoBanner: React.FC<InfoBannerProps> = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   const goToAddListing = () => {
     if (user) {
@@ -37,8 +39,8 @@ export const InfoBanner: React.FC<InfoBannerProps> = () => {
           <Ionicons name="home" size={16} color="#F5A574" />
         </View>
         <Text style={styles.hostBannerText}>
-          Ajouter votre bien{' '}
-          <Text style={styles.hostBannerLink}>en cliquant ici</Text>
+          {t('home.bannerAddListing')}{' '}
+          <Text style={styles.hostBannerLink}>{t('home.bannerClickHere')}</Text>
         </Text>
         <Ionicons name="chevron-forward" size={14} color="rgba(246, 245, 242, 0.35)" />
       </TouchableOpacity>

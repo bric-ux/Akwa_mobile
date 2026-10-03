@@ -1,3 +1,4 @@
+import { useLanguage } from '../contexts/LanguageContext';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -22,6 +23,7 @@ import { RootStackParamList } from '../types';
 type VehiclePricingRouteProp = RouteProp<RootStackParamList, 'VehiclePricing'>;
 
 const VehiclePricingScreen: React.FC = () => {
+  const { t } = useLanguage();
   const navigation = useNavigation();
   const route = useRoute<VehiclePricingRouteProp>();
   const { vehicleId } = route.params;
@@ -58,7 +60,7 @@ const VehiclePricingScreen: React.FC = () => {
       setVehicle(data);
     } catch (err) {
       console.error('Erreur lors du chargement du véhicule:', err);
-      Alert.alert('Erreur', 'Impossible de charger le véhicule');
+      Alert.alert(t('common.error'), t('vehicleOwner.loadError'));
     }
   };
 
@@ -78,14 +80,14 @@ const VehiclePricingScreen: React.FC = () => {
       } as any);
 
       if (result.success) {
-        Alert.alert('Succès', 'Les tarifs ont été enregistrés');
+        Alert.alert(t('common.success'), t('vehicleOwner.pricingSaved'));
         navigation.goBack();
       } else {
-        Alert.alert('Erreur', result.error || 'Impossible de sauvegarder les tarifs');
+        Alert.alert(t('common.error'), result.error || t('vehicleOwner.savePricingError'));
       }
     } catch (error: any) {
       console.error('Erreur lors de la sauvegarde:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder les tarifs');
+      Alert.alert(t('common.error'), error.message || t('vehicleOwner.savePricingError'));
     } finally {
       setSaving(false);
     }
@@ -96,7 +98,7 @@ const VehiclePricingScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={VEHICLE_COLORS.primary} />
-          <Text style={styles.loadingText}>Chargement...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -112,7 +114,7 @@ const VehiclePricingScreen: React.FC = () => {
         >
           <Ionicons name="arrow-back" size={24} color="#1e293b" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tarification</Text>
+        <Text style={styles.headerTitle}>{t('vehicleOwner.pricing')}</Text>
         <TouchableOpacity
           style={styles.saveButton}
           onPress={handleSave}
@@ -138,7 +140,7 @@ const VehiclePricingScreen: React.FC = () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="pricetag-outline" size={20} color="#475569" />
-            <Text style={styles.sectionTitle}>Prix par jour</Text>
+            <Text style={styles.sectionTitle}>{t('vehicleOwner.pricingPerDay')}</Text>
           </View>
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Tarif journalier (XOF)</Text>
@@ -179,7 +181,7 @@ const VehiclePricingScreen: React.FC = () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="pricetag-outline" size={20} color="#475569" />
-            <Text style={styles.sectionTitle}>Prix par mois (optionnel)</Text>
+            <Text style={styles.sectionTitle}>{t('vehicleOwner.pricingPerMonth')}</Text>
           </View>
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Tarif mensuel (XOF)</Text>

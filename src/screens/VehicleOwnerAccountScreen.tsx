@@ -177,13 +177,13 @@ const VehicleOwnerAccountScreen: React.FC = () => {
     },
     {
       id: 'penalties',
-      title: 'Remboursements & Pénalités',
+      title: t('account.penalties'),
       icon: 'alert-circle-outline',
       onPress: () => navigation.navigate('Penalties' as never),
     },
     {
       id: 'declareDispute',
-      title: 'Déclarer un litige',
+      title: t('account.declareDispute'),
       icon: 'document-text-outline',
       onPress: () => navigation.navigate('DeclareDispute' as never),
     },
@@ -199,7 +199,7 @@ const VehicleOwnerAccountScreen: React.FC = () => {
   if (profile?.role === 'admin') {
     menuItems.push({
       id: 'admin',
-      title: 'Administration',
+      title: t('account.admin'),
       icon: 'shield-outline',
       onPress: () => navigation.navigate('Admin'),
     });

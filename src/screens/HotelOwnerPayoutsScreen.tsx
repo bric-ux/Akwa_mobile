@@ -13,6 +13,7 @@ import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { useCurrency } from '../hooks/useCurrency';
 import { HOTEL_COLORS } from '../constants/colors';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface PayoutRow {
   id: string;
@@ -29,13 +30,18 @@ interface PayoutRow {
   } | null;
 }
 
-const formatDate = (iso: string) => {
+const formatDate = (iso: string, locale: string) => {
   const d = new Date(iso);
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return d.toLocaleDateString(locale === 'en' ? 'en-GB' : 'fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 };
 
 const HotelOwnerPayoutsScreen: React.FC = () => {
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const { formatPrice } = useCurrency();
   const [payouts, setPayouts] = useState<PayoutRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,7 +144,7 @@ const HotelOwnerPayoutsScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={HOTEL_COLORS.primary} />
-          <Text style={styles.loadingText}>Chargement...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -148,8 +154,8 @@ const HotelOwnerPayoutsScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Ionicons name="wallet" size={28} color={HOTEL_COLORS.primary} />
-        <Text style={styles.title}>Mes paiements</Text>
-        <Text style={styles.subtitle}>Suivez le versement de vos gains hôtel par AkwaHome</Text>
+        <Text style={styles.title}>{t('hotelOwner.payoutsTitle')}</Text>
+        <Text style={styles.subtitle}>{t('hotelOwner.payoutsSubtitle')}</Text>
       </View>
 
       <ScrollView
@@ -163,32 +169,30 @@ const HotelOwnerPayoutsScreen: React.FC = () => {
           <View style={[styles.statCard, styles.statPending]}>
             <Ionicons name="time-outline" size={24} color="#b45309" />
             <Text style={styles.statValue}>{pendingCount}</Text>
-            <Text style={styles.statLabel}>En attente</Text>
+            <Text style={styles.statLabel}>{t('hotelOwner.statPending')}</Text>
             <Text style={styles.statAmount}>{formatPrice(totalPending)}</Text>
           </View>
           <View style={[styles.statCard, styles.statPaid]}>
             <Ionicons name="checkmark-circle" size={24} color="#15803d" />
             <Text style={styles.statValue}>{paidCount}</Text>
-            <Text style={styles.statLabel}>Versés</Text>
+            <Text style={styles.statLabel}>{t('hotelOwner.statPaid')}</Text>
           </View>
         </View>
 
         {payouts.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="wallet-outline" size={48} color="#9ca3af" />
-            <Text style={styles.emptyTitle}>Aucun paiement</Text>
-            <Text style={styles.emptyText}>
-              Vos paiements apparaîtront ici une fois les réservations payées en ligne (carte / Wave).
-            </Text>
+            <Text style={styles.emptyTitle}>{t('hotelOwner.payoutsEmpty')}</Text>
+            <Text style={styles.emptyText}>{t('hotelOwner.payoutsEmptyDesc')}</Text>
           </View>
         ) : (
           payouts.map((p) => {
-            const title = p.booking?.establishment?.title ?? 'Hôtel';
+            const title = p.booking?.establishment?.title ?? t('hotelEstablishment.typeHotel');
             const guestPaid = p.booking?.payment_status === 'paid' || !!p.booking?.paid_at;
             const adminPaid = p.admin_payment_status === 'paid';
             const dates =
               p.booking?.check_in_date && p.booking?.check_out_date
-                ? `${formatDate(p.booking.check_in_date)} - ${formatDate(p.booking.check_out_date)}`
+                ? `${formatDate(p.booking.check_in_date, language)} - ${formatDate(p.booking.check_out_date, language)}`
                 : '–';
 
             return (
@@ -203,12 +207,12 @@ const HotelOwnerPayoutsScreen: React.FC = () => {
                     <View style={styles.badges}>
                       <View style={[styles.badge, guestPaid ? styles.badgeSuccess : styles.badgeMuted]}>
                         <Text style={styles.badgeText}>
-                          {guestPaid ? 'Voyageur a payé' : 'Paiement voyageur en attente'}
+                          {guestPaid ? t('hotelOwner.guestPaid') : t('hotelOwner.guestPayPending')}
                         </Text>
                       </View>
                       <View style={[styles.badge, adminPaid ? styles.badgeSuccess : styles.badgeOutline]}>
                         <Text style={[styles.badgeText, adminPaid && styles.badgeTextSuccess]}>
-                          {adminPaid ? 'Versé par AkwaHome' : 'En attente de versement'}
+                          {adminPaid ? t('hotelOwner.adminPaid') : t('hotelOwner.adminPayPending')}
                         </Text>
                       </View>
                     </View>
@@ -216,7 +220,7 @@ const HotelOwnerPayoutsScreen: React.FC = () => {
                   <View style={styles.cardRight}>
                     <Text style={styles.amount}>{formatPrice(p.host_amount)}</Text>
                     {adminPaid && p.admin_paid_at && (
-                      <Text style={styles.paidAt}>Versé le {formatDate(p.admin_paid_at)}</Text>
+                      <Text style={styles.paidAt}>{t('hotelOwner.paidOn', { date: formatDate(p.admin_paid_at, language) })}</Text>
                     )}
                   </View>
                 </View>

@@ -24,6 +24,7 @@ import { createCheckoutSession, checkPaymentStatus } from '../services/cardPayme
 import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaymentService';
 import { calculateHostNetAmount } from '../lib/hostNetAmount';
 import { hostHasReceivedGuestCashProperty } from '../utils/cancellationPolicy';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface HostCancellationDialogProps {
   visible: boolean;
@@ -32,16 +33,16 @@ interface HostCancellationDialogProps {
   onCancelled: () => void;
 }
 
-const hostCancellationReasons = [
-  { value: 'property_unavailable', label: 'Propriété non disponible' },
-  { value: 'maintenance', label: 'Travaux de maintenance' },
-  { value: 'emergency', label: 'Urgence' },
-  { value: 'double_booking', label: 'Double réservation' },
-  { value: 'property_damage', label: 'Dommages à la propriété' },
-  { value: 'legal_issue', label: 'Problème légal' },
-  { value: 'family_emergency', label: 'Urgence familiale' },
-  { value: 'other', label: 'Autre raison' }
-];
+const HOST_CANCEL_REASON_VALUES = [
+  'property_unavailable',
+  'maintenance',
+  'emergency',
+  'double_booking',
+  'property_damage',
+  'legal_issue',
+  'family_emergency',
+  'other',
+] as const;
 
 const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -51,6 +52,11 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
   booking,
   onCancelled,
 }) => {
+  const { t } = useLanguage();
+  const hostCancellationReasons = HOST_CANCEL_REASON_VALUES.map((value) => ({
+    value,
+    label: t(`hostCancel.reason.${value}`),
+  }));
   const [selectedReason, setSelectedReason] = useState<string>('');
   const [reason, setReason] = useState('');
   /** Si pénalité > 0 : true = régler la pénalité maintenant ; false = pénalité déduite plus tard */
@@ -264,7 +270,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
 
   const guestName = booking?.guest_profile
     ? `${booking.guest_profile.first_name || ''} ${booking.guest_profile.last_name || ''}`.trim()
-    : 'le voyageur';
+    : t('hostBookings.guestFallback');
 
   /** Carte obligatoire pour le remboursement. Pénalité : incluse dans le paiement (card) ou déduction ultérieure (deduct_from_next_booking). */
   const effectivePenaltyMethod = (penaltyAmount > 0 && !includePenaltyInPayment) ? 'deduct_from_next_booking' : 'card';
@@ -625,9 +631,9 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
               <>
             {/* Informations de la réservation */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Informations</Text>
-              <Text style={styles.infoText}>Propriété: {booking.properties?.title || '-'}</Text>
-              <Text style={styles.infoText}>Voyageur: {guestName}</Text>
+              <Text style={styles.sectionTitle}>{t('hostCancel.infoSection')}</Text>
+              <Text style={styles.infoText}>{t('hostCancel.propertyLabel', { title: booking.properties?.title || '-' })}</Text>
+              <Text style={styles.infoText}>{t('hostCancel.guestLabel', { name: guestName })}</Text>
               <Text style={styles.infoText}>
                 Arrivée: {new Date(booking.check_in_date).toLocaleDateString('fr-FR')}
               </Text>
@@ -839,7 +845,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
 
             {/* Raison de l'annulation */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Cause de l'annulation *</Text>
+              <Text style={styles.sectionTitle}>{t('hostCancel.reasonSection')}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reasonsContainer}>
                 {hostCancellationReasons.map((reasonOption) => (
                   <TouchableOpacity
@@ -1085,7 +1091,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
               disabled={loading || isConfirming}
             >
               <Text style={styles.cancelFooterButtonText}>
-                {stripeCheckoutOpened && pendingPenaltyId ? 'Fermer' : 'Retour'}
+                {stripeCheckoutOpened && pendingPenaltyId ? t('common.close') : t('common.back')}
               </Text>
             </TouchableOpacity>
             {!(stripeCheckoutOpened && pendingPenaltyId) ? (
@@ -1097,7 +1103,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
                 {loading || isConfirming ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.confirmButtonText}>Confirmer l'annulation</Text>
+                  <Text style={styles.confirmButtonText}>{t('hostCancel.confirm')}</Text>
                 )}
               </TouchableOpacity>
             ) : (

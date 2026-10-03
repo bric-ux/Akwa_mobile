@@ -18,20 +18,25 @@ import type { MonthlyRentalListing } from '../types';
 import MediaThumb from '../components/MediaThumb';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import { useToast } from '../contexts/ToastContext';
-
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Brouillon',
-  pending: 'En attente',
-  approved: 'Approuvé',
-  rejected: 'Refusé',
-  archived: 'Archivé',
-};
+import { useLanguage } from '../contexts/LanguageContext';
 
 const MyMonthlyRentalListingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { t } = useLanguage();
+
+  const statusLabel = (status: string) => {
+    const map: Record<string, string> = {
+      draft: t('monthlyHost.statusDraft'),
+      pending: t('monthlyHost.statusPending'),
+      approved: t('monthlyHost.statusApproved'),
+      rejected: t('monthlyHost.statusRejected'),
+      archived: t('monthlyHost.statusArchived'),
+    };
+    return map[status] || status;
+  };
   const isTabScreen = route.name === 'MonthlyRentalListingsTab';
   const { getMyListings, deleteListing, submitForApproval, archiveListing, restoreListing, loading } =
     useMonthlyRentalListings(user?.id);
@@ -74,9 +79,9 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
     try {
       const sub = await submitForApproval(item.id, true);
       if (sub.success) {
-        showToast('Annonce soumise — validation admin en cours.', 'success');
+        showToast(t('monthlyHost.submittedToast'), 'success');
         load();
-      } else showToast(sub.error || 'Impossible de soumettre', 'error');
+      } else showToast(sub.error || t('monthlyHost.submitError'), 'error');
     } finally {
       setSubmittingId(null);
     }
@@ -85,21 +90,23 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
   const handleDelete = (item: MonthlyRentalListing) => {
     const canDelete = item.status === 'draft' || item.status === 'rejected';
     if (!canDelete) {
-      Alert.alert('Suppression', 'Seuls les brouillons et les annonces refusées peuvent être supprimés. Masquez les annonces publiées.');
+      Alert.alert(t('monthlyHost.deleteBlockedTitle'), t('monthlyHost.deleteBlocked'));
       return;
     }
     Alert.alert(
-      'Supprimer le logement',
-      `Supprimer "${item.title}" ?${item.status === 'draft' ? '' : ' Les demandes de visite associées seront aussi supprimées.'}`,
+      t('monthlyHost.deleteTitle'),
+      item.status === 'draft'
+        ? t('monthlyHost.deleteConfirm', { title: item.title })
+        : t('monthlyHost.deleteConfirmWithVisits', { title: item.title }),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Supprimer',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             const r = await deleteListing(item.id);
             if (r.success) load();
-            else Alert.alert('Erreur', r.error || 'Impossible de supprimer');
+            else Alert.alert(t('common.error'), r.error || t('monthlyHost.deleteError'));
           },
         },
       ]
@@ -108,16 +115,16 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
 
   const handleArchive = (item: MonthlyRentalListing) => {
     Alert.alert(
-      'Masquer l’annonce',
-      `« ${item.title} » ne sera plus visible des voyageurs.`,
+      t('monthlyHost.hideTitle'),
+      t('monthlyHost.hideConfirm', { title: item.title }),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Masquer',
+          text: t('monthlyHost.hide'),
           onPress: async () => {
             const r = await archiveListing(item.id);
             if (r.success) load();
-            else Alert.alert('Erreur', r.error || 'Impossible de masquer');
+            else Alert.alert(t('common.error'), r.error || t('monthlyHost.hideError'));
           },
         },
       ],
@@ -125,14 +132,14 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
   };
 
   const handleRestore = (item: MonthlyRentalListing) => {
-    Alert.alert('Remettre en ligne', `Remettre « ${item.title} » visible ?`, [
-      { text: 'Annuler', style: 'cancel' },
+    Alert.alert(t('monthlyHost.restoreTitle'), t('monthlyHost.restoreConfirm', { title: item.title }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Remettre',
+        text: t('monthlyHost.restore'),
         onPress: async () => {
           const r = await restoreListing(item.id);
           if (r.success) load();
-          else Alert.alert('Erreur', r.error || 'Impossible de restaurer');
+          else Alert.alert(t('common.error'), r.error || t('monthlyHost.restoreError'));
         },
       },
     ]);
@@ -145,7 +152,7 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
     return 'https://via.placeholder.com/300x180?text=Logement';
   };
 
-  const formatPrice = (n: number) => `${(n || 0).toLocaleString('fr-FR')} FCFA/mois`;
+  const formatPrice = (n: number) => `${(n || 0).toLocaleString('fr-FR')} FCFA${t('monthly.perMonth')}`;
 
   const getStatusStyle = (status: string) => {
     switch (status) {
@@ -179,7 +186,7 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
             </Text>
             <View style={[styles.statusBadge, getStatusStyle(item.status)]}>
               <Text style={styles.statusBadgeText}>
-                {STATUS_LABEL[item.status] || item.status}
+                {statusLabel(item.status)}
               </Text>
             </View>
           </View>
@@ -190,9 +197,9 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
           <View style={styles.meta}>
             <Text style={styles.metaText}>{item.surface_m2} m²</Text>
             <Text style={styles.metaText}> · </Text>
-            <Text style={styles.metaText}>{item.number_of_rooms} pièces</Text>
+            <Text style={styles.metaText}>{t('monthly.roomsCount', { count: String(item.number_of_rooms) })}</Text>
             <Text style={styles.metaText}> · </Text>
-            <Text style={styles.metaText}>{item.bedrooms} ch.</Text>
+            <Text style={styles.metaText}>{t('monthly.bedroomsAbbr', { count: String(item.bedrooms) })}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -208,7 +215,7 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
             ) : (
               <>
                 <Ionicons name="send-outline" size={18} color="#fff" />
-                <Text style={styles.btnSubmitText}>Soumettre pour validation</Text>
+                <Text style={styles.btnSubmitText}>{t('monthlyHost.submitForApproval')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -219,19 +226,19 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
             onPress={() => handleCandidatures(item.id)}
           >
             <Ionicons name="people-outline" size={20} color="#2E7D32" />
-            <Text style={styles.btnCandidaturesText}>Candidatures</Text>
+            <Text style={styles.btnCandidaturesText}>{t('monthlyHost.candidatures')}</Text>
           </TouchableOpacity>
         )}
         {(item.status === 'pending' || item.status === 'approved') && (
           <TouchableOpacity style={styles.btnArchive} onPress={() => handleArchive(item)}>
             <Ionicons name="eye-off-outline" size={18} color="#5c6bc0" />
-            <Text style={styles.btnArchiveText}>Masquer</Text>
+            <Text style={styles.btnArchiveText}>{t('monthlyHost.hide')}</Text>
           </TouchableOpacity>
         )}
         {item.status === 'archived' && (
           <TouchableOpacity style={styles.btnRestore} onPress={() => handleRestore(item)}>
             <Ionicons name="eye-outline" size={18} color="#2E7D32" />
-            <Text style={styles.btnRestoreText}>Remettre</Text>
+            <Text style={styles.btnRestoreText}>{t('monthlyHost.restore')}</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={styles.btnEdit} onPress={() => handleEdit(item.id)}>
@@ -257,7 +264,7 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
           ) : (
             <View style={styles.backBtn} />
           )}
-          <Text style={styles.headerTitle}>Mes bails longue durée</Text>
+          <Text style={styles.headerTitle}>{t('monthlyHost.myListingsTitle')}</Text>
         </View>
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#2E7D32" />
@@ -276,7 +283,7 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
         ) : (
           <View style={styles.backBtn} />
         )}
-        <Text style={styles.headerTitle}>Mes bails longue durée</Text>
+        <Text style={styles.headerTitle}>{t('monthlyHost.myListingsTitle')}</Text>
         <TouchableOpacity onPress={handleAdd} style={styles.addBtn}>
           <Ionicons name="add" size={28} color="#2E7D32" />
         </TouchableOpacity>
@@ -292,12 +299,12 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="home-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>Aucun logement</Text>
+            <Text style={styles.emptyTitle}>{t('monthlyHost.emptyTitle')}</Text>
             <Text style={styles.emptySubtitle}>
-              Ajoutez un logement en location mensuelle pour recevoir des demandes de visite.
+              {t('monthlyHost.emptySubtitle')}
             </Text>
             <TouchableOpacity style={styles.emptyButton} onPress={handleAdd}>
-              <Text style={styles.emptyButtonText}>Ajouter un logement</Text>
+              <Text style={styles.emptyButtonText}>{t('monthlyHost.addListing')}</Text>
             </TouchableOpacity>
           </View>
         }

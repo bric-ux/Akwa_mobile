@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface DateGuestsSelectorProps {
   checkIn?: string;
@@ -34,6 +35,17 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   isDateRangeUnavailable,
   embedded = false,
 }) => {
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
+  const dayNames = [
+    t('calendar.daySun'),
+    t('calendar.dayMon'),
+    t('calendar.dayTue'),
+    t('calendar.dayWed'),
+    t('calendar.dayThu'),
+    t('calendar.dayFri'),
+    t('calendar.daySat'),
+  ];
   const [showModal, setShowModal] = useState(false);
   const [tempCheckIn, setTempCheckIn] = useState(checkIn);
   const [tempCheckOut, setTempCheckOut] = useState(checkOut);
@@ -108,16 +120,16 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   }, [checkIn, checkOut, adults, children, babies, tempCheckIn, tempCheckOut, tempAdults, tempChildren, tempBabies]);
 
   const formatDate = (dateString?: string) => {
-    if (!dateString || dateString === '') return 'Choisir';
+    if (!dateString || dateString === '') return t('calendar.choose');
     try {
       const date = new Date(dateString);
-      if (isNaN(date.getTime())) return 'Choisir';
-      return date.toLocaleDateString('fr-FR', {
+      if (isNaN(date.getTime())) return t('calendar.choose');
+      return date.toLocaleDateString(dateLocale, {
         day: 'numeric',
         month: 'short',
       });
     } catch {
-      return 'Choisir';
+      return t('calendar.choose');
     }
   };
 
@@ -128,12 +140,11 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   const getGuestsText = () => {
     const total = getTotalGuests();
     if (total === 0) {
-      return 'Choisir';
-    } else if (total === 1) {
-      return '1 voyageur';
-    } else {
-      return `${total} voyageurs`;
+      return t('calendar.choose');
     }
+    return t(total === 1 ? 'calendar.guest_one' : 'calendar.guest_other', {
+      count: String(total),
+    });
   };
 
   const handleApply = () => {
@@ -216,7 +227,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   };
 
   const getMonthName = (date: Date) => {
-    return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    return date.toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' });
   };
 
   const isToday = (day: number) => {
@@ -397,7 +408,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
           style={styles.item}
           onPress={() => openCalendar('checkIn')}
         >
-          <Text style={styles.label}>Arrivée</Text>
+          <Text style={styles.label}>{t('booking.arrival')}</Text>
           <Text style={styles.value}>{formatDate(tempCheckIn || checkIn)}</Text>
         </TouchableOpacity>
 
@@ -409,7 +420,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
           style={styles.item}
           onPress={() => openCalendar('checkOut')}
         >
-          <Text style={styles.label}>Départ</Text>
+          <Text style={styles.label}>{t('booking.departure')}</Text>
           <Text style={styles.value}>{formatDate(tempCheckOut || checkOut)}</Text>
         </TouchableOpacity>
 
@@ -421,7 +432,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
           style={styles.item}
           onPress={openGuestsModal}
         >
-          <Text style={styles.label}>Voyageurs</Text>
+          <Text style={styles.label}>{t('booking.guests')}</Text>
           <Text style={styles.value}>{getGuestsText()}</Text>
         </TouchableOpacity>
       </View>
@@ -439,7 +450,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
               <Ionicons name="close" size={24} color="#333" />
             </TouchableOpacity>
             <Text style={styles.calendarTitle}>
-              {calendarMode === 'checkIn' ? 'Date d\'arrivée' : 'Date de départ'}
+              {calendarMode === 'checkIn' ? t('calendar.arrivalDate') : t('calendar.departureDate')}
             </Text>
             <View style={{ width: 24 }} />
           </View>
@@ -458,7 +469,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
 
             {/* Jours de la semaine */}
             <View style={styles.weekDays}>
-              {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map(day => (
+              {dayNames.map(day => (
                 <Text key={day} style={styles.weekDayText}>{day}</Text>
               ))}
             </View>
@@ -481,11 +492,11 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={handleReset}>
-              <Text style={styles.resetText}>Réinitialiser</Text>
+              <Text style={styles.resetText}>{t('common.reset')}</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Nombre de voyageurs</Text>
+            <Text style={styles.modalTitle}>{t('calendar.guestsCountTitle')}</Text>
             <TouchableOpacity onPress={handleApply}>
-              <Text style={styles.applyText}>Valider</Text>
+              <Text style={styles.applyText}>{t('calendar.validate')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -495,8 +506,8 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
               <View style={styles.guestInfo}>
                 <Ionicons name="person" size={20} color="#2E7D32" />
                 <View style={styles.guestDetails}>
-                  <Text style={styles.guestLabel}>Adultes</Text>
-                  <Text style={styles.guestSubLabel}>13 ans et plus</Text>
+                  <Text style={styles.guestLabel}>{t('calendar.adults')}</Text>
+                  <Text style={styles.guestSubLabel}>{t('calendar.adultsHint')}</Text>
                 </View>
               </View>
               <View style={styles.guestControls}>
@@ -523,8 +534,8 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
               <View style={styles.guestInfo}>
                 <Ionicons name="person-outline" size={20} color="#2E7D32" />
                 <View style={styles.guestDetails}>
-                  <Text style={styles.guestLabel}>Enfants</Text>
-                  <Text style={styles.guestSubLabel}>2 à 12 ans</Text>
+                  <Text style={styles.guestLabel}>{t('calendar.children')}</Text>
+                  <Text style={styles.guestSubLabel}>{t('calendar.childrenHint')}</Text>
                 </View>
               </View>
               <View style={styles.guestControls}>
@@ -551,8 +562,8 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
               <View style={styles.guestInfo}>
                 <Ionicons name="baby" size={20} color="#2E7D32" />
                 <View style={styles.guestDetails}>
-                  <Text style={styles.guestLabel}>Bébés</Text>
-                  <Text style={styles.guestSubLabel}>Moins de 2 ans</Text>
+                  <Text style={styles.guestLabel}>{t('calendar.infants')}</Text>
+                  <Text style={styles.guestSubLabel}>{t('calendar.infantsHint')}</Text>
                 </View>
               </View>
               <View style={styles.guestControls}>
@@ -577,7 +588,12 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
             <View style={styles.totalCard}>
               <Ionicons name="people-circle" size={24} color="#2E7D32" />
               <Text style={styles.totalText}>
-                Total: {getTotalGuests()} voyageur{getTotalGuests() > 1 ? 's' : ''}
+                {t('calendar.totalGuests', {
+                  count: t(
+                    getTotalGuests() === 1 ? 'calendar.guest_one' : 'calendar.guest_other',
+                    { count: String(getTotalGuests()) }
+                  ),
+                })}
               </Text>
             </View>
           </ScrollView>

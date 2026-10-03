@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAvailabilityCalendar } from '../hooks/useAvailabilityCalendar';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const { width } = Dimensions.get('window');
 
@@ -35,6 +36,8 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   excludeBookingId,
   excludeBookingDates,
 }) => {
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
   const { isDateUnavailable, unavailableDates, loading, isDateRangeUnavailable } = useAvailabilityCalendar(propertyId, excludeBookingId, excludeBookingDates);
   // Initialiser le mois avec la date appropriée selon le mode
   const getInitialMonth = (): Date => {
@@ -148,7 +151,7 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
       return exclusive ? dateStr >= s && dateStr < e : dateStr >= s && dateStr <= e;
     });
     
-    return unavailablePeriod?.reason || 'Indisponible';
+    return unavailablePeriod?.reason || t('calendar.unavailable');
   };
 
   const isPastDate = (date: Date) => {
@@ -266,7 +269,7 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   };
 
   const formatMonthYear = (date: Date) => {
-    return date.toLocaleDateString('fr-FR', { 
+    return date.toLocaleDateString(dateLocale, { 
       month: 'long', 
       year: 'numeric' 
     });
@@ -289,7 +292,15 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   };
 
   const days = getDaysInMonth(currentMonth);
-  const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+  const dayNames = [
+    t('calendar.daySun'),
+    t('calendar.dayMon'),
+    t('calendar.dayTue'),
+    t('calendar.dayWed'),
+    t('calendar.dayThu'),
+    t('calendar.dayFri'),
+    t('calendar.daySat'),
+  ];
 
   return (
     <View style={styles.container}>
@@ -298,7 +309,7 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color="#333" />
           </TouchableOpacity>
-          <Text style={styles.title}>Sélectionner les dates</Text>
+          <Text style={styles.title}>{t('calendar.selectDates')}</Text>
           <View style={styles.placeholder} />
         </View>
       )}
@@ -336,7 +347,9 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
               const isUnavailable = isDateUnavailable(day);
               const isPast = isPastDate(day);
               const isBeforeCheckIn = isDateBeforeCheckIn(day);
-              const reason = isUnavailable ? getUnavailableReason(day) : (isPast ? 'Passé' : (isBeforeCheckIn ? 'Avant arrivée' : null));
+              const reason = isUnavailable
+                ? getUnavailableReason(day)
+                : (isPast ? t('calendar.past') : (isBeforeCheckIn ? t('calendar.beforeCheckIn') : null));
 
               return (
                 <TouchableOpacity
@@ -368,22 +381,22 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
         <View style={styles.legend}>
           <View style={styles.legendItem}>
             <View style={[styles.legendColor, styles.availableColor]} />
-            <Text style={styles.legendText}>Disponible</Text>
+            <Text style={styles.legendText}>{t('calendar.available')}</Text>
           </View>
           <View style={styles.legendItem}>
             <View style={[styles.legendColor, styles.unavailableColor]} />
-            <Text style={styles.legendText}>Indisponible</Text>
+            <Text style={styles.legendText}>{t('calendar.unavailable')}</Text>
           </View>
           <View style={styles.legendItem}>
             <View style={[styles.legendColor, styles.pastColor]} />
-            <Text style={styles.legendText}>Passé</Text>
+            <Text style={styles.legendText}>{t('calendar.past')}</Text>
           </View>
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
-          <Text style={styles.clearButtonText}>Effacer</Text>
+          <Text style={styles.clearButtonText}>{t('common.clear')}</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
@@ -400,7 +413,7 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
             (mode === 'both' && !tempCheckIn)
           }
         >
-          <Text style={styles.confirmButtonText}>Confirmer</Text>
+          <Text style={styles.confirmButtonText}>{t('common.confirm')}</Text>
         </TouchableOpacity>
       </View>
     </View>

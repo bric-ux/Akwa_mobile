@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const HERO_SOURCE = require('../../assets/images/hero-cote-ivoire.jpg');
 
@@ -41,6 +42,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 }) => {
   const { height } = useWindowDimensions();
   const fontScale = PixelRatio.getFontScale();
+  const { t } = useLanguage();
 
   const floatAnim = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -210,14 +212,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       >
         <View style={styles.content}>
           <View style={styles.titleBlock}>
-            <Text style={[styles.title, { fontSize: dynamic.titleSize }]}>Trouvez votre</Text>
+            <Text style={[styles.title, { fontSize: dynamic.titleSize }]}>{t('home.findYour')}</Text>
             <Text
               style={[
                 styles.titleGradient,
                 { fontSize: dynamic.titleSize, marginBottom: dynamic.titleMarginBottom },
               ]}
             >
-              séjour parfait
+              {t('home.perfectStay')}
             </Text>
             <Text
               style={[
@@ -229,7 +231,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 },
               ]}
             >
-              Résidences meublées, hôtels, bail longue durée et véhicules en Côte d'Ivoire
+              {t('home.heroSubtitle')}
             </Text>
             <Text
               style={[
@@ -237,7 +239,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 { fontSize: dynamic.taglineSize, marginBottom: dynamic.taglineMarginBottom },
               ]}
             >
-              Ici c'est chez vous !
+              {t('brand.tagline')}
             </Text>
           </View>
 
@@ -252,7 +254,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               onPress={onSearchPress}
               activeOpacity={0.92}
               accessibilityRole="button"
-              accessibilityLabel="Ouvrir la recherche"
+              accessibilityLabel={t('home.openSearch')}
             >
               <View style={styles.searchPill}>
                 {!reduceMotion && (
@@ -273,7 +275,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                   ) : (
                     <>
                       <Text style={styles.searchPillTitle} numberOfLines={1}>
-                        Où allez-vous ?
+                        {t('search.whereToGo')}
                       </Text>
                       {showHint && (
                         <Animated.View

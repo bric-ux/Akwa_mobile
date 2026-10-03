@@ -22,21 +22,22 @@ import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { HOTEL_COLORS } from '../constants/colors';
 import type { RootStackParamList } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type Route = RouteProp<RootStackParamList, 'ManageHotelRoomTypes'>;
 
 const MAX_ROOM_PHOTOS = 10;
 
-const ROOM_CATEGORIES = [
-  { value: 'standard', label: 'Standard', defaultName: 'Chambre Standard', guests: '2' },
-  { value: 'double', label: 'Double', defaultName: 'Chambre Double', guests: '2' },
-  { value: 'twin', label: 'Twin', defaultName: 'Chambre Twin', guests: '2' },
-  { value: 'deluxe', label: 'Deluxe', defaultName: 'Chambre Deluxe', guests: '2' },
-  { value: 'suite', label: 'Suite', defaultName: 'Suite', guests: '3' },
-  { value: 'family', label: 'Familiale', defaultName: 'Chambre Familiale', guests: '4' },
-  { value: 'studio', label: 'Studio', defaultName: 'Studio', guests: '2' },
-  { value: 'executive', label: 'Executive', defaultName: 'Chambre Executive', guests: '2' },
-  { value: 'other', label: 'Autre', defaultName: '', guests: '2' },
+const ROOM_CATEGORY_VALUES = [
+  { value: 'standard', guests: '2' },
+  { value: 'double', guests: '2' },
+  { value: 'twin', guests: '2' },
+  { value: 'deluxe', guests: '2' },
+  { value: 'suite', guests: '3' },
+  { value: 'family', guests: '4' },
+  { value: 'studio', guests: '2' },
+  { value: 'executive', guests: '2' },
+  { value: 'other', guests: '2' },
 ] as const;
 
 type RoomType = {
@@ -51,9 +52,9 @@ type RoomType = {
   images?: string[] | null;
 };
 
-const emptyForm = {
+const emptyFormBase = {
   room_category: 'standard',
-  name: 'Chambre Standard',
+  name: '',
   price_per_night: '',
   inventory_count: '1',
   max_guests: '2',
@@ -84,13 +85,48 @@ export default function ManageHotelRoomTypesScreen() {
   const route = useRoute<Route>();
   const { establishmentId, establishmentTitle } = route.params;
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const [rows, setRows] = useState<RoomType[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(emptyFormBase);
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const roomCategories = ROOM_CATEGORY_VALUES.map((c) => {
+    const labelKeys: Record<string, string> = {
+      standard: 'hotelEstablishment.catStandard',
+      double: 'hotelEstablishment.catDouble',
+      twin: 'hotelEstablishment.catTwin',
+      deluxe: 'hotelEstablishment.catDeluxe',
+      suite: 'hotelEstablishment.catSuite',
+      family: 'hotelEstablishment.catFamily',
+      studio: 'hotelEstablishment.catStudio',
+      executive: 'hotelEstablishment.catExecutive',
+      other: 'hotelEstablishment.catOther',
+    };
+    const defaultKeys: Record<string, string> = {
+      standard: 'hotelEstablishment.defaultStandard',
+      double: 'hotelEstablishment.defaultDouble',
+      twin: 'hotelEstablishment.defaultTwin',
+      deluxe: 'hotelEstablishment.defaultDeluxe',
+      suite: 'hotelEstablishment.defaultSuite',
+      family: 'hotelEstablishment.defaultFamily',
+      studio: 'hotelEstablishment.defaultStudio',
+      executive: 'hotelEstablishment.defaultExecutive',
+    };
+    return {
+      ...c,
+      label: t(labelKeys[c.value]),
+      defaultName: defaultKeys[c.value] ? t(defaultKeys[c.value]) : '',
+    };
+  });
+
+  const emptyForm = {
+    ...emptyFormBase,
+    name: t('hotelEstablishment.defaultStandard'),
+  };
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -119,7 +155,7 @@ export default function ManageHotelRoomTypesScreen() {
   );
 
   const applyCategory = (category: string) => {
-    const preset = ROOM_CATEGORIES.find((c) => c.value === category);
+    const preset = roomCategories.find((c) => c.value === category);
     setForm((f) => ({
       ...f,
       room_category: category,
@@ -152,12 +188,12 @@ export default function ManageHotelRoomTypesScreen() {
   const pickImages = async () => {
     const { status: perm } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm !== 'granted') {
-      Alert.alert('Permission requise', 'Autorisez l’accès à vos photos.');
+      Alert.alert(t('hotelEstablishment.permissionTitle'), t('hotelEstablishment.permissionDesc'));
       return;
     }
     const limit = MAX_ROOM_PHOTOS - imageUris.length;
     if (limit <= 0) {
-      Alert.alert('Limite', `Max. ${MAX_ROOM_PHOTOS} photos par type.`);
+      Alert.alert(t('hotelEstablishment.photoLimitTitle'), t('hotelEstablishment.roomPhotoLimitShort', { count: String(MAX_ROOM_PHOTOS) }));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -183,7 +219,7 @@ export default function ManageHotelRoomTypesScreen() {
     const maxGuests = parseInt(form.max_guests, 10) || 1;
     const cleaning = parseInt(form.cleaning_fee, 10) || 0;
     if (!name || !Number.isFinite(price) || price <= 0) {
-      Alert.alert('Champs requis', 'Nom et prix / nuit (> 0) sont obligatoires.');
+      Alert.alert(t('hotelEstablishment.fieldsRequiredTitle'), t('hotelEstablishment.fieldsRequired'));
       return;
     }
     setSaving(true);
@@ -221,7 +257,7 @@ export default function ManageHotelRoomTypesScreen() {
       setModalOpen(false);
       await load();
     } catch (e) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Enregistrement impossible');
+      Alert.alert(t('common.error'), e instanceof Error ? e.message : t('hotelEstablishment.saveError'));
     } finally {
       setSaving(false);
     }
@@ -233,19 +269,19 @@ export default function ManageHotelRoomTypesScreen() {
       .from('hotel_room_types')
       .update({ status: next, updated_at: new Date().toISOString() })
       .eq('id', row.id);
-    if (error) Alert.alert('Erreur', error.message);
+    if (error) Alert.alert(t('common.error'), error.message);
     else void load();
   };
 
   const handleDelete = (row: RoomType) => {
-    Alert.alert('Supprimer', `Supprimer « ${row.name} » ?`, [
-      { text: 'Annuler', style: 'cancel' },
+    Alert.alert(t('hotelEstablishment.deleteTypeTitle'), t('hotelEstablishment.deleteTypeConfirm', { name: row.name }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Supprimer',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           const { error } = await supabase.from('hotel_room_types').delete().eq('id', row.id);
-          if (error) Alert.alert('Erreur', error.message);
+          if (error) Alert.alert(t('common.error'), error.message);
           else void load();
         },
       },
@@ -253,7 +289,7 @@ export default function ManageHotelRoomTypesScreen() {
   };
 
   const categoryLabel = (value: string | null) =>
-    ROOM_CATEGORIES.find((c) => c.value === value)?.label || null;
+    roomCategories.find((c) => c.value === value)?.label || null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -262,7 +298,7 @@ export default function ManageHotelRoomTypesScreen() {
           <Ionicons name="arrow-back" size={22} color="#0f172a" />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Types de chambres</Text>
+          <Text style={styles.headerTitle}>{t('hotelEstablishment.roomTypesTitle')}</Text>
           {!!establishmentTitle && (
             <Text style={styles.headerSub} numberOfLines={1}>
               {establishmentTitle}
@@ -276,10 +312,7 @@ export default function ManageHotelRoomTypesScreen() {
 
       <View style={styles.helpBanner}>
         <Ionicons name="information-circle-outline" size={18} color={HOTEL_COLORS.primary} />
-        <Text style={styles.helpText}>
-          Un type = une catégorie (ex. Standard). Indiquez combien de chambres identiques vous avez
-          — pas besoin de les créer une par une.
-        </Text>
+        <Text style={styles.helpText}>{t('hotelEstablishment.roomHelp')}</Text>
       </View>
 
       {loading ? (
@@ -291,13 +324,10 @@ export default function ManageHotelRoomTypesScreen() {
           contentContainerStyle={rows.length === 0 ? styles.emptyWrap : styles.list}
           ListEmptyComponent={
             <View style={styles.center}>
-              <Text style={styles.emptyTitle}>Aucun type de chambre</Text>
-              <Text style={styles.emptyText}>
-                Exemple : « Standard » × 12 chambres, « Suite » × 3. Un enregistrement suffit par
-                catégorie.
-              </Text>
+              <Text style={styles.emptyTitle}>{t('hotelEstablishment.roomTypesEmpty')}</Text>
+              <Text style={styles.emptyText}>{t('hotelEstablishment.roomTypesEmptyDesc')}</Text>
               <TouchableOpacity style={styles.cta} onPress={openCreate}>
-                <Text style={styles.ctaText}>Ajouter un type</Text>
+                <Text style={styles.ctaText}>{t('hotelEstablishment.addType')}</Text>
               </TouchableOpacity>
             </View>
           }
@@ -309,12 +339,21 @@ export default function ManageHotelRoomTypesScreen() {
                   <Text style={styles.cardCategory}>{categoryLabel(item.room_category)}</Text>
                 ) : null}
                 <Text style={styles.cardMeta}>
-                  {item.price_per_night.toLocaleString('fr-FR')} FCFA / nuit ·{' '}
-                  {item.inventory_count} chambre{item.inventory_count > 1 ? 's' : ''} ·{' '}
-                  {item.max_guests} pers.
+                  {t('hotelEstablishment.metaPerNight', {
+                    price: item.price_per_night.toLocaleString(language === 'en' ? 'en-GB' : 'fr-FR'),
+                    rooms: t(
+                      item.inventory_count > 1
+                        ? 'hotelEstablishment.roomsCount_other'
+                        : 'hotelEstablishment.roomsCount_one',
+                      { count: String(item.inventory_count) },
+                    ),
+                    guests: String(item.max_guests),
+                  })}
                 </Text>
                 <Text style={styles.cardStatus}>
-                  {item.status === 'active' ? 'Actif' : 'Masqué'}
+                  {item.status === 'active'
+                    ? t('hotelEstablishment.active')
+                    : t('hotelEstablishment.hiddenStatus')}
                 </Text>
               </View>
               <View style={styles.cardActions}>
@@ -344,12 +383,12 @@ export default function ManageHotelRoomTypesScreen() {
         >
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>
-              {editingId ? 'Modifier le type' : 'Nouveau type de chambre'}
+              {editingId ? t('hotelEstablishment.editType') : t('hotelEstablishment.newType')}
             </Text>
             <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.label}>Catégorie</Text>
+              <Text style={styles.label}>{t('hotelEstablishment.category')}</Text>
               <View style={styles.chips}>
-                {ROOM_CATEGORIES.map((c) => (
+                {roomCategories.map((c) => (
                   <TouchableOpacity
                     key={c.value}
                     onPress={() => applyCategory(c.value)}
@@ -370,19 +409,17 @@ export default function ManageHotelRoomTypesScreen() {
                 ))}
               </View>
 
-              <Text style={styles.label}>Nom affiché *</Text>
+              <Text style={styles.label}>{t('hotelEstablishment.displayName')}</Text>
               <TextInput
                 style={styles.input}
                 value={form.name}
                 onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
-                placeholder="Ex. Chambre Standard"
+                placeholder={t('hotelEstablishment.namePlaceholder')}
                 placeholderTextColor="#94a3b8"
               />
 
-              <Text style={styles.label}>Combien de chambres de ce type ? *</Text>
-              <Text style={styles.fieldHint}>
-                Toutes les chambres partagent le même prix et les mêmes photos.
-              </Text>
+              <Text style={styles.label}>{t('hotelEstablishment.inventoryCount')}</Text>
+              <Text style={styles.fieldHint}>{t('hotelEstablishment.inventoryHint')}</Text>
               <View style={styles.stepperRow}>
                 <TouchableOpacity
                   style={styles.stepperBtn}
@@ -414,29 +451,31 @@ export default function ManageHotelRoomTypesScreen() {
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.label}>Prix / nuit (FCFA) *</Text>
+              <Text style={styles.label}>{t('hotelEstablishment.pricePerNight')}</Text>
               <TextInput
                 style={styles.input}
                 keyboardType="number-pad"
                 value={form.price_per_night}
                 onChangeText={(v) => setForm((f) => ({ ...f, price_per_night: v }))}
               />
-              <Text style={styles.label}>Max voyageurs / chambre</Text>
+              <Text style={styles.label}>{t('hotelEstablishment.maxGuests')}</Text>
               <TextInput
                 style={styles.input}
                 keyboardType="number-pad"
                 value={form.max_guests}
                 onChangeText={(v) => setForm((f) => ({ ...f, max_guests: v }))}
               />
-              <Text style={styles.label}>Frais de ménage</Text>
+              <Text style={styles.label}>{t('hotelEstablishment.cleaningFee')}</Text>
               <TextInput
                 style={styles.input}
                 keyboardType="number-pad"
                 value={form.cleaning_fee}
                 onChangeText={(v) => setForm((f) => ({ ...f, cleaning_fee: v }))}
               />
-              <Text style={styles.label}>Photos de la chambre</Text>
-              <Text style={styles.fieldHint}>Depuis votre galerie (max. {MAX_ROOM_PHOTOS}).</Text>
+              <Text style={styles.label}>{t('hotelEstablishment.roomPhotos')}</Text>
+              <Text style={styles.fieldHint}>
+                {t('hotelEstablishment.roomPhotosHint', { count: String(MAX_ROOM_PHOTOS) })}
+              </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosRow}>
                 {imageUris.map((uri, index) => (
                   <View key={`${uri}-${index}`} style={styles.photoWrap}>
@@ -452,14 +491,14 @@ export default function ManageHotelRoomTypesScreen() {
                 {imageUris.length < MAX_ROOM_PHOTOS ? (
                   <TouchableOpacity style={styles.photoAdd} onPress={pickImages}>
                     <Ionicons name="camera-outline" size={26} color="#64748b" />
-                    <Text style={styles.photoAddText}>Ajouter</Text>
+                    <Text style={styles.photoAddText}>{t('hotelEstablishment.add')}</Text>
                   </TouchableOpacity>
                 ) : null}
               </ScrollView>
             </ScrollView>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalOpen(false)}>
-                <Text style={styles.cancelText}>Annuler</Text>
+                <Text style={styles.cancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.saveBtn, saving && { opacity: 0.7 }]}
@@ -469,7 +508,7 @@ export default function ManageHotelRoomTypesScreen() {
                 {saving ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.saveText}>Enregistrer</Text>
+                  <Text style={styles.saveText}>{t('common.save')}</Text>
                 )}
               </TouchableOpacity>
             </View>

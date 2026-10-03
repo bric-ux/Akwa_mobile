@@ -1,3 +1,4 @@
+import { useLanguage } from '../contexts/LanguageContext';
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -36,6 +37,7 @@ import { getVehicleCoverUrl, isVideoUrl } from '../utils/media';
 import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
 
 const MyVehicleBookingsScreen: React.FC = () => {
+  const { t } = useLanguage();
   const navigation = useNavigation();
   const { user } = useAuth();
   const { getMyBookings, loading: vehiclesLoading } = useVehicleBookings();
@@ -186,19 +188,19 @@ const MyVehicleBookingsScreen: React.FC = () => {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'all':
-        return 'Toutes';
+        return t('bookings.all');
       case 'pending':
-        return 'En attente';
+        return t('bookings.pending');
       case 'confirmed':
-        return 'Confirmées';
+        return t('bookings.confirmedPlural');
       case 'completed':
-        return 'Terminées';
+        return t('bookings.completedPlural');
       case 'cancelled':
-        return 'Annulées';
+        return t('bookings.cancelledPlural');
       case 'in_progress':
-        return 'En cours';
+        return t('bookings.inProgress');
       default:
-        return 'Inconnu';
+        return t('bookings.unknown');
     }
   };
 
@@ -357,12 +359,12 @@ const MyVehicleBookingsScreen: React.FC = () => {
                   const requestId = pendingRequests[booking.id].id;
                   if (cancellingRequests[requestId]) return;
                   Alert.alert(
-                    'Annuler la demande',
-                    'Êtes-vous sûr de vouloir annuler cette demande de modification ?',
+                    t('bookings.cancelRequest'),
+                    t('bookings.cancelRequestConfirm'),
                     [
-                      { text: 'Non', style: 'cancel' },
+                      { text: t('common.no'), style: 'cancel' },
                       {
-                        text: 'Oui',
+                        text: t('common.yes'),
                         style: 'destructive',
                         onPress: async () => {
                           setCancellingRequests(prev => ({ ...prev, [requestId]: true }));
@@ -380,7 +382,9 @@ const MyVehicleBookingsScreen: React.FC = () => {
               >
                 <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
                 <Text style={styles.cancelModificationButtonText}>
-                  {cancellingRequests[pendingRequests[booking.id].id] ? 'Annulation...' : 'Annuler la demande'}
+                  {cancellingRequests[pendingRequests[booking.id].id]
+                    ? t('bookings.cancelling')
+                    : t('bookings.cancelRequest')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -408,7 +412,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
             onPress={handleViewDetails}
           >
             <Ionicons name="receipt-outline" size={16} color="#2E7D32" />
-            <Text style={styles.actionButtonText}>Voir détails</Text>
+            <Text style={styles.actionButtonText}>{t('bookings.viewDetailsShort')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}
@@ -489,7 +493,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
                 >
                   <Ionicons name="close-outline" size={16} color="#e74c3c" />
                   <Text style={[styles.actionButtonText, styles.cancelButtonText]}>
-                    Annuler
+                    {t('bookings.cancel')}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -582,8 +586,8 @@ const MyVehicleBookingsScreen: React.FC = () => {
   const renderEmptyState = () => {
     const hasAnyBookings = totalCount > 0;
     const emptyMessage = activeTab === 'vehicles' 
-      ? 'Aucune réservation de véhicule'
-      : 'Aucune réservation de résidence meublée';
+      ? t('bookings.noVehicleBookings')
+      : t('bookings.noPropertyBookings');
     
     return (
       <View style={styles.emptyContainer}>
@@ -609,7 +613,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
             }}
           >
             <Text style={styles.exploreButtonText}>
-              {activeTab === 'properties' ? 'Explorer les résidences' : 'Découvrir des véhicules'}
+              {activeTab === 'properties' ? t('bookings.exploreProperties') : t('bookings.discoverVehicles')}
             </Text>
           </TouchableOpacity>
         )}
@@ -639,15 +643,15 @@ const MyVehicleBookingsScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
           <Ionicons name="person-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyTitle}>Connexion requise</Text>
+          <Text style={styles.emptyTitle}>{t('vehicleOwner.loginRequired')}</Text>
           <Text style={styles.emptySubtitle}>
-            Vous devez être connecté pour voir vos réservations
+            {t('vehicleOwner.bookingsLoginDesc')}
           </Text>
           <TouchableOpacity
             style={styles.exploreButton}
             onPress={() => navigation.navigate('Auth' as never)}
           >
-            <Text style={styles.exploreButtonText}>Se connecter</Text>
+            <Text style={styles.exploreButtonText}>{t('auth.signIn')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -658,7 +662,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <View style={styles.placeholder} />
-        <Text style={styles.headerTitle}>Mes réservations</Text>
+        <Text style={styles.headerTitle}>{t('bookings.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -686,12 +690,12 @@ const MyVehicleBookingsScreen: React.FC = () => {
       <View style={styles.filtersContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.filtersContent}>
-            {renderFilterButton('all', 'Toutes')}
-            {renderFilterButton('in_progress', 'En cours')}
-            {renderFilterButton('pending', 'En attente')}
-            {renderFilterButton('confirmed', 'Confirmées')}
-            {renderFilterButton('completed', 'Terminées')}
-            {renderFilterButton('cancelled', 'Annulées')}
+            {renderFilterButton('all', t('bookings.all'))}
+            {renderFilterButton('in_progress', t('bookings.inProgress'))}
+            {renderFilterButton('pending', t('bookings.pending'))}
+            {renderFilterButton('confirmed', t('bookings.confirmedPlural'))}
+            {renderFilterButton('completed', t('bookings.completedPlural'))}
+            {renderFilterButton('cancelled', t('bookings.cancelledPlural'))}
           </View>
         </ScrollView>
       </View>
@@ -700,7 +704,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
       {loading && !refreshing ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
-          <Text style={styles.loadingText}>Chargement des réservations...</Text>
+          <Text style={styles.loadingText}>{t('bookings.loadingBookings')}</Text>
         </View>
       ) : (
         <FlatList

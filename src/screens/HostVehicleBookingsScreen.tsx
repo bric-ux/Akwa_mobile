@@ -148,26 +148,26 @@ const HostVehicleBookingsScreen: React.FC = () => {
 
   const handleStatusUpdate = async (booking: VehicleBooking, status: 'confirmed' | 'cancelled') => {
     Alert.alert(
-      status === 'confirmed' ? 'Confirmer la réservation' : 'Annuler la réservation',
+      status === 'confirmed' ? t('hostBookings.confirmBooking') : t('hostBookings.cancelBooking'),
       status === 'confirmed' 
         ? 'Voulez-vous confirmer cette réservation ?'
         : 'Voulez-vous annuler cette réservation ?',
       [
         { text: 'Retour', style: 'cancel' },
         {
-          text: status === 'confirmed' ? 'Confirmer' : 'Oui, annuler',
+          text: status === 'confirmed' ? t('hostBookings.confirm') : t('vehicleOwner.yesCancel'),
           style: status === 'cancelled' ? 'destructive' : 'default',
           onPress: async () => {
             try {
               const result = await updateBookingStatus(booking.id, status);
               if (result.success) {
-                Alert.alert('Succès', 'Réservation mise à jour avec succès');
+                Alert.alert(t('common.success'), t('vehicleOwner.updateSuccess'));
                 loadBookings();
               } else {
-                Alert.alert('Erreur', result.error || 'Impossible de mettre à jour la réservation');
+                Alert.alert(t('common.error'), result.error || t('hostBookings.updateError'));
               }
             } catch (err) {
-              Alert.alert('Erreur', 'Une erreur est survenue');
+              Alert.alert(t('common.error'), t('common.errorOccurred'));
             }
           },
         },
@@ -222,15 +222,15 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'En attente';
+        return t('bookings.pending');
       case 'confirmed':
-        return 'Confirmée';
+        return t('bookings.confirmed');
       case 'cancelled':
-        return 'Annulée';
+        return t('bookings.cancelled');
       case 'completed':
-        return 'Terminée';
+        return t('bookings.completed');
       case 'in_progress':
-        return 'En cours';
+        return t('bookings.inProgress');
       default:
         return status;
     }
@@ -552,18 +552,18 @@ const HostVehicleBookingsScreen: React.FC = () => {
               if (due != null && due > 0) {
                 Alert.alert(
                   'Commission plateforme',
-                  'Confirmez avoir bien reçu le paiement du locataire avant de régler la commission Akwahome. Que souhaitez-vous faire ?',
+                  t('vehicleOwner.commissionConfirm'),
                   [
-                    { text: 'Annuler', style: 'cancel' },
+                    { text: t('common.cancel'), style: 'cancel' },
                     {
-                      text: 'Voir détails réservation',
+                      text: t('hostBookings.viewBookingDetails'),
                       onPress: () => {
                         setSelectedBookingForDetails(item);
                         setDetailsModalVisible(true);
                       },
                     },
                     {
-                      text: 'Régler la commission',
+                      text: t('hostBookings.payCommission'),
                       onPress: () =>
                         navigation.navigate('Penalties' as never, {
                           initialTab: 'commissions',
@@ -639,14 +639,14 @@ const HostVehicleBookingsScreen: React.FC = () => {
               onPress={() => handleStatusUpdate(item, 'confirmed')}
             >
               <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>Accepter</Text>
+              <Text style={styles.actionButtonText}>{t('hostBookings.accept')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.rejectButton]}
               onPress={() => handleStatusUpdate(item, 'cancelled')}
             >
               <Ionicons name="close-circle-outline" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>Refuser</Text>
+              <Text style={styles.actionButtonText}>{t('hostBookings.reject')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -661,7 +661,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
             }}
           >
             <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
-            <Text style={[styles.actionButtonText, { color: '#ef4444' }]}>Annuler la réservation</Text>
+            <Text style={[styles.actionButtonText, { color: '#ef4444' }]}>{t('hostBookings.cancelBooking')}</Text>
           </TouchableOpacity>
         )}
 
@@ -685,11 +685,11 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Ionicons name="calendar-outline" size={64} color="#ccc" />
-      <Text style={styles.emptyTitle}>Aucune réservation</Text>
+      <Text style={styles.emptyTitle}>{t('hostBookings.noBookings')}</Text>
       <Text style={styles.emptySubtitle}>
         {selectedFilter === 'all' 
-          ? "Vous n'avez pas encore de réservation pour vos véhicules"
-          : `Aucune réservation ${selectedFilter === 'pending' ? 'en attente' : selectedFilter === 'confirmed' ? 'confirmée' : selectedFilter === 'completed' ? 'terminée' : 'annulée'}`}
+          ? t('hostBookings.noBookingsDesc')
+          : t('bookings.noBookingsInFilter', { status: getStatusText(selectedFilter).toLowerCase() })}
       </Text>
     </View>
   );
@@ -701,14 +701,14 @@ const HostVehicleBookingsScreen: React.FC = () => {
         <>
           <View style={styles.header}>
             <View style={styles.placeholder} />
-            <Text style={styles.headerTitle}>Réservations de véhicules</Text>
+            <Text style={styles.headerTitle}>{t('vehicleOwner.bookingsTitle')}</Text>
             <View style={styles.placeholder} />
           </View>
 
           {vehiclesWithBookings.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="car-outline" size={64} color="#ccc" />
-              <Text style={styles.emptyTitle}>Aucun véhicule</Text>
+              <Text style={styles.emptyTitle}>{t('vehicleOwner.noVehicles')}</Text>
               <Text style={styles.emptySubtitle}>
                 Vous n'avez pas encore ajouté de véhicule.
               </Text>
@@ -761,7 +761,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
                           </View>
                         ) : item.stats.pending > 0 && item.isAvailable ? (
                           <View style={[styles.unavailableBadge, { backgroundColor: '#f59e0b' }]}>
-                            <Text style={styles.unavailableBadgeText}>En attente ({item.stats.pending})</Text>
+                            <Text style={styles.unavailableBadgeText}>{t('vehicleOwner.pendingBadge', { count: String(item.stats.pending) })}</Text>
                           </View>
                         ) : item.isAvailable ? (
                           <View style={styles.availableBadge}>
@@ -796,7 +796,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
                       )}
                       {item.stats.pending > 0 && (
                         <Text style={[styles.vehicleCardStatText, { color: '#FFA500' }]}>
-                          En attente: {item.stats.pending}
+                          {t('vehicleOwner.pendingCount', { count: String(item.stats.pending) })}
                         </Text>
                       )}
                       {item.stats.confirmed > 0 && (
@@ -875,12 +875,12 @@ const HostVehicleBookingsScreen: React.FC = () => {
               contentContainerStyle={styles.filtersContent}
             >
               {[
-                { key: 'all', label: 'Toutes' },
-                { key: 'in_progress', label: 'En cours' },
-                { key: 'pending', label: 'En attente' },
-                { key: 'confirmed', label: 'Confirmées' },
-                { key: 'cancelled', label: 'Annulées' },
-                { key: 'completed', label: 'Terminées' },
+                { key: 'all', label: t('bookings.all') },
+                { key: 'in_progress', label: t('bookings.inProgress') },
+                { key: 'pending', label: t('bookings.pending') },
+                { key: 'confirmed', label: t('bookings.confirmedPlural') },
+                { key: 'cancelled', label: t('bookings.cancelledPlural') },
+                { key: 'completed', label: t('bookings.completedPlural') },
               ].map((filter) => (
                 <TouchableOpacity
                   key={filter.key}

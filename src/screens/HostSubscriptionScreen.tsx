@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
+import { useLanguage } from '../contexts/LanguageContext';
 
 /**
  * Ancien écran d’abonnement payant.
@@ -16,6 +17,7 @@ import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
  */
 const HostSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { t } = useLanguage();
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -23,7 +25,7 @@ const HostSubscriptionScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Bail longue durée</Text>
+        <Text style={styles.headerTitle}>{t('monthlyHost.subscriptionTitle')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -31,11 +33,8 @@ const HostSubscriptionScreen: React.FC = () => {
         <View style={styles.iconWrap}>
           <Ionicons name="checkmark-circle" size={48} color={MONTHLY_RENTAL_COLORS.primary} />
         </View>
-        <Text style={styles.title}>Publication gratuite</Text>
-        <Text style={styles.desc}>
-          Pour l’instant, publier un logement en bail longue durée ne nécessite aucun abonnement
-          ni paiement. Gérez vos annonces depuis l’espace dédié.
-        </Text>
+        <Text style={styles.title}>{t('monthlyHost.subscriptionFree')}</Text>
+        <Text style={styles.desc}>{t('monthlyHost.subscriptionDesc')}</Text>
 
         <TouchableOpacity
           style={styles.primaryBtn}
@@ -48,7 +47,7 @@ const HostSubscriptionScreen: React.FC = () => {
           }}
           activeOpacity={0.85}
         >
-          <Text style={styles.primaryBtnText}>Ouvrir l’espace bail longue durée</Text>
+          <Text style={styles.primaryBtnText}>{t('monthlyHost.openSpace')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -56,7 +55,7 @@ const HostSubscriptionScreen: React.FC = () => {
           onPress={() => navigation.navigate('AddMonthlyRentalListing' as never)}
           activeOpacity={0.85}
         >
-          <Text style={styles.secondaryBtnText}>Ajouter un logement</Text>
+          <Text style={styles.secondaryBtnText}>{t('monthlyHost.addListing')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
