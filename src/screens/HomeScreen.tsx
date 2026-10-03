@@ -187,7 +187,10 @@ const HomeScreen: React.FC = () => {
       if (item.kind === 'large') {
         const g = item.group;
         const count = g.totalCount;
-        const subtitle = `${count} logement${count > 1 ? 's' : ''} disponible${count > 1 ? 's' : ''}`;
+        const subtitle = t(count > 1 ? 'home.housingAvailable_other' : 'home.housingAvailable_one').replace(
+          '{count}',
+          String(count),
+        );
         return (
           <View style={styles.exploreSection}>
             <View style={styles.exploreSectionHeader}>
@@ -200,7 +203,7 @@ const HomeScreen: React.FC = () => {
                 onPress={() => navigateSearchCity(g.cityName)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Text style={styles.exploreVoirToutText}>Voir tout</Text>
+                <Text style={styles.exploreVoirToutText}>{t('common.seeAll')}</Text>
                 <Ionicons name="chevron-forward" size={16} color="#475569" />
               </TouchableOpacity>
             </View>
@@ -212,7 +215,9 @@ const HomeScreen: React.FC = () => {
       const chunk = item.groups;
       const clusterTotal = chunk.reduce((sum, cg) => sum + cg.totalCount, 0);
       const title = chunk.map((cg) => cg.cityName).join(' & ');
-      const subtitle = `${clusterTotal} logement${clusterTotal > 1 ? 's' : ''} disponible${clusterTotal > 1 ? 's' : ''}`;
+      const subtitle = t(
+        clusterTotal > 1 ? 'home.housingAvailable_other' : 'home.housingAvailable_one',
+      ).replace('{count}', String(clusterTotal));
       const flat = chunk.flatMap((cg) => cg.properties);
 
       return (
@@ -227,7 +232,7 @@ const HomeScreen: React.FC = () => {
               onPress={() => (navigation as any).navigate('Search')}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={styles.exploreVoirToutText}>Voir plus</Text>
+              <Text style={styles.exploreVoirToutText}>{t('common.seeMore')}</Text>
               <Ionicons name="chevron-forward" size={16} color="#475569" />
             </TouchableOpacity>
           </View>
@@ -235,7 +240,7 @@ const HomeScreen: React.FC = () => {
         </View>
       );
     },
-    [handlePropertyPress, navigateSearchCity, navigation, renderExplorePropertyRow],
+    [navigateSearchCity, navigation, renderExplorePropertyRow, t],
   );
 
   const exploreFailureKind: LoadFailureKind | null = exploreError
@@ -284,12 +289,12 @@ const HomeScreen: React.FC = () => {
 
       <View style={styles.section}>
         <View style={styles.exploreIntroHeader}>
-          <Text style={styles.sectionTitle}>Résidences meublées</Text>
+          <Text style={styles.sectionTitle}>{t('home.residences')}</Text>
         </View>
         {exploreErrorCard}
       </View>
     </>
-  ), [handleSearchPress, showDeferredHeaderContent, exploreErrorCard, homeShelfRefreshKey]);
+  ), [handleSearchPress, showDeferredHeaderContent, exploreErrorCard, homeShelfRefreshKey, t]);
 
   const listFooter = useMemo(
     () => (
@@ -298,7 +303,7 @@ const HomeScreen: React.FC = () => {
 
         {/* Location de véhicules — même largeur que la grille 2 services */}
         <View style={styles.vehiclesPromoSection}>
-          <Text style={styles.vehiclesPromoSectionTitle}>Location de véhicules</Text>
+          <Text style={styles.vehiclesPromoSectionTitle}>{t('home.vehiclesPromo')}</Text>
           <TouchableOpacity
             activeOpacity={0.92}
             onPress={() => (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' })}
@@ -307,7 +312,7 @@ const HomeScreen: React.FC = () => {
               { width: windowWidth - HOME_EXPLORE_HORIZONTAL_GUTTER * 2 },
             ]}
             accessibilityRole="button"
-            accessibilityLabel="Location de véhicules"
+            accessibilityLabel={t('home.vehiclesPromo')}
           >
             <ImageBackground
               source={require('../../assets/images/vehicles-suv.jpg')}
@@ -317,15 +322,15 @@ const HomeScreen: React.FC = () => {
               <View style={styles.vehiclesPromoScrim} />
               <View style={styles.vehiclesPromoScrimBottom} />
               <View style={styles.vehiclesPromoContent}>
-                <Text style={styles.vehiclesPromoEyebrow}>Location de véhicules</Text>
+                <Text style={styles.vehiclesPromoEyebrow}>{t('home.vehiclesPromo')}</Text>
                 <Text style={styles.vehiclesPromoTitle}>
-                  Abidjan & partout en Côte d'Ivoire
+                  {t('home.vehiclesPromoTitle')}
                 </Text>
                 <Text style={styles.vehiclesPromoDescription}>
-                  À la journée ou à l'heure, avec ou sans chauffeur.
+                  {t('home.vehiclesPromoDesc')}
                 </Text>
                 <View style={styles.vehiclesPromoButton}>
-                  <Text style={styles.vehiclesPromoButtonText}>Voir les véhicules</Text>
+                  <Text style={styles.vehiclesPromoButtonText}>{t('home.vehiclesPromoCta')}</Text>
                   <Ionicons name="arrow-forward" size={16} color="#fff" />
                 </View>
               </View>
@@ -335,8 +340,8 @@ const HomeScreen: React.FC = () => {
 
         {/* Services propriétaires — deux encarts carrés */}
         <View style={styles.ownerServicesSection}>
-          <Text style={styles.ownerServicesTitle}>Services propriétaires</Text>
-          <Text style={styles.ownerServicesSubtitle}>Conciergerie et équipements pour hôtes</Text>
+          <Text style={styles.ownerServicesTitle}>{t('home.ownerServices')}</Text>
+          <Text style={styles.ownerServicesSubtitle}>{t('home.ownerServicesMobileDesc')}</Text>
 
           <View style={styles.ownerServicesGrid}>
             <TouchableOpacity
@@ -344,7 +349,7 @@ const HomeScreen: React.FC = () => {
               onPress={() => navigation.navigate('Conciergerie' as never)}
               activeOpacity={0.9}
               accessibilityRole="button"
-              accessibilityLabel="Conciergerie — Gestion locative"
+              accessibilityLabel={t('home.conciergeA11y')}
             >
               <ImageBackground
                 source={require('../../assets/images/conciergerie.png')}
@@ -352,13 +357,13 @@ const HomeScreen: React.FC = () => {
                 resizeMode="cover"
               >
                 <View style={styles.ownerServiceSquareContent}>
-                  <Text style={styles.ownerServiceSquareLabel}>Conciergerie</Text>
-                  <Text style={styles.ownerServiceSquareTitle}>Gestion locative</Text>
+                  <Text style={styles.ownerServiceSquareLabel}>{t('header.concierge')}</Text>
+                  <Text style={styles.ownerServiceSquareTitle}>{t('home.rentalManagement')}</Text>
                   <Text style={styles.ownerServiceSquareDesc}>
-                    Accueil, ménage et suivi pour propriétaires.
+                    {t('home.conciergeDesc')}
                   </Text>
                   <View style={styles.ownerServiceSquareCta}>
-                    <Text style={styles.ownerServiceSquareCtaText}>Découvrir</Text>
+                    <Text style={styles.ownerServiceSquareCtaText}>{t('common.discover')}</Text>
                     <Ionicons name="arrow-forward" size={14} color="#fff" />
                   </View>
                 </View>
@@ -370,7 +375,7 @@ const HomeScreen: React.FC = () => {
               onPress={openKeyboxWhatsApp}
               activeOpacity={0.9}
               accessibilityRole="link"
-              accessibilityLabel="Boîtes à clés — Contact WhatsApp"
+              accessibilityLabel={t('home.keyBoxesA11y')}
             >
               <ImageBackground
                 source={require('../../assets/images/keybox-wall.jpg')}
@@ -378,10 +383,10 @@ const HomeScreen: React.FC = () => {
                 resizeMode="cover"
               >
                 <View style={styles.ownerServiceSquareContent}>
-                  <Text style={styles.ownerServiceSquareLabel}>Propriétaires</Text>
-                  <Text style={styles.ownerServiceSquareTitle}>Boîtes à clés</Text>
+                  <Text style={styles.ownerServiceSquareLabel}>{t('home.ownersLabel')}</Text>
+                  <Text style={styles.ownerServiceSquareTitle}>{t('home.keyBoxes')}</Text>
                   <Text style={styles.ownerServiceSquareDesc}>
-                    Check-in autonome, installation discrète.
+                    {t('home.keyBoxesDesc')}
                   </Text>
                   <View style={styles.ownerServiceSquareWaBtn}>
                     <Ionicons name="logo-whatsapp" size={16} color="#fff" />
@@ -394,7 +399,7 @@ const HomeScreen: React.FC = () => {
         </View>
       </>
     ),
-    [navigation, openKeyboxWhatsApp, bottomServiceCardSize, windowWidth, homeShelfRefreshKey],
+    [navigation, openKeyboxWhatsApp, bottomServiceCardSize, windowWidth, homeShelfRefreshKey, t],
   );
   const scrollContentStyle = useMemo(
     () => [styles.scrollContent, { paddingBottom: 20 + TEDDY_FAB_SCROLL_PADDING }],

@@ -18,6 +18,7 @@ import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import { useCurrency } from '../hooks/useCurrency';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import { useAuth } from '../services/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import SimpleMessageModal from '../components/SimpleMessageModal';
 import { monthlyFurnitureLabel } from '../constants/monthlyFurniture';
 import PublicOwnerCard from '../components/PublicOwnerCard';
@@ -33,12 +34,14 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
   const { listingId } = route.params;
   const { formatPrice } = useCurrency();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [listing, setListing] = useState<MonthlyRentalListing | null>(null);
   const [loading, setLoading] = useState(true);
   const [messageModalVisible, setMessageModalVisible] = useState(false);
-  const [ownerName, setOwnerName] = useState('Propriétaire');
+  const [ownerName, setOwnerName] = useState('');
 
   const isOwner = !!(listing && user && listing.owner_id === user.id);
+  const displayOwnerName = ownerName || t('monthly.owner');
 
   useEffect(() => {
     const load = async () => {
@@ -129,7 +132,7 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
         <View style={styles.centered}>
-          <Text style={styles.errorText}>Annonce introuvable.</Text>
+          <Text style={styles.errorText}>{t('monthly.notFound')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -144,7 +147,7 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <View style={styles.badgeLongueDuree}>
-          <Text style={styles.badgeText}>Bail longue durée</Text>
+          <Text style={styles.badgeText}>{t('category.monthly')}</Text>
         </View>
       </View>
       <ScrollView
@@ -164,7 +167,7 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
           <Text style={styles.location}>📍 {listing.location}</Text>
           <View style={styles.priceRow}>
             <Text style={styles.price}>{formatPrice(listing.monthly_rent_price)}</Text>
-            <Text style={styles.priceUnit}>/mois</Text>
+            <Text style={styles.priceUnit}>{t('search.perMonth')}</Text>
           </View>
           <View style={styles.specs}>
             <View style={styles.spec}>
@@ -173,35 +176,43 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
             </View>
             <View style={styles.spec}>
               <Ionicons name="grid-outline" size={20} color="#666" />
-              <Text style={styles.specText}>{listing.number_of_rooms} pièces</Text>
+              <Text style={styles.specText}>
+                {t('monthly.rooms', { count: String(listing.number_of_rooms) })}
+              </Text>
             </View>
             <View style={styles.spec}>
               <Ionicons name="bed-outline" size={20} color="#666" />
-              <Text style={styles.specText}>{listing.bedrooms} chambres</Text>
+              <Text style={styles.specText}>
+                {listing.bedrooms} {t('property.bedrooms')}
+              </Text>
             </View>
             <View style={styles.spec}>
               <Ionicons name="water-outline" size={20} color="#666" />
-              <Text style={styles.specText}>{listing.bathrooms} SdB</Text>
+              <Text style={styles.specText}>
+                {t('monthly.bathroomsAbbr', { count: String(listing.bathrooms) })}
+              </Text>
               {listing.toilets != null ? (
-                <Text style={styles.specText}>{listing.toilets} WC</Text>
+                <Text style={styles.specText}>
+                  {t('monthly.toilets', { count: String(listing.toilets) })}
+                </Text>
               ) : null}
             </View>
             {listing.is_furnished ? (
               <View style={styles.spec}>
                 <Ionicons name="cube-outline" size={20} color="#666" />
-                <Text style={styles.specText}>Meublé</Text>
+                <Text style={styles.specText}>{t('monthly.furnished')}</Text>
               </View>
             ) : (
               <View style={styles.spec}>
                 <Ionicons name="cube-outline" size={20} color="#666" />
-                <Text style={styles.specText}>Non meublé</Text>
+                <Text style={styles.specText}>{t('monthly.unfurnished')}</Text>
               </View>
             )}
             {listing.deposit_months != null ? (
               <View style={styles.spec}>
                 <Ionicons name="shield-checkmark-outline" size={20} color="#666" />
                 <Text style={styles.specText}>
-                  Caution {listing.deposit_months} mois
+                  {t('monthly.deposit', { count: String(listing.deposit_months) })}
                 </Text>
               </View>
             ) : null}
@@ -209,14 +220,14 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
               <View style={styles.spec}>
                 <Ionicons name="calendar-outline" size={20} color="#666" />
                 <Text style={styles.specText}>
-                  Avance {listing.advance_months} mois
+                  {t('monthly.advance', { count: String(listing.advance_months) })}
                 </Text>
               </View>
             ) : null}
           </View>
           {listing.description ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Description</Text>
+              <Text style={styles.sectionTitle}>{t('property.description')}</Text>
               <Text style={styles.description}>
                 {sanitizePublicDescription(listing.description)}
               </Text>
@@ -224,7 +235,7 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
           ) : null}
           {listing.is_furnished && listing.amenities && listing.amenities.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Mobilier & équipements</Text>
+              <Text style={styles.sectionTitle}>{t('monthly.furnitureAmenities')}</Text>
               <View style={styles.amenityList}>
                 {listing.amenities.map((a, i) => (
                   <Text key={i} style={styles.amenityTag}>
@@ -260,7 +271,9 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
             size={20}
             color={MONTHLY_RENTAL_COLORS.primary}
           />
-          <Text style={styles.contactBtnText}>{isOwner ? 'Messages' : 'Écrire'}</Text>
+          <Text style={styles.contactBtnText}>
+            {isOwner ? t('nav.messages') : t('monthly.write')}
+          </Text>
         </TouchableOpacity>
         {!isOwner ? (
           <TouchableOpacity
@@ -269,7 +282,7 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
             activeOpacity={0.8}
           >
             <Ionicons name="document-text-outline" size={22} color="#fff" />
-            <Text style={styles.postulerBtnText}>Postuler</Text>
+            <Text style={styles.postulerBtnText}>{t('monthly.apply')}</Text>
           </TouchableOpacity>
         ) : null}
       </View>
@@ -281,7 +294,7 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
           monthlyListingId={listing.id}
           otherParticipant={{
             id: listing.owner_id,
-            name: ownerName,
+            name: displayOwnerName,
             isHost: true,
           }}
         />

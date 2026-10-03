@@ -101,6 +101,7 @@ export default function AddHotelEstablishmentScreen() {
   const [address, setAddress] = useState('');
   const [addressDetails, setAddressDetails] = useState('');
   const [description, setDescription] = useState('');
+  const [starRating, setStarRating] = useState('');
   const [checkInTime, setCheckInTime] = useState('14:00');
   const [checkOutTime, setCheckOutTime] = useState('11:00');
   const [amenities, setAmenities] = useState<string[]>([]);
@@ -126,7 +127,7 @@ export default function AddHotelEstablishmentScreen() {
       const { data, error } = await supabase
         .from('hotel_establishments')
         .select(
-          'title, establishment_type, address, address_details, description, status, images, latitude, longitude, location_id, check_in_time, check_out_time, amenities, house_rules, cancellation_policy, pets_allowed, spoken_languages',
+          'title, establishment_type, address, address_details, description, star_rating, status, images, latitude, longitude, location_id, check_in_time, check_out_time, amenities, house_rules, cancellation_policy, pets_allowed, spoken_languages',
         )
         .eq('id', establishmentId)
         .eq('host_id', user.id)
@@ -142,6 +143,9 @@ export default function AddHotelEstablishmentScreen() {
       setAddress(data.address || '');
       setAddressDetails(data.address_details || '');
       setDescription(data.description || '');
+      setStarRating(
+        (data as any).star_rating != null ? String((data as any).star_rating) : '',
+      );
       setCheckInTime(formatHotelTime(data.check_in_time) || '14:00');
       setCheckOutTime(formatHotelTime(data.check_out_time) || '11:00');
       setAmenities(Array.isArray(data.amenities) ? data.amenities.map(String) : []);
@@ -342,6 +346,7 @@ export default function AddHotelEstablishmentScreen() {
         pets_allowed: petsAllowed,
         house_rules: houseRules.trim() || null,
         cancellation_policy: cancellationPolicy || null,
+        star_rating: starRating.trim() ? Number(starRating) : null,
       };
 
       if (isEdit && establishmentId) {
@@ -650,6 +655,23 @@ export default function AddHotelEstablishmentScreen() {
             placeholder="Rue, immeuble, repère…"
             placeholderTextColor="#94a3b8"
           />
+
+          <Text style={[styles.label, { marginTop: 16 }]}>Étoiles (optionnel)</Text>
+          <View style={styles.chips}>
+            {['', '1', '2', '3', '4', '5'].map((v) => {
+              const label = v === '' ? 'Aucune' : `${v}★`;
+              const selected = starRating === v;
+              return (
+                <TouchableOpacity
+                  key={label}
+                  style={[styles.chip, selected && styles.chipActive]}
+                  onPress={() => setStarRating(v)}
+                >
+                  <Text style={[styles.chipText, selected && styles.chipTextActive]}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <Text style={styles.label}>Position sur la carte</Text>
           <Text style={styles.hint}>

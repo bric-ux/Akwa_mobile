@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../../constants/homeExploreLayout';
 import { useFeatureFlags } from '../../contexts/FeatureFlagsContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useApprovedHotelEstablishments } from '../../hooks/useApprovedHotelEstablishments';
 import { useApprovedMonthlyRentalListings } from '../../hooks/useApprovedMonthlyRentalListings';
 
@@ -18,7 +19,7 @@ export type HomeCategoryId = 'residence' | 'monthly' | 'vehicle' | 'hotel';
 
 type CategoryDef = {
   id: HomeCategoryId;
-  label: string;
+  labelKey: string;
   image: number;
 };
 
@@ -27,31 +28,32 @@ const PILL_GAP = 8;
 
 const RESIDENCE_CATEGORY: CategoryDef = {
   id: 'residence',
-  label: 'Résidences',
+  labelKey: 'category.residences',
   image: require('../../../assets/images/category-residences.jpg'),
 };
 
 const VEHICLE_CATEGORY: CategoryDef = {
   id: 'vehicle',
-  label: 'Véhicules',
+  labelKey: 'category.vehicles',
   image: require('../../../assets/images/category-vehicles.jpg'),
 };
 
 const MONTHLY_CATEGORY: CategoryDef = {
   id: 'monthly',
-  label: 'Bail longue durée',
+  labelKey: 'category.monthly',
   image: require('../../../assets/IMG_9552.jpeg'),
 };
 
 const HOTEL_CATEGORY: CategoryDef = {
   id: 'hotel',
-  label: 'Hôtels',
+  labelKey: 'category.hotels',
   image: require('../../../assets/IMG_9553.jpeg'),
 };
 
 /** Pills catégories — hôtel / bail uniquement s’il existe au moins une annonce publiée. */
 export default function HomeCategoryPills({ refreshKey = 0 }: { refreshKey?: number }) {
   const navigation = useNavigation();
+  const { t } = useLanguage();
   const { monthlyRental, hotel, loading: flagsLoading } = useFeatureFlags();
   const { fetchEstablishments } = useApprovedHotelEstablishments();
   const { fetchListings } = useApprovedMonthlyRentalListings();
@@ -120,34 +122,37 @@ export default function HomeCategoryPills({ refreshKey = 0 }: { refreshKey?: num
       showsHorizontalScrollIndicator={false}
       style={styles.scroll}
       contentContainerStyle={styles.nav}
-      accessibilityLabel="Parcourir par catégorie"
+      accessibilityLabel={t('home.browseCategories')}
     >
-      {categories.map((item) => (
-        <TouchableOpacity
-          key={item.id}
-          style={styles.pill}
-          activeOpacity={0.92}
-          onPress={() => onPress(item.id)}
-          accessibilityRole="button"
-          accessibilityLabel={item.label}
-        >
-          <ImageBackground
-            source={item.image}
-            style={styles.image}
-            resizeMode="cover"
+      {categories.map((item) => {
+        const label = t(item.labelKey);
+        return (
+          <TouchableOpacity
+            key={item.id}
+            style={styles.pill}
+            activeOpacity={0.92}
+            onPress={() => onPress(item.id)}
+            accessibilityRole="button"
+            accessibilityLabel={label}
           >
-            <View style={styles.scrim} />
-            <View style={styles.labelRow}>
-              <Text style={styles.label} numberOfLines={1}>
-                {item.label}
-              </Text>
-              <View style={styles.chevron}>
-                <Ionicons name="chevron-forward" size={12} color="#fff" />
+            <ImageBackground
+              source={item.image}
+              style={styles.image}
+              resizeMode="cover"
+            >
+              <View style={styles.scrim} />
+              <View style={styles.labelRow}>
+                <Text style={styles.label} numberOfLines={1}>
+                  {label}
+                </Text>
+                <View style={styles.chevron}>
+                  <Ionicons name="chevron-forward" size={12} color="#fff" />
+                </View>
               </View>
-            </View>
-          </ImageBackground>
-        </TouchableOpacity>
-      ))}
+            </ImageBackground>
+          </TouchableOpacity>
+        );
+      })}
     </ScrollView>
   );
 }

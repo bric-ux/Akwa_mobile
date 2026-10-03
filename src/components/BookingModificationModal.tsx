@@ -31,6 +31,7 @@ import {
   hostReceivedFundsForModificationRefundProperty,
 } from '../utils/cancellationPolicy';
 import { inferOriginalSubtotal } from '../utils/amountUtils';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface BookingModificationModalProps {
   visible: boolean;
@@ -46,8 +47,10 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   onModificationRequested,
 }) => {
   const { user } = useAuth();
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
   const { formatPrice, currency } = useCurrency();
-  /** Taux frais voyageur 13 % (CB/Wave) vs 12 % — aligné sur calculateFees / inferOriginalSubtotal */
+  /** Taux frais voyageur 12 % — aligné sur getCommissionRates / inferOriginalSubtotal */
   const propertyUsesPlatformCardServiceRate =
     booking.payment_method === 'card' || booking.payment_method === 'wave';
   const { createModificationRequest, getBookingPendingRequest, cancelModificationRequest, loading } = useBookingModifications();
@@ -110,7 +113,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
       // S'assurer que les dates sont valides
       if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
         console.error('❌ Dates invalides:', { checkInDate, checkOutDate, booking });
-        Alert.alert('Erreur', 'Les dates de réservation sont invalides');
+        Alert.alert(t('common.error'), t('bookingMod.invalidDates'));
         return;
       }
       setCheckIn(checkInDate);
@@ -174,7 +177,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
 
   // Fonctions utilitaires pour le formatage des dates (définies en premier)
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('fr-FR', {
+    return date.toLocaleDateString(dateLocale, {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -368,9 +371,9 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
     // Vérifier si une demande est déjà en cours
     if (hasPendingRequest) {
       Alert.alert(
-        'Demande en cours',
-        'Vous avez déjà une demande de modification en attente. Veuillez attendre la réponse de l\'hôte ou annuler la demande existante.',
-        [{ text: 'OK' }]
+        t('bookings.requestInProgress'),
+        t('bookings.requestInProgressHost'),
+        [{ text: t('common.ok') }]
       );
       return;
     }
@@ -386,7 +389,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
     // Vérifier que les dates sont valides
     if (finalCheckOut <= finalCheckIn) {
       console.log('❌ [BookingModificationModal] Date de départ <= date d\'arrivée');
-      Alert.alert('Erreur', 'La date de départ doit être après la date d\'arrivée');
+      Alert.alert(t('common.error'), t('bookingMod.checkoutAfterCheckin'));
       return;
     }
 
@@ -405,7 +408,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
 
     if (finalNights < 1) {
       console.log('❌ [BookingModificationModal] Durée < 1 nuit');
-      Alert.alert('Erreur', 'La date de départ doit être après la date d\'arrivée');
+      Alert.alert(t('common.error'), t('bookingMod.checkoutAfterCheckin'));
       return;
     }
 
@@ -416,8 +419,10 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
         minimumNights,
       });
       Alert.alert(
-        'Durée insuffisante',
-        `Cette propriété nécessite un minimum de ${minimumNights} nuit${minimumNights > 1 ? 's' : ''}`
+        t('booking.minNightsTitle'),
+        t(minimumNights === 1 ? 'booking.minNightsDesc_one' : 'booking.minNightsDesc_other', {
+          count: String(minimumNights),
+        })
       );
       return;
     }
@@ -427,7 +432,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
         guestsCount,
         maxGuests,
       });
-      Alert.alert('Erreur', `Le nombre maximum de voyageurs est ${maxGuests}`);
+      Alert.alert(t('common.error'), t('booking.maxGuestsExceeded', { count: String(maxGuests) }));
       return;
     }
     
@@ -481,13 +486,13 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
 
       if (conflictError) {
         console.error('❌ [BookingModificationModal] Erreur vérification disponibilité:', conflictError);
-        Alert.alert('Erreur', 'Impossible de vérifier la disponibilité. Veuillez réessayer.');
+        Alert.alert(t('common.error'), t('bookingMod.availabilityCheckError'));
         return;
       }
 
       if (conflictingBookings && conflictingBookings.length > 0) {
         console.log('⚠️ [BookingModificationModal] Conflit détecté avec:', conflictingBookings);
-        Alert.alert('Dates non disponibles', 'Ces dates ne sont pas disponibles pour cette propriété.');
+        Alert.alert(t('bookingMod.datesUnavailable'), t('bookingMod.datesUnavailableDesc'));
         return;
       }
       
@@ -533,15 +538,15 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
 
         if (hasConflict) {
           console.log('❌ [BookingModificationModal] Dates bloquées détectées');
-          Alert.alert('Dates non disponibles', 'Ces dates sont bloquées pour cette propriété.');
+          Alert.alert(t('bookingMod.datesUnavailable'), t('bookingMod.datesBlockedDesc'));
           return;
         }
       }
-      
+
       console.log('✅ [BookingModificationModal] Vérification disponibilité terminée, aucune date bloquée');
     } catch (error) {
       console.error('❌ [BookingModificationModal] Erreur lors de la vérification de disponibilité:', error);
-      Alert.alert('Erreur', 'Impossible de vérifier la disponibilité. Veuillez réessayer.');
+      Alert.alert(t('common.error'), t('bookingMod.availabilityCheckError'));
       return;
     }
 
@@ -552,7 +557,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
     const originalTotalPrice = Math.max(0, Number(booking.total_price) || 0);
     if (originalTotalPrice <= 0) {
       console.error('❌ [BookingModificationModal] total_price réservation invalide:', booking.total_price);
-      Alert.alert('Erreur', 'Impossible de calculer le surplus : le montant de la réservation actuelle est invalide.');
+      Alert.alert(t('common.error'), t('bookingMod.invalidTotal'));
       return;
     }
     const isExtensionSubmit = finalNights > originalNightsSubmit;
@@ -755,7 +760,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
       onClose();
       onModificationRequested?.();
     } else {
-      Alert.alert('Erreur', result.error || 'Impossible de soumettre la demande.');
+      Alert.alert(t('common.error'), result.error || t('bookingMod.submitError'));
     }
   };
 
@@ -771,7 +776,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color="#333" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Modifier la réservation</Text>
+          <Text style={styles.headerTitle}>{t('bookingMod.title')}</Text>
           <View style={styles.placeholder} />
         </View>
 
@@ -794,49 +799,49 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
           {checkingPending ? (
             <View style={styles.centerContainer}>
               <ActivityIndicator size="large" color="#2E7D32" />
-              <Text style={styles.loadingText}>Vérification...</Text>
+              <Text style={styles.loadingText}>{t('bookingMod.checking')}</Text>
             </View>
           ) : hasPendingRequest && pendingRequest ? (
             <>
               <View style={styles.pendingRequestCard}>
                 <View style={styles.pendingRequestHeader}>
                   <Ionicons name="time-outline" size={24} color="#f39c12" />
-                  <Text style={styles.pendingRequestTitle}>Demande en attente</Text>
+                  <Text style={styles.pendingRequestTitle}>{t('bookings.pendingRequest')}</Text>
                 </View>
                 <Text style={styles.pendingRequestSubtitle}>
-                  Votre demande de modification est en cours d'examen par l'hôte.
+                  {t('bookingMod.pendingSubtitle')}
                 </Text>
 
                 {/* Détails de la demande */}
                 <View style={styles.requestDetails}>
-                  <Text style={styles.requestDetailsTitle}>Détails de votre demande</Text>
+                  <Text style={styles.requestDetailsTitle}>{t('bookingMod.requestDetails')}</Text>
                   
                   <View style={styles.requestDetailRow}>
-                    <Text style={styles.requestDetailLabel}>Dates demandées:</Text>
+                    <Text style={styles.requestDetailLabel}>{t('bookingMod.requestedDates')}</Text>
                     <Text style={styles.requestDetailValue}>
                       {formatDate(new Date(pendingRequest.requested_check_in))} - {formatDate(new Date(pendingRequest.requested_check_out))}
                     </Text>
                   </View>
 
                   <View style={styles.requestDetailRow}>
-                    <Text style={styles.requestDetailLabel}>Nombre de voyageurs:</Text>
+                    <Text style={styles.requestDetailLabel}>{t('bookingMod.guestsCountLabel')}</Text>
                     <Text style={styles.requestDetailValue}>{pendingRequest.requested_guests_count}</Text>
                   </View>
 
                   <View style={styles.requestDetailRow}>
-                    <Text style={styles.requestDetailLabel}>Nouveau total:</Text>
+                    <Text style={styles.requestDetailLabel}>{t('bookingMod.newTotal')}</Text>
                     <Text style={styles.requestDetailValue}>{formatPrice(pendingRequest.requested_total_price)}</Text>
                   </View>
 
                   {pendingRequest.guest_message && (
                     <View style={styles.requestMessageBox}>
-                      <Text style={styles.requestMessageLabel}>Votre message:</Text>
+                      <Text style={styles.requestMessageLabel}>{t('bookingMod.yourMessage')}</Text>
                       <Text style={styles.requestMessageText}>{pendingRequest.guest_message}</Text>
                     </View>
                   )}
 
                   <View style={styles.requestDetailRow}>
-                    <Text style={styles.requestDetailLabel}>Date de la demande:</Text>
+                    <Text style={styles.requestDetailLabel}>{t('bookingMod.requestDate')}</Text>
                     <Text style={styles.requestDetailValue}>
                       {formatDate(new Date(pendingRequest.created_at))}
                     </Text>
@@ -848,12 +853,12 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                   style={styles.cancelRequestButton}
                   onPress={async () => {
                     Alert.alert(
-                      'Annuler la demande',
-                      'Êtes-vous sûr de vouloir annuler cette demande de modification ?',
+                      t('bookings.cancelRequest'),
+                      t('bookings.cancelRequestConfirm'),
                       [
-                        { text: 'Non', style: 'cancel' },
+                        { text: t('common.no'), style: 'cancel' },
                         {
-                          text: 'Oui, annuler',
+                          text: t('booking.cancelYes'),
                           style: 'destructive',
                           onPress: async () => {
                             const result = await cancelModificationRequest(pendingRequest.id);
@@ -869,7 +874,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                   }}
                 >
                   <Ionicons name="close-circle-outline" size={20} color="#e74c3c" />
-                  <Text style={styles.cancelRequestButtonText}>Annuler la demande</Text>
+                  <Text style={styles.cancelRequestButtonText}>{t('bookings.cancelRequest')}</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -877,15 +882,17 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
             <>
               {/* Propriété */}
               <View style={styles.propertyCard}>
-                <Text style={styles.propertyTitle}>{property?.title || 'Propriété'}</Text>
+                <Text style={styles.propertyTitle}>{property?.title || t('bookings.propertyFallback')}</Text>
                 <Text style={styles.propertyDates}>
-                  Réservation actuelle: {formatDate(new Date(booking.check_in_date))} - {formatDate(new Date(booking.check_out_date))}
+                  {t('bookingMod.currentBooking', {
+                    dates: `${formatDate(new Date(booking.check_in_date))} - ${formatDate(new Date(booking.check_out_date))}`,
+                  })}
                 </Text>
               </View>
 
               {/* Nouvelles dates */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Nouvelles dates</Text>
+                <Text style={styles.sectionTitle}>{t('bookingMod.newDates')}</Text>
                 <View style={styles.datesContainer}>
                   {/* Date d'arrivée */}
                   <TouchableOpacity
@@ -893,7 +900,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                     activeOpacity={0.7}
                     onPress={() => {
                       if (!property?.id) {
-                        Alert.alert('Erreur', 'Propriété non trouvée');
+                        Alert.alert(t('common.error'), t('bookings.propertyNotFound'));
                         return;
                       }
                       setCalendarMode('checkIn');
@@ -903,9 +910,9 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                     <View style={styles.dateButtonContent}>
                       <Ionicons name="calendar-outline" size={20} color="#2E7D32" />
                       <View style={styles.dateButtonTextContainer}>
-                        <Text style={styles.dateButtonLabel}>Arrivée</Text>
+                        <Text style={styles.dateButtonLabel}>{t('booking.arrival')}</Text>
                         <Text style={[styles.dateButtonValue, !checkIn && styles.dateButtonPlaceholder]}>
-                          {checkIn ? formatDate(checkIn) : 'Sélectionner'}
+                          {checkIn ? formatDate(checkIn) : t('booking.selectDates')}
                         </Text>
                       </View>
                     </View>
@@ -919,14 +926,14 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                     onPress={() => {
                       if (hasPendingRequest) {
                         Alert.alert(
-                          'Demande en cours',
-                          'Vous avez déjà une demande de modification en attente. Veuillez attendre la réponse de l\'hôte ou annuler la demande existante.',
-                          [{ text: 'OK' }]
+                          t('bookings.requestInProgress'),
+                          t('bookings.requestInProgressHost'),
+                          [{ text: t('common.ok') }]
                         );
                         return;
                       }
                       if (!property?.id) {
-                        Alert.alert('Erreur', 'Propriété non trouvée');
+                        Alert.alert(t('common.error'), t('bookings.propertyNotFound'));
                         return;
                       }
                       // Permettre la sélection de la date de départ même si l'arrivée n'est pas modifiée
@@ -938,9 +945,9 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                     <View style={styles.dateButtonContent}>
                       <Ionicons name="calendar-outline" size={20} color="#2E7D32" />
                       <View style={styles.dateButtonTextContainer}>
-                        <Text style={styles.dateButtonLabel}>Départ</Text>
+                        <Text style={styles.dateButtonLabel}>{t('booking.departure')}</Text>
                         <Text style={[styles.dateButtonValue, !checkOut && styles.dateButtonPlaceholder]}>
-                          {checkOut ? formatDate(checkOut) : 'Sélectionner'}
+                          {checkOut ? formatDate(checkOut) : t('booking.selectDates')}
                         </Text>
                       </View>
                     </View>
@@ -950,7 +957,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                 {(effectiveCheckIn && effectiveCheckOut) && (
                   <View style={styles.nightsContainer}>
                     <Text style={styles.nightsText}>
-                      {nights} {nights === 1 ? 'nuit' : 'nuits'}
+                      {t(nights === 1 ? 'bookings.nights_one' : 'bookings.nights_other', { count: String(nights) })}
                     </Text>
                   </View>
                 )}
@@ -958,7 +965,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
 
               {/* Nombre de voyageurs */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Nombre de voyageurs</Text>
+                <Text style={styles.sectionTitle}>{t('bookingMod.guestsSection')}</Text>
                 <View style={styles.guestsSelector}>
                   <TouchableOpacity
                     style={styles.guestButton}
@@ -993,25 +1000,25 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
               {/* Détail des modifications - visible dès qu'on a des dates (même sans changement) */}
               {effectiveCheckIn && effectiveCheckOut && (
                 <View style={styles.changesCard}>
-                  <Text style={styles.changesTitle}>Détail des modifications</Text>
+                  <Text style={styles.changesTitle}>{t('bookingMod.changesDetail')}</Text>
                   
                   {/* Bloc Avant / Après */}
                   <View style={styles.modificationDetailSection}>
                     <View style={styles.modificationDetailRow}>
-                      <Text style={styles.modificationDetailLabel}>Avant :</Text>
+                      <Text style={styles.modificationDetailLabel}>{t('bookingMod.before')}</Text>
                       <Text style={styles.modificationDetailValue}>
                         {formatDate(new Date(booking.check_in_date))} → {formatDate(new Date(booking.check_out_date))}
-                        {' • '}{originalNights} nuit{originalNights > 1 ? 's' : ''}
-                        {' • '}{booking.guests_count} voyageur{booking.guests_count > 1 ? 's' : ''}
+                        {' • '}{t(originalNights === 1 ? 'bookings.nights_one' : 'bookings.nights_other', { count: String(originalNights) })}
+                        {' • '}{t(booking.guests_count === 1 ? 'bookingMod.guests_one' : 'bookingMod.guests_other', { count: String(booking.guests_count) })}
                         {' • '}{formatPrice(booking.total_price || 0)}
                       </Text>
                     </View>
                     <View style={styles.modificationDetailRow}>
-                      <Text style={[styles.modificationDetailLabel, styles.modificationDetailLabelAfter]}>Après :</Text>
+                      <Text style={[styles.modificationDetailLabel, styles.modificationDetailLabelAfter]}>{t('bookingMod.after')}</Text>
                       <Text style={[styles.modificationDetailValue, styles.modificationDetailValueAfter]}>
                         {formatDate(effectiveCheckIn)} → {formatDate(effectiveCheckOut)}
-                        {' • '}{nights} nuit{nights > 1 ? 's' : ''}
-                        {' • '}{guestsCount} voyageur{guestsCount > 1 ? 's' : ''}
+                        {' • '}{t(nights === 1 ? 'bookings.nights_one' : 'bookings.nights_other', { count: String(nights) })}
+                        {' • '}{t(guestsCount === 1 ? 'bookingMod.guests_one' : 'bookingMod.guests_other', { count: String(guestsCount) })}
                         {' • '}{formatPrice(newTotalPrice)}
                       </Text>
                     </View>
@@ -1021,20 +1028,18 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                   {priceDifference > 0 && (
                     <View style={styles.surplusSection}>
                       <View style={styles.surplusRow}>
-                        <Text style={styles.surplusLabel}>Surplus à payer :</Text>
+                        <Text style={styles.surplusLabel}>{t('bookingMod.surplusToPay')}</Text>
                         <Text style={styles.surplusValue}>
                           +{formatPrice(priceDifference)}
                         </Text>
                       </View>
                       {isReduction ? (
                         <Text style={styles.surplusNote}>
-                          En raccourcissant le séjour, le nouveau total est recalculé selon les tarifs et réductions
-                          applicables à cette durée. Vous n’êtes plus éligible à certaines réductions du séjour
-                          initial (par ex. séjour long) : la différence est à régler pour valider la modification.
+                          {t('bookingMod.surplusNoteReduction')}
                         </Text>
                       ) : isExtension ? (
                         <Text style={styles.surplusNote}>
-                          Montant supplémentaire pour la durée demandée par rapport à votre réservation actuelle.
+                          {t('bookingMod.surplusNoteExtension')}
                         </Text>
                       ) : null}
                     </View>
@@ -1044,13 +1049,13 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                   {isReduction && priceDifference < 0 && (
                     <View style={styles.refundSection}>
                       <View style={styles.refundRow}>
-                        <Text style={styles.refundLabel}>Remboursement :</Text>
+                        <Text style={styles.refundLabel}>{t('bookings.refund')}</Text>
                         <Text style={[styles.refundValue, { color: '#059669' }]}>
                           {formatPrice(reductionRefundAmount !== null ? reductionRefundAmount : Math.abs(priceDifference))}
                         </Text>
                       </View>
                       <View style={styles.policyNoteContainer}>
-                        <Text style={styles.policyNoteLabel}>Conditions d'annulation :</Text>
+                        <Text style={styles.policyNoteLabel}>{t('bookingMod.cancellationTerms')}</Text>
                         <Text style={styles.policyNote}>
                           {getCancellationPolicyText(property?.cancellation_policy, 'property')}
                         </Text>
@@ -1062,12 +1067,12 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
 
               {/* Message à l'hôte */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Message à l'hôte (optionnel)</Text>
+                <Text style={styles.sectionTitle}>{t('booking.messageToHost')}</Text>
                 <TextInput
                   style={styles.messageInput}
                   value={message}
                   onChangeText={setMessage}
-                  placeholder="Expliquez pourquoi vous souhaitez modifier votre réservation..."
+                  placeholder={t('bookingMod.messagePlaceholder')}
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
@@ -1080,7 +1085,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                   style={[styles.button, styles.cancelButton]}
                   onPress={onClose}
                 >
-                  <Text style={styles.cancelButtonText}>Annuler</Text>
+                  <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.button, styles.submitButton, (!hasChanges || loading) && styles.submitButtonDisabled]}
@@ -1090,14 +1095,13 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                   {loading ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Text style={styles.submitButtonText}>Envoyer la demande</Text>
+                    <Text style={styles.submitButtonText}>{t('booking.sendRequest')}</Text>
                   )}
                 </TouchableOpacity>
               </View>
 
               <Text style={styles.infoText}>
-                L'hôte devra approuver votre demande de modification.
-                Vous serez notifié de sa réponse.
+                {t('bookingMod.hostApprovalNote')}
               </Text>
             </>
           )}
@@ -1125,9 +1129,9 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                   <Ionicons name="close" size={24} color="#333" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>
-                  {calendarMode === 'checkIn' ? 'Sélectionner la date d\'arrivée' : 
-                   calendarMode === 'checkOut' ? 'Sélectionner la date de départ' : 
-                   'Sélectionner les dates'}
+                  {calendarMode === 'checkIn' ? t('bookingMod.selectCheckIn') :
+                   calendarMode === 'checkOut' ? t('bookingMod.selectCheckOut') :
+                   t('bookingMod.selectDates')}
                 </Text>
                 <View style={styles.placeholder} />
               </View>

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useFeatureFlags } from '../../contexts/FeatureFlagsContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useApprovedMonthlyRentalListings } from '../../hooks/useApprovedMonthlyRentalListings';
 import { useApprovedHotelEstablishments } from '../../hooks/useApprovedHotelEstablishments';
 import MonthlyRentalListingCard from '../MonthlyRentalListingCard';
@@ -30,6 +31,7 @@ type Props = {
 /** Rayons accueil : hôtels et/ou bail longue durée — masqués s’il n’y a aucune annonce publiée. */
 export default function HomeStayTypeShelves({ mode = 'all', refreshKey = 0 }: Props) {
   const navigation = useNavigation<any>();
+  const { t } = useLanguage();
   const { monthlyRental, hotel, loading: flagsLoading } = useFeatureFlags();
   const flagHotel = (mode === 'hotel' || mode === 'all') && hotel;
   const flagMonthly = (mode === 'monthly' || mode === 'all') && monthlyRental;
@@ -97,14 +99,16 @@ export default function HomeStayTypeShelves({ mode = 'all', refreshKey = 0 }: Pr
       {showHotel ? (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Hôtels</Text>
+            <Text style={styles.sectionTitle}>{t('category.hotels')}</Text>
             <TouchableOpacity
               onPress={() =>
                 navigation.navigate('Search', { initialRentalType: 'hotel' })
               }
               hitSlop={8}
             >
-              <Text style={[styles.seeAll, { color: HOTEL_COLORS.primary }]}>Voir tout</Text>
+              <Text style={[styles.seeAll, { color: HOTEL_COLORS.primary }]}>
+                {t('common.seeAll')}
+              </Text>
             </TouchableOpacity>
           </View>
           <ScrollView
@@ -139,7 +143,7 @@ export default function HomeStayTypeShelves({ mode = 'all', refreshKey = 0 }: Pr
       {showMonthly ? (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Bail longue durée</Text>
+            <Text style={styles.sectionTitle}>{t('category.monthly')}</Text>
             <TouchableOpacity
               onPress={() =>
                 navigation.navigate('Search', { initialRentalType: 'monthly' })
@@ -147,7 +151,7 @@ export default function HomeStayTypeShelves({ mode = 'all', refreshKey = 0 }: Pr
               hitSlop={8}
             >
               <Text style={[styles.seeAll, { color: MONTHLY_RENTAL_COLORS.primary }]}>
-                Voir tout
+                {t('common.seeAll')}
               </Text>
             </TouchableOpacity>
           </View>

@@ -15,6 +15,7 @@ import DestinationSearchModal, { DestinationSuggestion } from './DestinationSear
 import DateGuestsSelector from './DateGuestsSelector';
 import SearchButton from './SearchButton';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { MONTHLY_RENTAL_COLORS, HOTEL_COLORS } from '../constants/colors';
 
 export type StaySearchType = 'short_term' | 'monthly' | 'hotel';
@@ -64,6 +65,7 @@ const SearchFormModal: React.FC<Props> = ({
   isSearching,
 }) => {
   const { monthlyRental, hotel } = useFeatureFlags();
+  const { t } = useLanguage();
   const showTypeSwitch = monthlyRental || hotel;
   const [showDestinationModal, setShowDestinationModal] = useState(false);
   const [destinationQuery, setDestinationQuery] = useState(currentSearchQuery);
@@ -96,12 +98,12 @@ const SearchFormModal: React.FC<Props> = ({
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={canDismissToResults ? onClose : onBack}
-            accessibilityLabel={canDismissToResults ? 'Fermer' : 'Retour'}
+            accessibilityLabel={canDismissToResults ? t('common.close') : t('common.back')}
           >
             <Ionicons name={canDismissToResults ? 'close' : 'arrow-back'} size={24} color="#1f2937" />
           </TouchableOpacity>
-          <Text style={styles.topTitle}>Rechercher</Text>
-          <TouchableOpacity style={styles.iconBtn} onPress={onOpenFilters} accessibilityLabel="Filtres">
+          <Text style={styles.topTitle}>{t('search.search')}</Text>
+          <TouchableOpacity style={styles.iconBtn} onPress={onOpenFilters} accessibilityLabel={t('search.filters')}>
             <Ionicons name="options-outline" size={24} color="#2E7D32" />
           </TouchableOpacity>
         </View>
@@ -123,17 +125,17 @@ const SearchFormModal: React.FC<Props> = ({
               <View style={styles.heroIconWrap}>
                 <Ionicons name="compass-outline" size={32} color="#2E7D32" />
               </View>
-              <Text style={styles.heroTitle}>Où souhaitez-vous séjourner ?</Text>
+              <Text style={styles.heroTitle}>{t('search.whereStay')}</Text>
               <Text style={styles.heroSubtitle}>
-                Choisissez le type d’hébergement, une destination
-                {needsDates ? ', vos dates et le nombre de voyageurs' : ''}.
+                {t('search.heroSubtitle')}
+                {needsDates ? t('search.heroSubtitleDates') : ''}.
               </Text>
             </View>
           )}
 
           {showTypeSwitch ? (
             <View style={styles.modeSwitchBlock}>
-              <Text style={styles.fieldLabel}>Type d’hébergement</Text>
+              <Text style={styles.fieldLabel}>{t('stay.typeLabel')}</Text>
               <View style={styles.modeSwitch}>
               <TouchableOpacity
                 style={[styles.modeChip, rentalType === 'short_term' && styles.modeChipActive]}
@@ -145,7 +147,7 @@ const SearchFormModal: React.FC<Props> = ({
                   color={rentalType === 'short_term' ? '#fff' : '#2E7D32'}
                 />
                 <Text style={[styles.modeChipText, rentalType === 'short_term' && styles.modeChipTextActive]}>
-                  Résidence
+                  {t('stay.residence')}
                 </Text>
               </TouchableOpacity>
               {hotel ? (
@@ -169,7 +171,7 @@ const SearchFormModal: React.FC<Props> = ({
                       rentalType === 'hotel' && styles.modeChipTextActive,
                     ]}
                   >
-                    Hôtel
+                    {t('stay.hotel')}
                   </Text>
                 </TouchableOpacity>
               ) : null}
@@ -194,7 +196,7 @@ const SearchFormModal: React.FC<Props> = ({
                       rentalType === 'monthly' && styles.modeChipTextActive,
                     ]}
                   >
-                    Bail longue durée
+                    {t('stay.monthly')}
                   </Text>
                 </TouchableOpacity>
               ) : null}
@@ -203,20 +205,20 @@ const SearchFormModal: React.FC<Props> = ({
           ) : null}
 
           <View style={styles.formCard}>
-            <Text style={styles.fieldLabel}>Destination</Text>
+            <Text style={styles.fieldLabel}>{t('search.destination')}</Text>
             <TouchableOpacity
               style={styles.destinationPicker}
               onPress={() => setShowDestinationModal(true)}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="Choisir une destination"
+              accessibilityLabel={t('search.chooseDestination')}
             >
               <Ionicons name="location" size={20} color={hasDestination ? '#2E7D32' : '#9ca3af'} />
               <Text
                 style={[styles.destinationPickerText, !hasDestination && styles.destinationPickerPlaceholder]}
                 numberOfLines={1}
               >
-                {hasDestination ? destinationQuery : 'Ville, commune ou quartier'}
+                {hasDestination ? destinationQuery : t('search.cityPlaceholder')}
               </Text>
               <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
             </TouchableOpacity>
@@ -225,12 +227,12 @@ const SearchFormModal: React.FC<Props> = ({
           {rentalType === null && showTypeSwitch ? (
             <View style={styles.formCard}>
               <Text style={styles.monthlyHint}>
-                Sélectionnez d’abord un type d’hébergement pour continuer.
+                {t('search.selectTypeFirst')}
               </Text>
             </View>
           ) : needsDates ? (
             <View style={styles.formCard}>
-              <Text style={styles.fieldLabel}>Dates et voyageurs</Text>
+              <Text style={styles.fieldLabel}>{t('search.datesAndGuests')}</Text>
               <View style={styles.datesGuestsField}>
                 <DateGuestsSelector
                   checkIn={checkIn}
@@ -246,7 +248,7 @@ const SearchFormModal: React.FC<Props> = ({
           ) : rentalType === 'monthly' ? (
             <View style={styles.formCard}>
               <Text style={styles.monthlyHint}>
-                Bail longue durée : recherchez par ville, puis affinez le loyer et les pièces.
+                {t('search.monthlyHint')}
               </Text>
             </View>
           ) : null}

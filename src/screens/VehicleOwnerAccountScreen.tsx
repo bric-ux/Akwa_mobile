@@ -24,7 +24,7 @@ import { displayEmailOrPhone } from '../lib/displayContact';
 
 const VehicleOwnerAccountScreen: React.FC = () => {
   const navigation = useNavigation<any>();
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const { user, signOut } = useAuth();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus } = useIdentityVerification();
@@ -77,8 +77,8 @@ const VehicleOwnerAccountScreen: React.FC = () => {
 
   const handleSwitchToTravelerMode = async () => {
     Alert.alert(
-      'Retour au mode voyageur',
-      'Voulez-vous retourner au mode voyageur ?',
+      t('host.switchToTraveler'),
+      t('host.switchToTravelerConfirm'),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
@@ -98,8 +98,8 @@ const VehicleOwnerAccountScreen: React.FC = () => {
 
   const handleSwitchToHostMode = async () => {
     Alert.alert(
-      'Espace Hôte',
-      'Voulez-vous accéder à votre espace hôte ?',
+      t('profile.hostSpace'),
+      t('account.hostSpaceConfirm'),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
@@ -147,7 +147,7 @@ const VehicleOwnerAccountScreen: React.FC = () => {
     },
     {
       id: 'addListing',
-      title: 'Ajouter un bien',
+      title: t('account.addListing'),
       icon: 'add-circle-outline',
       onPress: () => navigation.navigate('AddListingChoice' as never),
     },
@@ -159,13 +159,13 @@ const VehicleOwnerAccountScreen: React.FC = () => {
     },
     {
       id: 'myGuestReviews',
-      title: 'Mes avis',
+      title: t('profile.myReviews'),
       icon: 'star-outline',
       onPress: () => navigation.navigate('MyGuestReviews' as never),
     },
     {
       id: 'conciergerie',
-      title: 'Conciergerie',
+      title: t('footer.concierge'),
       icon: 'sparkles-outline',
       onPress: () => navigation.navigate('Conciergerie' as never),
     },
@@ -230,7 +230,7 @@ const VehicleOwnerAccountScreen: React.FC = () => {
             )}
           </View>
           <Text style={styles.userName}>
-            {profile?.first_name || 'Propriétaire'} {profile?.last_name || ''}
+            {profile?.first_name || t('messages.owner')} {profile?.last_name || ''}
           </Text>
           <Text style={styles.userEmail}>
             {displayEmailOrPhone(profile?.email, (profile as { phone?: string } | null)?.phone)}
@@ -239,7 +239,7 @@ const VehicleOwnerAccountScreen: React.FC = () => {
           {/* Badge Propriétaire de véhicule */}
           <View style={styles.vehicleOwnerBadge}>
             <Ionicons name="car" size={16} color={VEHICLE_COLORS.primary} />
-            <Text style={styles.vehicleOwnerBadgeText}>Propriétaire de véhicule</Text>
+            <Text style={styles.vehicleOwnerBadgeText}>{t('account.vehicleOwnerBadge')}</Text>
           </View>
         </View>
 
@@ -255,8 +255,8 @@ const VehicleOwnerAccountScreen: React.FC = () => {
                 <Ionicons name="airplane-outline" size={18} color="#fff" />
               </View>
               <View style={styles.switchModeTextContainer}>
-                <Text style={styles.switchModeText}>Retour au mode voyageur</Text>
-                <Text style={styles.switchModeSubtext}>Revenir à l'exploration des hébergements</Text>
+                <Text style={styles.switchModeText}>{t('host.switchToTraveler')}</Text>
+                <Text style={styles.switchModeSubtext}>{t('account.switchToTravelerExplore')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#fff" />
             </View>
@@ -278,8 +278,8 @@ const VehicleOwnerAccountScreen: React.FC = () => {
                   <Ionicons name="home-outline" size={18} color="#fff" />
                 </View>
                 <View style={styles.switchModeTextContainer}>
-                  <Text style={styles.switchModeText}>Espace Hôte</Text>
-                  <Text style={styles.switchModeSubtext}>Gérez vos propriétés et réservations</Text>
+                  <Text style={styles.switchModeText}>{t('profile.hostSpace')}</Text>
+                  <Text style={styles.switchModeSubtext}>{t('account.hostManageSubtitle')}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#fff" />
               </View>
@@ -294,6 +294,32 @@ const VehicleOwnerAccountScreen: React.FC = () => {
 
         {/* Menu Items */}
         <View style={styles.menuContainer}>
+          <View style={styles.languageRow}>
+            <View style={styles.languageRowLeft}>
+              <Ionicons name="language-outline" size={24} color="#333" />
+              <Text style={[styles.menuItemText, { marginLeft: 12 }]}>{t('settings.language')}</Text>
+            </View>
+            <View style={styles.languageToggle}>
+              <TouchableOpacity
+                style={[styles.languageChip, language === 'fr' && styles.languageChipActive]}
+                onPress={() => void setLanguage('fr')}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.languageChipText, language === 'fr' && styles.languageChipTextActive]}>
+                  FR
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.languageChip, language === 'en' && styles.languageChipActive]}
+                onPress={() => void setLanguage('en')}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.languageChipText, language === 'en' && styles.languageChipTextActive]}>
+                  EN
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
           {menuItems.map((item) => (
             <TouchableOpacity
               key={item.id}
@@ -319,7 +345,7 @@ const VehicleOwnerAccountScreen: React.FC = () => {
         <View style={styles.appInfo}>
           <Text style={styles.appVersion}>AkwaHome v{APP_VERSION}</Text>
           <Text style={styles.appDescription}>
-            Espace véhicules - Gérez vos véhicules et réservations
+            {t('account.vehicleSpaceFooter')}
           </Text>
         </View>
       </ScrollView>
@@ -473,6 +499,44 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     borderRadius: 12,
     overflow: 'hidden',
+  },
+  languageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#eee',
+  },
+  languageRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+  },
+  languageToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 20,
+    padding: 3,
+  },
+  languageChip: {
+    minWidth: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 17,
+    alignItems: 'center',
+  },
+  languageChipActive: {
+    backgroundColor: '#e67e22',
+  },
+  languageChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+  },
+  languageChipTextActive: {
+    color: '#fff',
   },
   menuItem: {
     flexDirection: 'row',

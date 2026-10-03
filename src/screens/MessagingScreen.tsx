@@ -423,17 +423,17 @@ const MessagingScreen: React.FC = () => {
 
   const getOtherUserName = (conversation: Conversation) => {
     if (user?.id === conversation.guest_id) {
-      if (!conversation.host_profile) return 'Hôte';
+      if (!conversation.host_profile) return t('messaging.host');
       const firstName = String(conversation.host_profile.first_name ?? '').trim();
       const lastName = String(conversation.host_profile.last_name ?? '').trim();
       const fullName = `${firstName} ${lastName}`.trim();
-      return fullName || 'Hôte';
+      return fullName || t('messaging.host');
     }
-    if (!conversation.guest_profile) return 'Invité';
+    if (!conversation.guest_profile) return t('messaging.guest');
     const firstName = String(conversation.guest_profile.first_name ?? '').trim();
     const lastName = String(conversation.guest_profile.last_name ?? '').trim();
     const fullName = `${firstName} ${lastName}`.trim();
-    return fullName || 'Invité';
+    return fullName || t('messaging.guest');
   };
 
   if (!user) {
@@ -458,7 +458,7 @@ const MessagingScreen: React.FC = () => {
   const renderConversationList = () => (
     <View style={styles.conversationContainer}>
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
-        <Text style={styles.headerTitle}>{t('messages.title')}</Text>
+        <Text style={styles.headerTitle}>{t('messaging.title')}</Text>
         <TouchableOpacity
           style={styles.searchButton}
             onPress={() => Alert.alert(t('search.title'), t('messages.comingSoon'))}
@@ -569,7 +569,7 @@ const MessagingScreen: React.FC = () => {
               style={styles.textInput}
               value={newMessage}
               onChangeText={setNewMessage}
-              placeholder={t('messages.typeMessage')}
+              placeholder={t('messaging.placeholder')}
               multiline
               maxLength={1000}
               returnKeyType="send"

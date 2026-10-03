@@ -17,6 +17,7 @@ import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { sendPushToUser } from '../services/pushNotificationService';
 import { PUSH_TYPE_MESSAGE } from '../services/pushNavigation';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface SimpleMessage {
   id: string;
@@ -49,6 +50,8 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
   otherParticipant,
 }) => {
   const { user } = useAuth();
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-GB' : 'fr-FR';
   const [messages, setMessages] = useState<SimpleMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -98,7 +101,7 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
 
       if (!propId && !vehId && !monthlyId) {
         console.error('[SimpleMessageModal] property_id, vehicle_id or monthly_listing_id not found');
-        Alert.alert('Erreur', 'Impossible de créer la conversation.');
+        Alert.alert(t('common.error'), t('messages.createError'));
         return;
       }
 
@@ -163,7 +166,7 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
       setMessages(messagesData || []);
     } catch (error) {
       console.error('Error initializing conversation:', error);
-      Alert.alert('Erreur', 'Impossible de charger la conversation.');
+      Alert.alert(t('common.error'), t('messages.loadError'));
     } finally {
       setLoading(false);
     }
@@ -210,10 +213,10 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
         const meta = (user as { user_metadata?: { first_name?: string; last_name?: string } })
           .user_metadata;
         const senderLabel =
-          `${meta?.first_name ?? ''} ${meta?.last_name ?? ''}`.trim() || 'Quelqu\'un';
+          `${meta?.first_name ?? ''} ${meta?.last_name ?? ''}`.trim() || t('messages.someone');
         sendPushToUser(
           otherParticipant.id,
-          'Nouveau message',
+          t('messages.newMessage'),
           `${senderLabel} : ${preview}`,
           {
             type: PUSH_TYPE_MESSAGE,
@@ -225,7 +228,7 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      Alert.alert('Erreur', 'Impossible d\'envoyer le message.');
+      Alert.alert(t('common.error'), t('messages.sendError'));
     } finally {
       setSending(false);
     }
@@ -233,7 +236,7 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString('fr-FR', {
+    return date.toLocaleTimeString(dateLocale, {
       hour: '2-digit',
       minute: '2-digit',
     });
@@ -274,9 +277,9 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
                   <Text style={styles.headerRole}>
                     {otherParticipant.isHost
                       ? monthlyListingId
-                        ? 'Propriétaire'
-                        : 'Hôte'
-                      : 'Voyageur'}
+                        ? t('messages.owner')
+                        : t('messages.host')
+                      : t('messages.guest')}
                   </Text>
                 </View>
               </View>
@@ -294,8 +297,8 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
               ) : messages.length === 0 ? (
                 <View style={styles.emptyContainer}>
                   <Ionicons name="chatbubbles-outline" size={48} color="#9ca3af" />
-                  <Text style={styles.emptyText}>Aucun message pour le moment.</Text>
-                  <Text style={styles.emptySubtext}>Commencez la conversation !</Text>
+                  <Text style={styles.emptyText}>{t('messages.emptyTitle')}</Text>
+                  <Text style={styles.emptySubtext}>{t('messages.emptyHint')}</Text>
                 </View>
               ) : (
                 messages.map((message) => {
@@ -340,7 +343,7 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
                 style={styles.input}
                 value={newMessage}
                 onChangeText={setNewMessage}
-                placeholder="Tapez votre message..."
+                placeholder={t('messages.typeMessage')}
                 multiline
                 editable={!!conversationId}
               />

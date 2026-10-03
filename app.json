@@ -27,10 +27,10 @@
         "backgroundColor": "#ffffff"
       },
       "infoPlist": {
-        "NSCameraUsageDescription": "AkwaHome uses the camera so you can take photos or videos—for example to update your profile picture or add images to your property and vehicle listings.",
+        "NSCameraUsageDescription": "AkwaHome uses the camera so you can take photos or videos—for example to update your profile picture or add images to your property, hotel and vehicle listings.",
         "NSPhotoLibraryUsageDescription": "AkwaHome needs access to your photo library so you can update your profile picture and choose photos or videos for your listings. Only what you select is used.",
         "NSMicrophoneUsageDescription": "AkwaHome uses the microphone when you record video with sound or send a voice message. Audio is only captured while you record.",
-        "NSLocationWhenInUseUsageDescription": "AkwaHome utilise votre position pour placer précisément votre logement sur la carte lors de l’ajout d’une annonce.",
+        "NSLocationWhenInUseUsageDescription": "AkwaHome utilise votre position pour placer précisément votre logement ou établissement sur la carte lors de l’ajout d’une annonce.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },

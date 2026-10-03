@@ -16,6 +16,7 @@ import {
   AKWAHOME_SUPPORT_TITLE,
   isAdminSupportConversation,
 } from '../constants/supportMessaging';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -37,6 +38,9 @@ const ConversationList: React.FC<ConversationListProps> = ({
   onRefresh,
   refreshing = false
 }) => {
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-GB' : 'fr-FR';
+
   const formatTime = (dateString: string) => {
     if (!dateString) return '';
     try {
@@ -47,17 +51,17 @@ const ConversationList: React.FC<ConversationListProps> = ({
       const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
       
       if (diffInHours < 24) {
-        return date.toLocaleTimeString('fr-FR', {
+        return date.toLocaleTimeString(dateLocale, {
           hour: '2-digit',
           minute: '2-digit',
         }) || '';
       } else if (diffInHours < 168) {
         // 7 jours
-        return date.toLocaleDateString('fr-FR', {
+        return date.toLocaleDateString(dateLocale, {
           weekday: 'short',
         }) || '';
       } else {
-        return date.toLocaleDateString('fr-FR', {
+        return date.toLocaleDateString(dateLocale, {
           day: '2-digit',
           month: '2-digit',
         }) || '';
@@ -86,9 +90,9 @@ const ConversationList: React.FC<ConversationListProps> = ({
       const firstName = String(otherUser.first_name ?? '').trim();
       const lastName = String(otherUser.last_name ?? '').trim();
       const fullName = `${firstName} ${lastName}`.trim();
-      return fullName || 'Utilisateur';
+      return fullName || t('messages.userFallback');
     }
-    return 'Utilisateur';
+    return t('messages.userFallback');
   };
 
   const getConversationSubtitle = (conversation: Conversation) => {
@@ -98,14 +102,19 @@ const ConversationList: React.FC<ConversationListProps> = ({
         : AKWAHOME_SUPPORT_TITLE;
     }
     if (conversation.title) return conversation.title;
-    if (conversation.property?.title) return `Résidence - ${conversation.property.title}`;
+    if (conversation.property?.title) {
+      return t('messages.residencePrefix', { title: conversation.property.title });
+    }
     if (conversation.vehicle) {
-      return `Véhicule - ${(conversation.vehicle as any).title || `${conversation.vehicle.brand} ${conversation.vehicle.model}${conversation.vehicle.year ? ` (${conversation.vehicle.year})` : ''}`}`;
+      const vehicleTitle =
+        (conversation.vehicle as any).title ||
+        `${conversation.vehicle.brand} ${conversation.vehicle.model}${conversation.vehicle.year ? ` (${conversation.vehicle.year})` : ''}`;
+      return t('messages.vehiclePrefix', { title: vehicleTitle });
     }
     if (conversation.monthly_rental_listing?.title) {
-      return `Bail - ${conversation.monthly_rental_listing.title}`;
+      return t('messages.monthlyPrefix', { title: conversation.monthly_rental_listing.title });
     }
-    return 'Annonce';
+    return t('messages.listingFallback');
   };
 
   const getOtherUserAvatar = (conversation: Conversation) => {
@@ -115,7 +124,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
 
   const formatLastMessage = (conversation: Conversation) => {
     if (!conversation.last_message?.message) {
-      return 'Aucun message';
+      return t('messages.noMessages');
     }
     
     const message = String(conversation.last_message.message ?? '');
@@ -123,7 +132,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
     if (message.length > 50) {
       return message.substring(0, 50) + '...';
     }
-    return message || 'Aucun message';
+    return message || t('messages.noMessages');
   };
 
   const isLastMessageFromCurrentUser = (conversation: Conversation) => {
@@ -211,9 +220,9 @@ const ConversationList: React.FC<ConversationListProps> = ({
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
-      <Text style={styles.emptyTitle}>Aucune conversation</Text>
+      <Text style={styles.emptyTitle}>{t('messages.noConversations')}</Text>
       <Text style={styles.emptySubtitle}>
-        Vos conversations avec les hôtes et invités apparaîtront ici
+        {t('messages.emptySubtitle')}
       </Text>
     </View>
   );
@@ -222,7 +231,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Chargement des conversations...</Text>
+        <Text style={styles.loadingText}>{t('messages.loadingConversations')}</Text>
       </View>
     );
   }

@@ -41,6 +41,7 @@ import { computeVehicleDriverFee } from '../lib/vehicleDriverFee';
 import { checkPaymentStatus } from '../services/cardPaymentService';
 import CardPaymentSuccessView from '../components/CardPaymentSuccessView';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type VehicleBookingRouteProp = RouteProp<RootStackParamList, 'VehicleBooking'>;
 
@@ -48,6 +49,8 @@ const VehicleBookingScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<VehicleBookingRouteProp>();
   const { vehicleId } = route.params;
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
   const { user } = useAuth();
   const { currency, rates, formatPrice, changeCurrency } = useCurrency();
   const { getVehicleById } = useVehicles();
@@ -110,7 +113,7 @@ const VehicleBookingScreen: React.FC = () => {
         if (cityFromEmbed) setLocationCityName(cityFromEmbed);
       } catch (error) {
         console.error('Erreur lors du chargement du véhicule:', error);
-        Alert.alert('Erreur', 'Impossible de charger les détails du véhicule');
+        Alert.alert(t('common.error'), t('vehicleBooking.loadError'));
         navigation.goBack();
       } finally {
         setLoadingVehicle(false);
@@ -233,18 +236,18 @@ const VehicleBookingScreen: React.FC = () => {
           
           if (availabilityError) {
             console.error('❌ [VehicleBookingScreen] Erreur lors de la vérification de disponibilité:', availabilityError);
-            setAvailabilityError('Erreur lors de la vérification de disponibilité');
+            setAvailabilityError(t('vehicleBooking.availabilityError'));
             return;
           }
           
           if (!isAvailable) {
-            setAvailabilityError('Ce créneau (dates et heures) n\'est pas disponible pour ce véhicule');
+            setAvailabilityError(t('vehicleBooking.slotUnavailable'));
           } else {
             setAvailabilityError(null);
           }
         } catch (error) {
           console.error('❌ [VehicleBookingScreen] Erreur dans la vérification de disponibilité:', error);
-          setAvailabilityError('Erreur lors de la vérification de disponibilité');
+          setAvailabilityError(t('vehicleBooking.availabilityError'));
         }
       };
       
@@ -392,7 +395,7 @@ const VehicleBookingScreen: React.FC = () => {
       return publicUrl;
     } catch (error: any) {
       console.error('Erreur lors de l\'upload du permis:', error);
-      Alert.alert('Erreur', 'Impossible d\'uploader le document. Veuillez réessayer.');
+      Alert.alert(t('common.error'), t('vehicleBooking.uploadError'));
       throw error;
     } finally {
       setUploadingLicense(false);
@@ -402,7 +405,7 @@ const VehicleBookingScreen: React.FC = () => {
   const pickLicenseImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Nous avons besoin de l\'accès à votre galerie pour envoyer votre permis.');
+      Alert.alert(t('vehicleBooking.permissionRequired'), t('vehicleBooking.galleryPermission'));
       return;
     }
 
@@ -422,7 +425,7 @@ const VehicleBookingScreen: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Erreur lors de la sélection de l\'image:', error);
-      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
+      Alert.alert(t('common.error'), t('vehicleBooking.pickImageError'));
     }
   };
 
@@ -440,25 +443,25 @@ const VehicleBookingScreen: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Erreur lors de la sélection du document:', error);
-      Alert.alert('Erreur', 'Impossible de sélectionner le document');
+      Alert.alert(t('common.error'), t('vehicleBooking.pickDocumentError'));
     }
   };
 
   const showLicenseFilePicker = () => {
     Alert.alert(
-      'Télécharger votre permis',
-      'Choisissez le type de fichier à envoyer',
+      t('vehicleBooking.uploadLicenseTitle'),
+      t('vehicleBooking.uploadLicenseDesc'),
       [
         {
-          text: 'Annuler',
+          text: t('common.cancel'),
           style: 'cancel'
         },
         {
-          text: 'Photo',
+          text: t('vehicleBooking.photo'),
           onPress: pickLicenseImage
         },
         {
-          text: 'PDF',
+          text: t('vehicleBooking.document'),
           onPress: pickLicenseDocument
         }
       ]
@@ -716,8 +719,8 @@ const VehicleBookingScreen: React.FC = () => {
       setLicenseDocumentUrl(null);
       setCardPaymentSuccessSubtitle(
         vehicle?.auto_booking
-          ? 'Votre réservation est confirmée. Vous recevrez une confirmation par email.'
-          : 'Votre demande a été envoyée au propriétaire. Vous recevrez une réponse par email.'
+          ? t('vehicleBooking.successConfirmed')
+          : t('vehicleBooking.requestSentOwner')
       );
       setShowCardPaymentSuccess(true);
     }
@@ -728,14 +731,14 @@ const VehicleBookingScreen: React.FC = () => {
     const hasPending = pendingStripeBookingId || pendingStripeCheckoutToken;
     if (!hasPending) return;
     Alert.alert(
-      'Abandonner le paiement ?',
+      t('booking.abandonPayment'),
       pendingStripeBookingId
-        ? 'Cette action annulera la demande en attente et libérera immédiatement les dates.'
-        : "Voulez-vous abandonner ? Aucune réservation n'a été créée tant que le paiement n'est pas effectué.",
+        ? t('vehicleBooking.abandonPaymentDesc')
+        : t('vehicleBooking.abandonPaymentDescNoBooking'),
       [
-        { text: 'Continuer le paiement', style: 'cancel' },
+        { text: t('booking.continuePayment'), style: 'cancel' },
         {
-          text: 'J’abandonne',
+          text: t('booking.abandonConfirm'),
           style: 'destructive',
           onPress: async () => {
             if (pendingStripeBookingId) {
@@ -764,7 +767,7 @@ const VehicleBookingScreen: React.FC = () => {
             await cancelPendingCardBooking(pendingStripeBookingId, 'Paiement carte expiré (timeout)');
           }
           resetStripePendingState();
-          Alert.alert('Paiement expiré', 'Le délai de paiement est dépassé.');
+          Alert.alert(t('booking.paymentExpired'), t('vehicleBooking.paymentExpired'));
           navigation.goBack();
         })();
       }
@@ -835,8 +838,8 @@ const VehicleBookingScreen: React.FC = () => {
           setLicenseDocumentUrl(null);
           setCardPaymentSuccessSubtitle(
             vehicle?.auto_booking
-              ? 'Votre réservation est confirmée. Vous recevrez une confirmation par email.'
-              : 'Votre demande a été envoyée au propriétaire. Vous recevrez une réponse par email.'
+              ? t('vehicleBooking.successConfirmed')
+              : t('vehicleBooking.requestSentOwner')
           );
           setShowCardPaymentSuccess(true);
         } else {
@@ -849,22 +852,22 @@ const VehicleBookingScreen: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!user) {
-      Alert.alert('Connexion requise', 'Vous devez être connecté pour effectuer une réservation');
+      Alert.alert(t('auth.loginRequired'), t('booking.loginRequired'));
       return;
     }
 
     if (identityLoading) {
-      Alert.alert('Vérification en cours', 'Vérification de l\'identité en cours...');
+      Alert.alert(t('booking.identityChecking'), t('booking.identityCheckingDesc'));
       return;
     }
 
     if (!hasUploadedIdentity) {
       Alert.alert(
-        'Vérification d\'identité requise',
-        'Vous devez télécharger une pièce d\'identité pour effectuer une réservation. Rendez-vous dans votre profil.',
+        t('booking.identityRequired'),
+        t('vehicleBooking.identityRequiredProfile'),
         [
-          { text: 'Annuler', style: 'cancel' },
-          { text: 'Aller au profil', onPress: () => navigation.navigate('ProfileTab' as never) },
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('vehicleBooking.goToProfile'), onPress: () => navigation.navigate('ProfileTab' as never) },
         ]
       );
       return;
@@ -875,31 +878,31 @@ const VehicleBookingScreen: React.FC = () => {
     if (!isVerified && verificationStatus !== 'pending') {
       if (verificationStatus === 'rejected') {
         Alert.alert(
-          'Identité rejetée',
-          'Votre document d\'identité a été rejeté. Veuillez soumettre un nouveau document valide pour effectuer des réservations.'
+          t('booking.identityRejected'),
+          t('vehicleBooking.identityRejectedDesc')
         );
       } else {
         Alert.alert(
-          'Identité requise',
-          'Vous devez soumettre un document d\'identité pour effectuer une réservation.'
+          t('vehicleBooking.identityRequiredTitle'),
+          t('vehicleBooking.identityRequiredDesc')
         );
       }
       return;
     }
 
     if (!startDateTime || !endDateTime) {
-      Alert.alert('Erreur', 'Veuillez sélectionner les dates et heures de début et de fin');
+      Alert.alert(t('common.error'), t('vehicleBooking.selectDatesRequired'));
       return;
     }
 
     // L'heure de rendu doit être strictement après l'heure de prise (même jour autorisé, ex. 11:30 → 20:30)
     if (new Date(endDateTime) <= new Date(startDateTime)) {
-      Alert.alert('Erreur', 'L\'heure de rendu doit être après l\'heure de prise.');
+      Alert.alert(t('common.error'), t('vehicleBooking.endAfterStart'));
       return;
     }
 
     if (withDriver && useDriver === null) {
-      Alert.alert('Choix requis', 'Veuillez indiquer si vous souhaitez utiliser le service de chauffeur ou conduire vous-même.');
+      Alert.alert(t('vehicleBooking.driverChoiceTitle'), t('vehicleBooking.driverChoiceRequired'));
       return;
     }
 
@@ -908,20 +911,20 @@ const VehicleBookingScreen: React.FC = () => {
       if (selectedPaymentMethod === 'card' || selectedPaymentMethod === 'wave' || selectedPaymentMethod === 'cash') {
         return true;
       }
-      Alert.alert('Bientot disponible', 'Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire, Wave ou Espèces.');
+      Alert.alert(t('booking.comingSoon'), t('booking.comingSoonDesc'));
       return false;
     };
     if (!validatePaymentInfo()) return;
 
     if (selectedPaymentMethod === 'wave' && currency !== 'XOF') {
       Alert.alert(
-        'Devise requise',
-        'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Voulez-vous passer en CFA pour pouvoir payer avec Wave ?',
+        t('booking.currencyRequired'),
+        t('booking.waveCurrencyDesc'),
         [
-          { text: 'Annuler', style: 'cancel' },
-          { text: 'Passer en CFA', onPress: async () => {
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('booking.switchToCfa'), onPress: async () => {
             await changeCurrency('XOF');
-            Alert.alert('Devise mise à jour', 'La devise a été passée en Franc CFA. Vous pouvez maintenant cliquer sur le bouton de réservation pour continuer avec Wave.');
+            Alert.alert(t('booking.currencyUpdated'), t('booking.currencyUpdatedDesc'));
           } },
         ]
       );
@@ -931,25 +934,25 @@ const VehicleBookingScreen: React.FC = () => {
     if (isLicenseRequired) {
       if (!hasLicense) {
         const message = (withDriver && useDriver === false) 
-          ? 'Le permis de conduire est obligatoire lorsque vous conduisez vous-même. Veuillez cocher la case pour confirmer que vous possédez un permis.'
-          : 'Vous devez posséder un permis de conduire pour réserver ce véhicule.';
-        Alert.alert('Permis requis', message);
+          ? t('vehicleBooking.licenseRequiredAlert')
+          : t('vehicleBooking.licenseRequiredVehicle');
+        Alert.alert(t('vehicleBooking.licenseRequiredTitle'), message);
         return;
       }
       if (!licenseYears || licenseYears.trim() === '') {
-        Alert.alert('Information manquante', 'Veuillez indiquer depuis combien d\'années vous possédez votre permis.');
+        Alert.alert(t('vehicleBooking.licenseYearsMissingTitle'), t('vehicleBooking.licenseYearsMissing'));
         return;
       }
       const licenseYearsNum = parseInt(licenseYears);
       if (isNaN(licenseYearsNum) || licenseYearsNum < minLicenseYears) {
-        Alert.alert('Permis insuffisant', `Ce véhicule nécessite au moins ${minLicenseYears} an(s) de permis.`);
+        Alert.alert(t('vehicleBooking.licenseInsufficientTitle'), t('vehicleBooking.licenseInsufficient', { years: String(minLicenseYears) }));
         return;
       }
       // Le document du permis est OBLIGATOIRE
       if (!licenseDocumentUrl) {
         Alert.alert(
-          'Document requis',
-          'Vous devez télécharger votre permis de conduire pour réserver ce véhicule.'
+          t('vehicleBooking.documentRequiredTitle'),
+          t('vehicleBooking.documentRequired')
         );
         return;
       }
@@ -1021,8 +1024,8 @@ const VehicleBookingScreen: React.FC = () => {
               await cancelPendingCardBooking(bookingId, result.paymentInitError || 'Initialisation Stripe impossible');
             }
             Alert.alert(
-              'Paiement indisponible',
-              result.paymentInitError || 'Impossible d’ouvrir Stripe. Aucune réservation en attente n’a été conservée.'
+              t('booking.paymentInitFailed'),
+              result.paymentInitError || t('vehicleBooking.openStripeError')
             );
             return;
           }
@@ -1042,7 +1045,7 @@ const VehicleBookingScreen: React.FC = () => {
           Linking.openURL(checkoutUrl).catch(async (openErr: any) => {
             if (!isWavePayment && bookingId) await cancelPendingCardBooking(bookingId, 'Impossible d’ouvrir Stripe Checkout');
             resetStripePendingState();
-            Alert.alert('Erreur', openErr?.message || 'Impossible d’ouvrir Stripe.');
+            Alert.alert(t('common.error'), openErr?.message || t('vehicleBooking.openStripeError'));
           });
           return;
         }
@@ -1064,34 +1067,34 @@ const VehicleBookingScreen: React.FC = () => {
         // Afficher l'alerte de confirmation (non bloquante) pour les autres moyens de paiement
         setTimeout(() => {
           Alert.alert(
-            isConfirmed ? 'Réservation confirmée !' : 'Demande envoyée !',
+            isConfirmed ? t('booking.success') : t('booking.requestSent'),
             isConfirmed 
-              ? 'Votre réservation a été confirmée automatiquement. Vous recevrez une confirmation par email.'
-              : 'Votre demande de réservation a été envoyée au propriétaire. Vous recevrez une réponse sous peu.'
+              ? t('booking.successAutoDesc')
+              : t('booking.requestSentDesc')
           );
         }, 300); // Petit délai pour laisser l'animation de navigation se faire
       } else {
         if (result.error === 'IDENTITY_REQUIRED') {
           Alert.alert(
-            'Vérification d\'identité requise',
-            'Vous devez télécharger une pièce d\'identité pour effectuer une réservation. Rendez-vous dans votre profil.',
+            t('booking.identityRequired'),
+            t('vehicleBooking.identityRequiredProfile'),
             [
-              { text: 'Annuler', style: 'cancel' },
-              { text: 'Aller au profil', onPress: () => navigation.navigate('ProfileTab' as never) },
+              { text: t('common.cancel'), style: 'cancel' },
+              { text: t('vehicleBooking.goToProfile'), onPress: () => navigation.navigate('ProfileTab' as never) },
             ]
           );
         } else if (result.error === 'IDENTITY_NOT_VERIFIED') {
           Alert.alert(
-            'Identité en cours de vérification',
-            'Votre pièce d\'identité est en cours de vérification. Vous pourrez réserver une fois qu\'elle sera validée par notre équipe.'
+            t('booking.identityPendingTitle'),
+            t('booking.identityPendingDesc')
           );
         } else {
-          Alert.alert('Erreur', result.error || 'Une erreur est survenue lors de l\'envoi de votre demande');
+          Alert.alert(t('common.error'), result.error || t('vehicleBooking.submitError'));
         }
       }
     } catch (error: any) {
       console.error('Erreur lors de la réservation:', error);
-      Alert.alert('Erreur', 'Une erreur est survenue lors de l\'envoi de votre demande');
+      Alert.alert(t('common.error'), t('vehicleBooking.submitError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -1102,7 +1105,7 @@ const VehicleBookingScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
-          <Text style={styles.loadingText}>Chargement du véhicule...</Text>
+          <Text style={styles.loadingText}>{t('vehicleBooking.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -1113,12 +1116,12 @@ const VehicleBookingScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={64} color="#ccc" />
-          <Text style={styles.errorText}>Véhicule introuvable</Text>
+          <Text style={styles.errorText}>{t('vehicleBooking.notFound')}</Text>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backButtonText}>Retour</Text>
+            <Text style={styles.backButtonText}>{t('common.back')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -1143,7 +1146,7 @@ const VehicleBookingScreen: React.FC = () => {
                 navigation.goBack();
               }}
             >
-              <Text style={styles.cardSuccessOkButtonText}>OK</Text>
+              <Text style={styles.cardSuccessOkButtonText}>{t('common.ok')}</Text>
             </TouchableOpacity>
           </View>
         </Modal>
@@ -1162,7 +1165,7 @@ const VehicleBookingScreen: React.FC = () => {
           >
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-        <Text style={styles.headerTitle}>Réservation</Text>
+        <Text style={styles.headerTitle}>{t('booking.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -1232,16 +1235,16 @@ const VehicleBookingScreen: React.FC = () => {
               </Text>
             </TouchableOpacity>
             <Text style={styles.vehiclePrice}>
-              {formatPrice(rentalDays > 0 ? basePricePerDay : (vehicle.price_per_day || 0))} / jour
+              {formatPrice(rentalDays > 0 ? basePricePerDay : (vehicle.price_per_day || 0))} {t('vehicleBooking.perDay')}
             </Text>
             {vehicle.price_per_week && vehicle.price_per_week > 0 ? (
               <Text style={styles.vehiclePriceAlt}>
-                {formatPrice(vehicle.price_per_week)} / semaine
+                {formatPrice(vehicle.price_per_week)} {t('vehicleBooking.perWeek')}
               </Text>
             ) : null}
             {vehicle.price_per_month && vehicle.price_per_month > 0 ? (
               <Text style={styles.vehiclePriceAlt}>
-                {formatPrice(vehicle.price_per_month)} / mois
+                {formatPrice(vehicle.price_per_month)} {t('vehicleBooking.perMonth')}
               </Text>
             ) : null}
           </View>
@@ -1249,7 +1252,7 @@ const VehicleBookingScreen: React.FC = () => {
 
         {/* Dates */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Dates et heures de location</Text>
+          <Text style={styles.sectionTitle}>{t('vehicleBooking.datesHours')}</Text>
           <TouchableOpacity
             style={styles.dateTimeButton}
             onPress={() => setShowDateTimePicker(true)}
@@ -1262,7 +1265,7 @@ const VehicleBookingScreen: React.FC = () => {
                   <Text style={styles.dateTimeButtonText}>
                     {(() => {
                       const startDate = new Date(startDateTime);
-                      const dateStr = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                      const dateStr = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' });
                       const timeStr = `${String(startDate.getUTCHours()).padStart(2, '0')}:${String(startDate.getUTCMinutes()).padStart(2, '0')}`;
                       if (__DEV__) console.log(`📅 [VehicleBookingScreen] Affichage début: ${dateStr} ${timeStr} (startDateTime: ${startDateTime})`);
                       return `${dateStr} ${timeStr}`;
@@ -1271,7 +1274,7 @@ const VehicleBookingScreen: React.FC = () => {
                   <Text style={styles.dateTimeButtonText}>
                     {(() => {
                       const endDate = new Date(endDateTime);
-                      const dateStr = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate())).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                      const dateStr = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate())).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' });
                       const timeStr = `${String(endDate.getUTCHours()).padStart(2, '0')}:${String(endDate.getUTCMinutes()).padStart(2, '0')}`;
                       if (__DEV__) console.log(`📅 [VehicleBookingScreen] Affichage fin: ${dateStr} ${timeStr} (endDateTime: ${endDateTime})`);
                       return `${dateStr} ${timeStr}`;
@@ -1279,16 +1282,17 @@ const VehicleBookingScreen: React.FC = () => {
                   </Text>
                 </>
               ) : (
-                <Text style={styles.dateTimeButtonPlaceholder}>Sélectionner les dates et heures</Text>
+                <Text style={styles.dateTimeButtonPlaceholder}>{t('vehicleBooking.selectDatesHours')}</Text>
               )}
             </View>
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
           {startDateTime && endDateTime && (rentalDays > 0 || remainingHours > 0) ? (
             <Text style={styles.rentalDaysText}>
-              {rentalDays > 0 && `${rentalDays} jour${rentalDays > 1 ? 's' : ''}`}
-              {rentalDays > 0 && remainingHours > 0 && ' et '}
-              {remainingHours > 0 && `${remainingHours} heure${remainingHours > 1 ? 's' : ''}`} de location
+              {rentalDays > 0 && t(rentalDays > 1 ? 'vehicleBooking.days_other' : 'vehicleBooking.days_one', { count: String(rentalDays) })}
+              {rentalDays > 0 && remainingHours > 0 && t('vehicleBooking.and')}
+              {remainingHours > 0 && t(remainingHours > 1 ? 'vehicleBooking.hours_other' : 'vehicleBooking.hours_one', { count: String(remainingHours) })}
+              {t('vehicleBooking.ofRental')}
             </Text>
           ) : null}
           {availabilityError ? (
@@ -1302,7 +1306,7 @@ const VehicleBookingScreen: React.FC = () => {
         {/* Type de déplacement : intra ville ou hors ville */}
         {vehicle && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Type de déplacement</Text>
+            <Text style={styles.sectionTitle}>{t('vehicleBooking.tripType')}</Text>
             <Text style={styles.locationHint}>
               {vehicle?.location
                 ? (() => {
@@ -1310,10 +1314,10 @@ const VehicleBookingScreen: React.FC = () => {
                     const cityName = locationCityName ?? (loc.type === 'city' ? loc.name : null) ?? '...';
                     const isCity = loc.type === 'city';
                     const locationLabel = isCity ? cityName : `${cityName} (${loc.name})`;
-                    return `Véhicule situé à ${locationLabel}. `;
+                    return t('vehicleBooking.locatedAt', { location: locationLabel });
                   })()
                 : ''}
-              Souhaitez-vous réserver pour des déplacements uniquement en ville (tarif normal) ou hors ville (tarif spécial) ?
+              {t('vehicleBooking.tripTypeHint')}
             </Text>
             <View style={styles.driverOptions}>
               <TouchableOpacity
@@ -1321,7 +1325,7 @@ const VehicleBookingScreen: React.FC = () => {
                 onPress={() => setIsOutOfTownRental(false)}
               >
                 <Ionicons name={isOutOfTownRental === false ? 'radio-button-on' : 'radio-button-off'} size={24} color={isOutOfTownRental === false ? '#2E7D32' : '#ccc'} />
-                <Text style={styles.driverOptionText}>Intra ville (tarif normal)</Text>
+                <Text style={styles.driverOptionText}>{t('vehicleBooking.intraCity')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
@@ -1331,18 +1335,18 @@ const VehicleBookingScreen: React.FC = () => {
                 ]}
                 onPress={() => {
                   if (allowOutOfTown) setIsOutOfTownRental(true);
-                  else Alert.alert('Non disponible', 'Ce véhicule n\'accepte pas les locations hors ville.');
+                  else Alert.alert(t('vehicleBooking.outOfTownUnavailableTitle'), t('vehicleBooking.outOfTownUnavailable'));
                 }}
               >
                 <Ionicons name={isOutOfTownRental === true ? 'radio-button-on' : 'radio-button-off'} size={24} color={isOutOfTownRental === true ? '#2E7D32' : !allowOutOfTown ? '#ccc' : '#ccc'} />
                 <Text style={[styles.driverOptionText, !allowOutOfTown && { color: '#9ca3af' }]}>
-                  Hors ville (tarif spécial){!allowOutOfTown ? ' — non proposé' : ''}
+                  {t('vehicleBooking.outOfTown')}{!allowOutOfTown ? t('vehicleBooking.outOfTownNotOffered') : ''}
                 </Text>
               </TouchableOpacity>
             </View>
             {isOutOfTownRental === true && allowOutOfTown && (vehicle as any)?.out_of_town_mileage_limit != null && (
               <Text style={styles.locationHint}>
-                Kilométrage limite hors ville : {(vehicle as any).out_of_town_mileage_limit} km
+                {t('vehicleBooking.mileageLimit', { km: String((vehicle as any).out_of_town_mileage_limit) })}
               </Text>
             )}
           </View>
@@ -1351,7 +1355,7 @@ const VehicleBookingScreen: React.FC = () => {
         {/* Choix du chauffeur */}
         {withDriver ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Service de chauffeur</Text>
+            <Text style={styles.sectionTitle}>{t('vehicleBooking.driverService')}</Text>
             <View style={styles.driverOptions}>
               <TouchableOpacity
                 style={[
@@ -1373,7 +1377,7 @@ const VehicleBookingScreen: React.FC = () => {
                   size={24}
                   color={useDriver === true ? '#2E7D32' : '#ccc'}
                 />
-                <Text style={styles.driverOptionText}>Avec chauffeur</Text>
+                <Text style={styles.driverOptionText}>{t('vehicleBooking.withDriver')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
@@ -1393,7 +1397,7 @@ const VehicleBookingScreen: React.FC = () => {
                   size={24}
                   color={useDriver === false ? '#2E7D32' : '#ccc'}
                 />
-                <Text style={styles.driverOptionText}>Conduire moi-même</Text>
+                <Text style={styles.driverOptionText}>{t('vehicleBooking.driveMyself')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1403,11 +1407,11 @@ const VehicleBookingScreen: React.FC = () => {
         {isLicenseRequired ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              Permis de conduire {(withDriver && useDriver === false) ? '(Obligatoire)' : ''}
+              {t('vehicleBooking.license')} {(withDriver && useDriver === false) ? t('vehicleBooking.licenseRequired') : ''}
             </Text>
             {(withDriver && useDriver === false) ? (
               <Text style={styles.requiredNote}>
-                Le permis de conduire est obligatoire lorsque vous conduisez vous-même.
+                {t('vehicleBooking.licenseRequiredNote')}
               </Text>
             ) : null}
             <TouchableOpacity
@@ -1423,14 +1427,14 @@ const VehicleBookingScreen: React.FC = () => {
                 styles.checkboxLabel,
                 (withDriver && useDriver === false) && !hasLicense && styles.requiredLabel
               ]}>
-                Je possède un permis de conduire {(withDriver && useDriver === false) ? '*' : ''}
+                {t('vehicleBooking.hasLicense')} {(withDriver && useDriver === false) ? '*' : ''}
               </Text>
             </TouchableOpacity>
             {hasLicense ? (
               <>
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>
-                    Depuis combien d'années avez-vous votre permis ? *
+                    {t('vehicleBooking.licenseYearsQuestion')}
                   </Text>
                   <TouchableOpacity
                     style={styles.selectButton}
@@ -1438,20 +1442,20 @@ const VehicleBookingScreen: React.FC = () => {
                   >
                     <Text style={[styles.selectButtonText, !licenseYears && styles.selectButtonPlaceholder]}>
                       {licenseYears ? (
-                        licenseYears === '1' ? 'Moins d\'1 an' :
-                        licenseYears === '2' ? '1-2 ans' :
-                        licenseYears === '3' ? '2-3 ans' :
-                        licenseYears === '5' ? '3-5 ans' :
-                        licenseYears === '10' ? 'Plus de 5 ans' :
-                        `${licenseYears} an(s)`
-                      ) : 'Sélectionnez *'}
+                        licenseYears === '1' ? t('vehicleBooking.licenseYears.lt1') :
+                        licenseYears === '2' ? t('vehicleBooking.licenseYears.1to2') :
+                        licenseYears === '3' ? t('vehicleBooking.licenseYears.2to3') :
+                        licenseYears === '5' ? t('vehicleBooking.licenseYears.3to5') :
+                        licenseYears === '10' ? t('vehicleBooking.licenseYears.gt5') :
+                        `${licenseYears}`
+                      ) : t('vehicleBooking.licenseYearsSelect')}
                     </Text>
                     <Ionicons name="chevron-down" size={20} color="#666" />
                   </TouchableOpacity>
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Numéro de permis (optionnel)"
+                  placeholder={t('vehicleBooking.licenseNumberPlaceholder')}
                   value={licenseNumber}
                   onChangeText={setLicenseNumber}
                 />
@@ -1459,12 +1463,12 @@ const VehicleBookingScreen: React.FC = () => {
                 {/* Upload du document du permis - OBLIGATOIRE */}
                 <View style={styles.uploadSection}>
                   <Text style={styles.uploadLabel}>
-                    Télécharger votre permis de conduire {(withDriver && useDriver === false) ? '*' : ''}
+                    {t('vehicleBooking.uploadLicense')} {(withDriver && useDriver === false) ? '*' : ''}
                   </Text>
                   {licenseDocumentUrl ? (
                     <View style={styles.uploadedFile}>
                       <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
-                      <Text style={styles.uploadedFileText}>Document téléchargé</Text>
+                      <Text style={styles.uploadedFileText}>{t('vehicleBooking.documentUploaded')}</Text>
                       <TouchableOpacity
                         onPress={() => setLicenseDocumentUrl(null)}
                         style={styles.removeFileButton}
@@ -1481,18 +1485,18 @@ const VehicleBookingScreen: React.FC = () => {
                       {uploadingLicense ? (
                         <>
                           <ActivityIndicator size="small" color="#2E7D32" />
-                          <Text style={styles.uploadButtonText}>Upload en cours...</Text>
+                          <Text style={styles.uploadButtonText}>{t('vehicleBooking.uploading')}</Text>
                         </>
                       ) : (
                         <>
                           <Ionicons name="cloud-upload-outline" size={20} color="#2E7D32" />
-                          <Text style={styles.uploadButtonText}>Télécharger le document</Text>
+                          <Text style={styles.uploadButtonText}>{t('vehicleBooking.uploadDocument')}</Text>
                         </>
                       )}
                     </TouchableOpacity>
                   )}
                   <Text style={styles.uploadHint}>
-                    Formats acceptés : JPG, PNG ou PDF (max 5MB)
+                    {t('vehicleBooking.uploadFormats')}
                   </Text>
                 </View>
               </>
@@ -1502,10 +1506,10 @@ const VehicleBookingScreen: React.FC = () => {
 
         {/* Message */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Message au propriétaire (optionnel)</Text>
+          <Text style={styles.sectionTitle}>{t('vehicleBooking.messageToOwner')}</Text>
           <TextInput
             style={styles.textArea}
-            placeholder="Ajoutez un message pour le propriétaire..."
+            placeholder={t('vehicleBooking.messagePlaceholder')}
             value={message}
             onChangeText={setMessage}
             multiline
@@ -1516,12 +1520,12 @@ const VehicleBookingScreen: React.FC = () => {
 
         {/* Moyen de paiement - Complet comme résidence meublée */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Moyen de paiement</Text>
+          <Text style={styles.sectionTitle}>{t('vehicleBooking.paymentMethod')}</Text>
           <View style={styles.paymentMethodsContainer}>
             {[
-              ...(canPayByCard ? [{ value: 'card' as const, label: 'Carte bancaire', icon: 'card' as const }] : []),
-              { value: 'wave' as const, label: 'Wave', icon: 'wallet' as const },
-              { value: 'cash' as const, label: 'Espèces', icon: 'cash' as const },
+              ...(canPayByCard ? [{ value: 'card' as const, label: t('booking.card'), icon: 'card' as const }] : []),
+              { value: 'wave' as const, label: t('booking.wave'), icon: 'wallet' as const },
+              { value: 'cash' as const, label: t('booking.cash'), icon: 'cash' as const },
             ].map((method) => (
               <TouchableOpacity
                 key={method.value}
@@ -1537,11 +1541,11 @@ const VehicleBookingScreen: React.FC = () => {
                   if (method.value === 'wave') {
                     if (currency !== 'XOF') {
                       Alert.alert(
-                        'Devise requise',
-                        'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Voulez-vous passer en CFA pour pouvoir payer avec Wave ?',
+                        t('booking.currencyRequired'),
+                        t('booking.waveCurrencyDesc'),
                         [
-                          { text: 'Annuler', style: 'cancel' },
-                          { text: 'Passer en CFA', onPress: async () => {
+                          { text: t('common.cancel'), style: 'cancel' },
+                          { text: t('booking.switchToCfa'), onPress: async () => {
                             await changeCurrency('XOF');
                             setSelectedPaymentMethod('wave');
                           } },
@@ -1557,11 +1561,11 @@ const VehicleBookingScreen: React.FC = () => {
                       const eurAmount = totalPrice / rates.EUR;
                       const eurText = eurAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                       Alert.alert(
-                        'Carte bancaire - Paiement en euros',
-                        `La carte bancaire est disponible uniquement pour le paiement en euros.\n\nSouhaitez-vous effectuer le paiement en euros ? Si oui, le montant sera converti et débité en euros : ~${eurText} € (équivalent de ${totalPrice.toLocaleString('fr-FR')} FCFA).`,
+                        t('vehicleBooking.cardEurTitle'),
+                        t('vehicleBooking.cardEurDesc', { eur: eurText, xof: totalPrice.toLocaleString(dateLocale) }),
                         [
-                          { text: 'Non', style: 'cancel' },
-                          { text: 'Oui, payer en euros', onPress: () => setSelectedPaymentMethod('card') },
+                          { text: t('common.no'), style: 'cancel' },
+                          { text: t('vehicleBooking.payInEuros'), onPress: () => setSelectedPaymentMethod('card') },
                         ]
                       );
                       return;
@@ -1569,12 +1573,12 @@ const VehicleBookingScreen: React.FC = () => {
                     setSelectedPaymentMethod('card');
                     return;
                   }
-                  Alert.alert('Bientot disponible', `${method.label} sera bientot disponible. ${canPayByCard ? 'Utilisez Carte bancaire (Stripe), Wave ou Espèces.' : 'Utilisez Wave ou Espèces.'}`);
+                  Alert.alert(t('booking.comingSoon'), t('vehicleBooking.comingSoonUse', { method: method.label, hint: canPayByCard ? t('vehicleBooking.useCardWaveCash') : t('vehicleBooking.useWaveCash') }));
                 }}
               >
                 <Ionicons name={method.icon as any} size={24} color={selectedPaymentMethod === method.value ? '#2E7D32' : '#666'} />
                 <Text style={[styles.paymentMethodOptionText, selectedPaymentMethod === method.value && styles.paymentMethodOptionTextSelected]}>
-                  {method.label}{method.value !== 'card' ? ' • Recommandé' : ''}
+                  {method.label}{method.value !== 'card' ? ` • ${t('booking.recommended')}` : ''}
                 </Text>
                 {selectedPaymentMethod === method.value && <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />}
               </TouchableOpacity>
@@ -1588,8 +1592,8 @@ const VehicleBookingScreen: React.FC = () => {
                   <Ionicons name="shield-checkmark" size={16} color="#10b981" />
                   <Text style={styles.securityText}>
                     {vehicle?.auto_booking
-                      ? 'Paiement sécurisé via Stripe. Après paiement validé, votre réservation sera confirmée automatiquement.'
-                      : 'Paiement sécurisé via Stripe. Après paiement validé, votre demande sera transmise au propriétaire.'}
+                      ? t('vehicleBooking.stripeSecureAuto')
+                      : t('vehicleBooking.stripeSecureRequest')}
                   </Text>
                 </View>
             </View>
@@ -1601,8 +1605,8 @@ const VehicleBookingScreen: React.FC = () => {
                 <Ionicons name="phone-portrait" size={20} color="#8b5cf6" />
                 <Text style={styles.securityText}>
                   {vehicle?.auto_booking
-                    ? 'Vous serez redirigé vers l\'app Wave pour un paiement sécurisé. Après paiement validé, votre réservation sera confirmée automatiquement.'
-                    : 'Vous serez redirigé vers l\'app Wave pour un paiement sécurisé. Après paiement validé, votre demande sera transmise au propriétaire.'}
+                    ? t('booking.waveRedirectAuto')
+                    : t('booking.waveRedirectRequest')}
                 </Text>
               </View>
             </View>
@@ -1611,10 +1615,10 @@ const VehicleBookingScreen: React.FC = () => {
           {/* Espèces */}
           {selectedPaymentMethod === 'cash' && (
             <View style={styles.paymentInfoContainer}>
-              <Text style={styles.paymentInfoTitle}>Paiement en espèces</Text>
+              <Text style={styles.paymentInfoTitle}>{t('booking.cashPayment')}</Text>
               <View style={styles.cashInfo}>
                 <Ionicons name="cash" size={40} color="#6b7280" />
-                <Text style={styles.cashText}>Vous paierez directement au propriétaire lors de la prise en charge du véhicule. Assurez-vous d'avoir le montant exact en espèces.</Text>
+                <Text style={styles.cashText}>{t('vehicleBooking.cashDesc')}</Text>
               </View>
             </View>
           )}
@@ -1623,26 +1627,26 @@ const VehicleBookingScreen: React.FC = () => {
         {(pendingStripeBookingId || pendingStripeCheckoutToken) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              {vehicle?.auto_booking ? 'Paiement en attente' : 'En attente d\'acceptation'}
+              {vehicle?.auto_booking ? t('booking.paymentPending') : t('booking.awaitingAcceptance')}
             </Text>
             <View style={styles.stripePendingBox}>
               <ActivityIndicator size="small" color={pendingPaymentProvider === 'wave' ? '#8b5cf6' : '#2563eb'} />
               <Text style={styles.stripePendingText}>
                 {pendingPaymentProvider === 'wave'
                   ? (vehicle?.auto_booking
-                    ? 'Finalisez le paiement sur Wave. En revenant ici, la confirmation se fera automatiquement.'
-                    : 'Finalisez le paiement sur Wave. En revenant ici, votre demande sera enregistrée et vous serez en attente d\'acceptation par le propriétaire.')
+                    ? t('booking.wavePendingAuto')
+                    : t('vehicleBooking.wavePendingRequestOwner'))
                   : (vehicle?.auto_booking
-                    ? 'Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.'
-                    : 'Finalisez le paiement sur Stripe. En revenant ici, votre demande sera enregistrée et vous serez en attente d\'acceptation par le propriétaire.')}
+                    ? t('booking.stripePendingAuto')
+                    : t('vehicleBooking.stripePendingRequestOwner'))}
               </Text>
               {lastPaymentStatus && (
                 <Text style={styles.stripeStatusText}>
-                  Statut : paiement {lastPaymentStatus.payment_status} · réservation {lastPaymentStatus.booking_status}
+                  {t('vehicleBooking.statusLine', { payment: lastPaymentStatus.payment_status, booking: lastPaymentStatus.booking_status })}
                 </Text>
               )}
               <Text style={styles.stripePendingCountdown}>
-                Expiration dans {Math.max(0, Math.floor(stripeTimeLeftSec / 60))}:{String(Math.max(0, stripeTimeLeftSec % 60)).padStart(2, '0')}
+                {t('booking.expiresIn', { time: `${Math.max(0, Math.floor(stripeTimeLeftSec / 60))}:${String(Math.max(0, stripeTimeLeftSec % 60)).padStart(2, '0')}` })}
               </Text>
               <View style={styles.stripePendingActions}>
                 <TouchableOpacity
@@ -1653,14 +1657,14 @@ const VehicleBookingScreen: React.FC = () => {
                   {checkingStripeStatus ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Text style={styles.stripeActionPrimaryText}>Verifier le paiement</Text>
+                    <Text style={styles.stripeActionPrimaryText}>{t('booking.verifyPayment')}</Text>
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.stripeActionButton, styles.stripeActionDanger]}
                   onPress={handleAbandonStripeOperation}
                 >
-                  <Text style={styles.stripeActionDangerText}>J’abandonne l’operation</Text>
+                  <Text style={styles.stripeActionDangerText}>{t('vehicleBooking.abandonOperation')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1669,29 +1673,29 @@ const VehicleBookingScreen: React.FC = () => {
 
         {/* Résumé */}
         <View style={styles.summarySection}>
-          <Text style={styles.sectionTitle}>Résumé</Text>
+          <Text style={styles.sectionTitle}>{t('vehicleBooking.summary')}</Text>
           {/* Prix par jour uniquement si la durée comprend des jours ; sinon afficher prix par heure (location à l'heure seule) */}
           {rentalDays > 0 ? (
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Prix par jour</Text>
+              <Text style={styles.summaryLabel}>{t('vehicleBooking.pricePerDay')}</Text>
               <Text style={styles.summaryValue}>
                 {formatPrice(basePricePerDay)}
               </Text>
             </View>
           ) : remainingHours > 0 && (effectivePricePerHour ?? 0) > 0 ? (
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Prix par heure</Text>
+              <Text style={styles.summaryLabel}>{t('vehicleBooking.pricePerHour')}</Text>
               <Text style={styles.summaryValue}>
                 {formatPrice(effectivePricePerHour ?? 0)}
               </Text>
             </View>
           ) : null}
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Durée de location</Text>
+            <Text style={styles.summaryLabel}>{t('vehicleBooking.duration')}</Text>
             <Text style={styles.summaryValue}>
-              {rentalDays > 0 && `${rentalDays} jour${rentalDays > 1 ? 's' : ''}`}
-              {rentalDays > 0 && remainingHours > 0 && ' et '}
-              {remainingHours > 0 && `${remainingHours} heure${remainingHours > 1 ? 's' : ''}`}
+              {rentalDays > 0 && t(rentalDays > 1 ? 'vehicleBooking.days_other' : 'vehicleBooking.days_one', { count: String(rentalDays) })}
+              {rentalDays > 0 && remainingHours > 0 && t('vehicleBooking.and')}
+              {remainingHours > 0 && t(remainingHours > 1 ? 'vehicleBooking.hours_other' : 'vehicleBooking.hours_one', { count: String(remainingHours) })}
             </Text>
           </View>
           {/* Détail du calcul : jours */}
@@ -1699,7 +1703,7 @@ const VehicleBookingScreen: React.FC = () => {
             <View style={styles.summaryRow}>
               <View style={{ flex: 1, flexShrink: 1 }}>
                 <Text style={styles.summaryLabel} numberOfLines={2}>
-                  {rentalDays} jour{rentalDays > 1 ? 's' : ''} × {formatPrice(basePricePerDay)}/jour
+                  {t(rentalDays > 1 ? 'vehicleBooking.daysTimes_other' : 'vehicleBooking.daysTimes', { count: String(rentalDays), price: formatPrice(basePricePerDay) })}
                 </Text>
               </View>
               <Text style={styles.summaryValue}>
@@ -1715,7 +1719,7 @@ const VehicleBookingScreen: React.FC = () => {
               <View style={styles.summaryRow}>
                 <View style={{ flex: 1, flexShrink: 1 }}>
                   <Text style={styles.summaryLabel} numberOfLines={2}>
-                    {remainingHours} heure{remainingHours > 1 ? 's' : ''} × {formatPrice(effectivePricePerHour ?? 0)}/h
+                    {t(remainingHours > 1 ? 'vehicleBooking.hoursTimes_other' : 'vehicleBooking.hoursTimes', { count: String(remainingHours), price: formatPrice(effectivePricePerHour ?? 0) })}
                   </Text>
                 </View>
                 <Text style={styles.summaryValue}>
@@ -1727,9 +1731,9 @@ const VehicleBookingScreen: React.FC = () => {
           {pricing.discountApplied && discountAmount > 0 ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>
-                Réduction {pricing.discountType === 'long_stay' ? 'séjour long' : ''} ({pricing.discountType === 'long_stay' 
-                  ? longStayDiscountConfig?.percentage 
-                  : discountConfig.percentage}%)
+                {pricing.discountType === 'long_stay'
+                  ? t('vehicleBooking.longStayDiscount', { pct: String(longStayDiscountConfig?.percentage ?? '') })
+                  : t('vehicleBooking.discount', { pct: String(discountConfig.percentage) })}
               </Text>
               <Text style={[styles.summaryValue, { color: '#2E7D32' }]}>
                 -{formatPrice(discountAmount)}
@@ -1737,26 +1741,26 @@ const VehicleBookingScreen: React.FC = () => {
             </View>
           ) : null}
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Sous-total</Text>
+            <Text style={styles.summaryLabel}>{t('vehicleBooking.subtotal')}</Text>
             <Text style={styles.summaryValue}>
               {formatPrice(basePrice)}
             </Text>
           </View>
           {driverFee > 0 && (
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Surplus chauffeur</Text>
+              <Text style={styles.summaryLabel}>{t('vehicleBooking.driverSurcharge')}</Text>
               <Text style={styles.summaryValue}>{formatPrice(driverFee)}</Text>
             </View>
           )}
           {fees.serviceFee > 0 ? (
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Frais de service</Text>
+              <Text style={styles.summaryLabel}>{t('booking.serviceFee')}</Text>
               <Text style={styles.summaryValue}>{formatPrice(fees.serviceFee)}</Text>
             </View>
           ) : null}
           <View style={[styles.summaryRow, styles.summaryTotal]}>
             <Text style={styles.summaryTotalLabel}>
-              {selectedPaymentMethod === 'card' ? 'Total à payer par carte' : 'Total'}
+              {selectedPaymentMethod === 'card' ? t('booking.totalPayByCard') : t('booking.total')}
             </Text>
             <Text style={styles.summaryTotalValue}>
               {selectedPaymentMethod === 'card' && currency === 'EUR' && rates.EUR
@@ -1766,7 +1770,7 @@ const VehicleBookingScreen: React.FC = () => {
           </View>
           {securityDeposit > 0 ? (
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Caution</Text>
+              <Text style={styles.summaryLabel}>{t('vehicleBooking.deposit')}</Text>
               <Text style={styles.summaryValue}>{formatPrice(securityDeposit)}</Text>
             </View>
           ) : null}
@@ -1787,12 +1791,12 @@ const VehicleBookingScreen: React.FC = () => {
             <>
               <Text style={styles.submitButtonText}>
                 {openingStripe
-                  ? 'Ouverture de Stripe...'
+                  ? t('booking.openingStripe')
                   : (pendingStripeBookingId || pendingStripeCheckoutToken)
-                    ? (vehicle?.auto_booking ? 'Paiement en attente...' : 'En attente d\'acceptation...')
+                    ? (vehicle?.auto_booking ? t('booking.paymentPendingEllipsis') : t('booking.awaitingAcceptanceEllipsis'))
                   : selectedPaymentMethod === 'card'
-                  ? (vehicle?.auto_booking ? 'Payer et réserver' : 'Payer et envoyer la demande')
-                  : (vehicle?.auto_booking ? 'Réserver maintenant' : 'Envoyer la demande')}
+                  ? (vehicle?.auto_booking ? t('booking.payAndBook') : t('booking.payAndSendRequest'))
+                  : (vehicle?.auto_booking ? t('vehicleBooking.bookNow') : t('vehicleBooking.sendRequest'))}
               </Text>
               <Ionicons name="arrow-forward" size={20} color="#fff" />
             </>
@@ -1810,7 +1814,7 @@ const VehicleBookingScreen: React.FC = () => {
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
             <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Nombre d'années de permis</Text>
+              <Text style={styles.pickerModalTitle}>{t('vehicleBooking.licenseYearsTitle')}</Text>
               <TouchableOpacity
                 onPress={() => setShowLicenseYearsPicker(false)}
                 style={styles.pickerModalClose}
@@ -1820,11 +1824,11 @@ const VehicleBookingScreen: React.FC = () => {
             </View>
             <FlatList
               data={[
-                { value: '1', label: 'Moins d\'1 an' },
-                { value: '2', label: '1-2 ans' },
-                { value: '3', label: '2-3 ans' },
-                { value: '5', label: '3-5 ans' },
-                { value: '10', label: 'Plus de 5 ans' },
+                { value: '1', label: t('vehicleBooking.licenseYears.lt1') },
+                { value: '2', label: t('vehicleBooking.licenseYears.1to2') },
+                { value: '3', label: t('vehicleBooking.licenseYears.2to3') },
+                { value: '5', label: t('vehicleBooking.licenseYears.3to5') },
+                { value: '10', label: t('vehicleBooking.licenseYears.gt5') },
               ]}
               keyExtractor={(item) => item.value}
               renderItem={({ item }) => (

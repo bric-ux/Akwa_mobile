@@ -33,6 +33,7 @@ import {
   normalizePhoneE164,
   resolveProfilePhoneForInput,
 } from '../lib/phone';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface UserProfile {
   id: string;
@@ -46,6 +47,7 @@ interface UserProfile {
 
 const EditProfileScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { t } = useLanguage();
   const { updateProfileCache } = useUserProfile();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -78,14 +80,14 @@ const EditProfileScreen: React.FC = () => {
       
       if (userError) {
         console.error('Erreur d\'authentification:', userError);
-        Alert.alert('Erreur', 'Session expirée. Veuillez vous reconnecter.');
+        Alert.alert(t('common.error'), t('editProfile.sessionExpired'));
         navigation.navigate('Auth');
         return;
       }
       
       if (!user) {
         console.log('Aucun utilisateur connecté');
-        Alert.alert('Erreur', 'Vous devez être connecté pour modifier votre profil.');
+        Alert.alert(t('common.error'), t('editProfile.mustBeLoggedIn'));
         navigation.navigate('Auth');
         return;
       }
@@ -137,7 +139,7 @@ const EditProfileScreen: React.FC = () => {
       setAvatarUri(userProfile.avatar_url || null);
     } catch (error) {
       console.error('Erreur lors du chargement du profil:', error);
-      Alert.alert('Erreur', 'Impossible de charger le profil. Veuillez vous reconnecter.');
+      Alert.alert(t('common.error'), t('editProfile.loadError'));
       navigation.navigate('Auth');
     } finally {
       setLoading(false);
@@ -148,7 +150,7 @@ const EditProfileScreen: React.FC = () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission requise', 'Nous avons besoin de l\'accès à votre galerie pour sélectionner une photo.');
+        Alert.alert(t('editProfile.permissionRequired'), t('editProfile.galleryPermission'));
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -163,7 +165,7 @@ const EditProfileScreen: React.FC = () => {
       }
     } catch (error) {
       console.error('Erreur lors de la sélection d\'image:', error);
-      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
+      Alert.alert(t('common.error'), t('editProfile.pickImageError'));
     }
   };
 
@@ -171,7 +173,7 @@ const EditProfileScreen: React.FC = () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission requise', 'Nous avons besoin de l\'accès à l\'appareil photo pour prendre une photo.');
+        Alert.alert(t('editProfile.permissionRequired'), t('editProfile.cameraPermission'));
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -185,18 +187,18 @@ const EditProfileScreen: React.FC = () => {
       }
     } catch (error) {
       console.error('Erreur lors de la prise de photo:', error);
-      Alert.alert('Erreur', 'Impossible de prendre la photo');
+      Alert.alert(t('common.error'), t('editProfile.takePhotoError'));
     }
   };
 
   const showImagePicker = () => {
     Alert.alert(
-      'Choisir une photo',
-      'Comment souhaitez-vous ajouter votre photo de profil ?',
+      t('editProfile.pickPhotoTitle'),
+      t('editProfile.pickPhotoDesc'),
       [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Galerie', onPress: pickImage },
-        { text: 'Appareil photo', onPress: takePhoto },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('editProfile.gallery'), onPress: pickImage },
+        { text: t('editProfile.camera'), onPress: takePhoto },
       ]
     );
   };
@@ -275,12 +277,12 @@ const EditProfileScreen: React.FC = () => {
 
       if (phoneAccountSave && contactEmailTrimmed) {
         if (!isValidContactEmail(contactEmailTrimmed)) {
-          Alert.alert('Email invalide', 'Saisissez une adresse email valide (ex. nom@gmail.com).');
+          Alert.alert(t('editProfile.invalidEmailTitle'), t('editProfile.invalidEmailDesc'));
           return;
         }
         const emailCheck = await assertEmailAvailableForProfile(contactEmailTrimmed, user.id);
         if (!emailCheck.ok) {
-          Alert.alert('Email déjà utilisé', emailCheck.message);
+          Alert.alert(t('editProfile.emailInUseTitle'), emailCheck.message);
           return;
         }
       }
@@ -292,14 +294,14 @@ const EditProfileScreen: React.FC = () => {
       if (phoneLocalTrimmed) {
         if (!phoneNorm) {
           Alert.alert(
-            'Numéro invalide',
-            'Sélectionnez l\'indicatif pays et saisissez un numéro valide.',
+            t('editProfile.invalidPhoneTitle'),
+            t('editProfile.invalidPhoneDesc'),
           );
           return;
         }
         const phoneCheck = await assertPhoneAvailableForProfile(phoneNorm, user.id);
         if (!phoneCheck.ok) {
-          Alert.alert('Numéro déjà utilisé', phoneCheck.message);
+          Alert.alert(t('editProfile.phoneInUseTitle'), phoneCheck.message);
           return;
         }
       }
@@ -364,8 +366,8 @@ const EditProfileScreen: React.FC = () => {
         if (profileError) {
           if (isPhoneAlreadyUsedError(profileError)) {
             Alert.alert(
-              'Numéro déjà utilisé',
-              'Ce numéro est déjà associé à un autre compte AkwaHome.',
+              t('editProfile.phoneInUseTitle'),
+              t('editProfile.phoneInUseDesc'),
             );
             return;
           }
@@ -386,8 +388,8 @@ const EditProfileScreen: React.FC = () => {
         if (profileError) {
           if (isPhoneAlreadyUsedError(profileError)) {
             Alert.alert(
-              'Numéro déjà utilisé',
-              'Ce numéro est déjà associé à un autre compte AkwaHome.',
+              t('editProfile.phoneInUseTitle'),
+              t('editProfile.phoneInUseDesc'),
             );
             return;
           }
@@ -460,18 +462,18 @@ const EditProfileScreen: React.FC = () => {
       updateProfileCache(updatedProfile);
 
       Alert.alert(
-        'Succès',
-        'Profil mis à jour avec succès !',
+        t('common.success'),
+        t('editProfile.successDesc'),
         [
           {
-            text: 'OK',
+            text: t('common.ok'),
             onPress: () => navigation.goBack(),
           },
         ]
       );
     } catch (error: any) {
       console.error('Erreur lors de la sauvegarde:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder le profil');
+      Alert.alert(t('common.error'), error.message || t('editProfile.saveError'));
     } finally {
       setSaving(false);
     }
@@ -486,7 +488,7 @@ const EditProfileScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
-          <Text style={styles.loadingText}>Chargement du profil...</Text>
+          <Text style={styles.loadingText}>{t('profile.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -506,7 +508,7 @@ const EditProfileScreen: React.FC = () => {
           >
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Modifier le profil</Text>
+          <Text style={styles.headerTitle}>{t('profile.edit')}</Text>
           <TouchableOpacity
             style={styles.saveButton}
             onPress={saveProfile}
@@ -515,7 +517,7 @@ const EditProfileScreen: React.FC = () => {
             {saving ? (
               <ActivityIndicator size="small" color="#2E7D32" />
             ) : (
-              <Text style={styles.saveButtonText}>Sauvegarder</Text>
+              <Text style={styles.saveButtonText}>{t('editProfile.save')}</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -534,7 +536,7 @@ const EditProfileScreen: React.FC = () => {
               <Image
                 source={{
                   uri: avatarUri || generateAvatarUrl(
-                    `${formData.first_name} ${formData.last_name}`.trim() || 'Utilisateur'
+                    `${formData.first_name} ${formData.last_name}`.trim() || t('profile.userFallback')
                   ),
                 }}
                 style={styles.avatar}
@@ -543,71 +545,70 @@ const EditProfileScreen: React.FC = () => {
                 <Ionicons name="camera" size={24} color="#fff" />
               </View>
             </TouchableOpacity>
-            <Text style={styles.avatarHint}>Appuyez pour changer la photo</Text>
+            <Text style={styles.avatarHint}>{t('editProfile.avatarHint')}</Text>
           </View>
 
           {/* Formulaire */}
           <View style={styles.formContainer}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Prénom</Text>
+              <Text style={styles.label}>{t('auth.firstName')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.first_name}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, first_name: text }))}
-                placeholder="Votre prénom"
+                placeholder={t('editProfile.firstNamePlaceholder')}
                 autoCapitalize="words"
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nom</Text>
+              <Text style={styles.label}>{t('auth.lastName')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.last_name}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, last_name: text }))}
-                placeholder="Votre nom"
+                placeholder={t('editProfile.lastNamePlaceholder')}
                 autoCapitalize="words"
               />
             </View>
 
             {isPhoneAccount ? (
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
+                <Text style={styles.label}>{t('auth.email')}</Text>
                 <TextInput
                   style={styles.input}
                   value={formData.contact_email}
                   onChangeText={(text) =>
                     setFormData((prev) => ({ ...prev, contact_email: text }))
                   }
-                  placeholder="ex. nom@gmail.com"
+                  placeholder={t('editProfile.emailPlaceholder')}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
                 <Text style={styles.fieldHint}>
-                  Votre compte a été créé par téléphone. Ajoutez votre email pour les
-                  confirmations et notifications.
+                  {t('editProfile.phoneAccountEmailHint')}
                 </Text>
               </View>
             ) : (
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
+                <Text style={styles.label}>{t('auth.email')}</Text>
                 <TextInput
                   style={[styles.input, styles.disabledInput]}
                   value={profile?.email || ''}
                   editable={false}
-                  placeholder="Email"
+                  placeholder={t('auth.email')}
                 />
-                <Text style={styles.disabledHint}>L'email de connexion ne peut pas être modifié</Text>
+                <Text style={styles.disabledHint}>{t('editProfile.emailDisabledHint')}</Text>
               </View>
             )}
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Adresse</Text>
+              <Text style={styles.sectionTitle}>{t('editProfile.addressSection')}</Text>
 
               <View style={styles.inputGroup}>
                 <CountrySelectField
-                  label="Pays"
+                  label={t('editProfile.country')}
                   value={formData.country}
                   onChange={(name, item) => {
                     setFormData((prev) => ({ ...prev, country: name }));
@@ -615,45 +616,45 @@ const EditProfileScreen: React.FC = () => {
                       setPhoneDial(item.dial);
                     }
                   }}
-                  hint="Pays de résidence affiché sur votre profil"
+                  hint={t('editProfile.countryHint')}
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Ville</Text>
+                <Text style={styles.label}>{t('editProfile.city')}</Text>
                 <TextInput
                   style={styles.input}
                   value={formData.city}
                   onChangeText={(text) => setFormData((prev) => ({ ...prev, city: text }))}
-                  placeholder="Votre ville"
+                  placeholder={t('editProfile.cityPlaceholder')}
                   autoCapitalize="words"
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Adresse</Text>
+                <Text style={styles.label}>{t('editProfile.address')}</Text>
                 <TextInput
                   style={styles.input}
                   value={formData.address}
                   onChangeText={(text) => setFormData((prev) => ({ ...prev, address: text }))}
-                  placeholder="Rue, quartier…"
+                  placeholder={t('editProfile.addressPlaceholder')}
                   autoCapitalize="words"
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Code postal</Text>
+                <Text style={styles.label}>{t('editProfile.postalCode')}</Text>
                 <TextInput
                   style={styles.input}
                   value={formData.postal_code}
                   onChangeText={(text) => setFormData((prev) => ({ ...prev, postal_code: text }))}
-                  placeholder="Code postal"
+                  placeholder={t('editProfile.postalCodePlaceholder')}
                 />
               </View>
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Téléphone</Text>
+              <Text style={styles.label}>{t('auth.phone')}</Text>
               <PhoneNumberField
                 dial={phoneDial}
                 local={phoneLocal}
@@ -661,18 +662,17 @@ const EditProfileScreen: React.FC = () => {
                 onLocalChange={setPhoneLocal}
               />
               <Text style={styles.fieldHint}>
-                Touchez l&apos;indicatif (+225, +33…) pour changer de pays. Saisissez le 0 devant
-                votre numéro (ex. 07…, 06…).
+                {t('editProfile.phoneHint')}
               </Text>
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Bio</Text>
+              <Text style={styles.label}>{t('editProfile.bio')}</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={formData.bio}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, bio: text }))}
-                placeholder="Parlez-nous de vous..."
+                placeholder={t('editProfile.bioPlaceholder')}
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"

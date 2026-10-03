@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 // Types pour les avis envoyés
 interface SentPropertyReview {
@@ -55,6 +56,7 @@ type SentReview = SentPropertyReview | SentVehicleReview;
 const MyGuestReviewsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   const [sentPropertyReviews, setSentPropertyReviews] = useState<SentPropertyReview[]>([]);
   const [sentVehicleReviews, setSentVehicleReviews] = useState<SentVehicleReview[]>([]);
@@ -209,7 +211,7 @@ const MyGuestReviewsScreen: React.FC = () => {
             color={isPropertyReview ? '#10b981' : '#2563eb'} 
           />
           <Text style={[styles.typeBadgeText, { color: isPropertyReview ? '#10b981' : '#2563eb' }]}>
-            {isPropertyReview ? 'Résidence meublée' : 'Véhicule'}
+            {isPropertyReview ? t('reviews.furnishedResidence') : t('reviews.vehicle')}
           </Text>
         </View>
 
@@ -217,7 +219,7 @@ const MyGuestReviewsScreen: React.FC = () => {
           <View style={styles.statusBadge}>
             <Ionicons name="time-outline" size={16} color="#e67e22" />
             <Text style={styles.statusText}>
-              En attente de modération
+              {t('reviews.pendingModeration')}
             </Text>
           </View>
         )}
@@ -225,7 +227,7 @@ const MyGuestReviewsScreen: React.FC = () => {
           <View style={styles.statusBadge}>
             <Ionicons name="eye-off-outline" size={16} color="#e67e22" />
             <Text style={styles.statusText}>
-              En attente de réponse du propriétaire
+              {t('reviews.pendingOwnerResponse')}
             </Text>
           </View>
         )}
@@ -233,7 +235,7 @@ const MyGuestReviewsScreen: React.FC = () => {
           <View style={[styles.statusBadge, styles.statusBadgePublished]}>
             <Ionicons name="checkmark-circle-outline" size={16} color="#10b981" />
             <Text style={[styles.statusText, styles.statusTextPublished]}>
-              Publié
+              {t('reviews.published')}
             </Text>
           </View>
         ) : null}
@@ -248,10 +250,10 @@ const MyGuestReviewsScreen: React.FC = () => {
               />
               <Text style={styles.propertyName}>
                 {isPropertyReview 
-                  ? (propertyReview?.property?.title || 'Propriété')
+                  ? (propertyReview?.property?.title || t('reviews.property'))
                   : (vehicleReview?.vehicle 
-                      ? (vehicleReview.vehicle.title || `${vehicleReview.vehicle.brand || ''} ${vehicleReview.vehicle.model || ''}`.trim() || 'Véhicule')
-                      : 'Véhicule')}
+                      ? (vehicleReview.vehicle.title || `${vehicleReview.vehicle.brand || ''} ${vehicleReview.vehicle.model || ''}`.trim() || t('reviews.vehicle'))
+                      : t('reviews.vehicle'))}
               </Text>
             </View>
           </View>
@@ -277,12 +279,12 @@ const MyGuestReviewsScreen: React.FC = () => {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Mes avis</Text>
+          <Text style={styles.headerTitle}>{t('reviews.myReviews')}</Text>
         </View>
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>Connexion requise</Text>
+          <Text style={styles.emptyTitle}>{t('auth.loginRequired')}</Text>
           <Text style={styles.emptyText}>
-            Vous devez être connecté pour voir vos avis
+            {t('reviews.loginRequiredDesc')}
           </Text>
         </View>
       </SafeAreaView>
@@ -302,7 +304,7 @@ const MyGuestReviewsScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Mes avis</Text>
+          <Text style={styles.headerTitle}>{t('reviews.myReviews')}</Text>
         </View>
       </View>
 
@@ -320,9 +322,9 @@ const MyGuestReviewsScreen: React.FC = () => {
         >
           <Ionicons name="chatbubbles-outline" size={24} color="#0d9488" />
           <View style={styles.receivedReviewsCardContent}>
-            <Text style={styles.receivedReviewsCardTitle}>Avis reçus</Text>
+            <Text style={styles.receivedReviewsCardTitle}>{t('reviews.receivedReviews')}</Text>
             <Text style={styles.receivedReviewsCardSubtitle}>
-              Voir et répondre aux avis (résidence meublée & véhicules) laissés par les hôtes et propriétaires
+              {t('reviews.receivedReviewsSubtitle')}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
@@ -336,7 +338,7 @@ const MyGuestReviewsScreen: React.FC = () => {
               >
                 <Ionicons name="home-outline" size={16} color={sentActiveTab === 'property' ? '#2E7D32' : '#6b7280'} />
                 <Text style={[styles.tabText, sentActiveTab === 'property' && styles.tabTextActive]}>
-                  Propriétés ({sentPropertyReviews.length})
+                  {t('reviews.propertiesTab', { count: String(sentPropertyReviews.length) })}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -345,7 +347,7 @@ const MyGuestReviewsScreen: React.FC = () => {
               >
                 <Ionicons name="car-outline" size={16} color={sentActiveTab === 'vehicle' ? '#2E7D32' : '#6b7280'} />
                 <Text style={[styles.tabText, sentActiveTab === 'vehicle' && styles.tabTextActive]}>
-                  Véhicules ({sentVehicleReviews.length})
+                  {t('reviews.vehiclesTab', { count: String(sentVehicleReviews.length) })}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -354,18 +356,18 @@ const MyGuestReviewsScreen: React.FC = () => {
             {loadingSent ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#2E7D32" />
-                <Text style={styles.loadingText}>Chargement des avis envoyés...</Text>
+                <Text style={styles.loadingText}>{t('reviews.loadingSent')}</Text>
               </View>
             ) : sentReviews.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Ionicons name="star-outline" size={64} color="#d1d5db" />
-                <Text style={styles.emptyTitle}>Aucun avis envoyé</Text>
+                <Text style={styles.emptyTitle}>{t('reviews.emptySent')}</Text>
                 <Text style={styles.emptyText}>
                   {sentActiveTab === 'property'
-                    ? 'Vous n\'avez pas encore laissé d\'avis sur des propriétés'
+                    ? t('reviews.emptySentProperties')
                     : sentActiveTab === 'vehicle'
-                    ? 'Vous n\'avez pas encore laissé d\'avis sur des véhicules'
-                    : 'Vous n\'avez pas encore laissé d\'avis'}
+                    ? t('reviews.emptySentVehicles')
+                    : t('reviews.emptySentGeneric')}
                 </Text>
               </View>
             ) : (

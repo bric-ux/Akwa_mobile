@@ -48,23 +48,14 @@ import { resolvePreciseLocationFromDevice } from '../lib/geolocation';
 
 const { width, height } = Dimensions.get('window');
 
-// Types de véhicules pour l'affichage
-const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
-  { value: 'car', label: 'Voiture' },
-  { value: 'suv', label: 'SUV' },
-  { value: 'van', label: 'Van' },
-  { value: 'truck', label: 'Camion' },
-  { value: 'motorcycle', label: 'Moto' },
-  { value: 'scooter', label: 'Scooter' },
-  { value: 'bicycle', label: 'Vélo' },
-  { value: 'other', label: 'Autre' },
-];
 const isSmallScreen = width < 360 || height < 640; // Écrans de 3.12 pouces et moins
 
 const VehiclesScreen: React.FC = () => {
   const navigation = useNavigation();
   const { vehicles, loading, error, fetchVehicles, refetch } = useVehicles();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
+  const getVehicleTypeLabel = (value: VehicleType) => t(`vehicles.type.${value}`);
   const { formatPrice, refreshCurrency } = useCurrency();
   const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
   const { user } = useAuth();
@@ -124,11 +115,11 @@ const VehiclesScreen: React.FC = () => {
     if (!dateTime) return '';
     const date = new Date(dateTime);
     if (isNaN(date.getTime())) return '';
-    return date.toLocaleDateString('fr-FR', { 
+    return date.toLocaleDateString(dateLocale, { 
       weekday: 'short', 
       day: 'numeric', 
       month: 'short' 
-    }) + ' à ' + date.toLocaleTimeString('fr-FR', { 
+    }) + ' · ' + date.toLocaleTimeString(dateLocale, { 
       hour: '2-digit', 
       minute: '2-digit' 
     });
@@ -259,19 +250,17 @@ const VehiclesScreen: React.FC = () => {
   }, [loading]);
 
   const handleBackToProperties = () => {
-    // Demander confirmation avant de quitter la section véhicule
     Alert.alert(
-      'Retour aux résidences meublées',
-      'Voulez-vous vraiment retourner sur la recherche de résidences meublées ?',
+      t('vehicles.backToResidencesTitle'),
+      t('vehicles.backToResidencesDesc'),
       [
         {
-          text: 'Annuler',
+          text: t('common.cancel'),
           style: 'cancel',
         },
         {
-          text: 'Oui',
+          text: t('common.yes'),
           onPress: () => {
-            // Naviguer vers la recherche de résidences meublées
             (navigation as any).navigate('Home', { screen: 'HomeTab' });
           },
         },
@@ -308,7 +297,7 @@ const VehiclesScreen: React.FC = () => {
         });
       
       if (availabilityError) {
-        Alert.alert('Erreur', 'Impossible de vérifier la disponibilité du véhicule');
+        Alert.alert(t('common.error'), t('vehicles.availabilityCheckError'));
         return;
       }
       
@@ -327,8 +316,8 @@ const VehiclesScreen: React.FC = () => {
           }
         }
         Alert.alert(
-          'Véhicule indisponible',
-          'Ce véhicule n\'est pas disponible pour les dates sélectionnées. Veuillez choisir d\'autres dates.'
+          t('vehicles.unavailable'),
+          t('vehicles.unavailableDesc')
         );
         return;
       }
@@ -339,7 +328,7 @@ const VehiclesScreen: React.FC = () => {
       navigation.navigate('VehicleDetails' as never, { vehicleId: vehicle.id } as never);
     } catch (error) {
       console.error('Erreur lors de la vérification de disponibilité:', error);
-      Alert.alert('Erreur', 'Impossible de vérifier la disponibilité du véhicule');
+      Alert.alert(t('common.error'), t('vehicles.availabilityCheckError'));
     }
   };
   
@@ -361,7 +350,7 @@ const VehiclesScreen: React.FC = () => {
         });
       
       if (availabilityError) {
-        Alert.alert('Erreur', 'Impossible de vérifier la disponibilité du véhicule');
+        Alert.alert(t('common.error'), t('vehicles.availabilityCheckError'));
         return;
       }
       
@@ -380,8 +369,8 @@ const VehiclesScreen: React.FC = () => {
           }
         }
         Alert.alert(
-          'Véhicule indisponible',
-          'Ce véhicule n\'est pas disponible pour les dates sélectionnées. Veuillez choisir d\'autres dates.'
+          t('vehicles.unavailable'),
+          t('vehicles.unavailableDesc')
         );
         return;
       }
@@ -392,7 +381,7 @@ const VehiclesScreen: React.FC = () => {
       navigation.navigate('VehicleDetails' as never, { vehicleId: vehicle.id } as never);
     } catch (error) {
       console.error('Erreur lors de la vérification de disponibilité:', error);
-      Alert.alert('Erreur', 'Impossible de vérifier la disponibilité du véhicule');
+      Alert.alert(t('common.error'), t('vehicles.availabilityCheckError'));
     }
   };
 
@@ -510,7 +499,7 @@ const VehiclesScreen: React.FC = () => {
       const matched = result.matchedLocation;
       const label = matched?.name || result.addressLabel;
       if (!label?.trim()) {
-        Alert.alert('Localisation', 'Impossible de déterminer une destination près de vous.');
+        Alert.alert(t('search.location'), t('search.nearMeFailed'));
         return;
       }
       const type =
@@ -531,10 +520,10 @@ const VehiclesScreen: React.FC = () => {
       });
     } catch (e) {
       Alert.alert(
-        'Localisation',
+        t('search.location'),
         e instanceof Error
           ? e.message
-          : 'Impossible d’obtenir votre position. Vérifiez les autorisations GPS.',
+          : t('search.gpsPermission'),
       );
     } finally {
       setGeoLoading(false);
@@ -908,18 +897,16 @@ const VehiclesScreen: React.FC = () => {
 
   const getTransmissionLabel = (transmission: string | null) => {
     if (!transmission) return '';
-    return transmission === 'automatic' ? 'Auto' : 'Manuel';
+    return transmission === 'automatic'
+      ? t('vehicles.transmission.auto')
+      : t('vehicles.transmission.manual');
   };
 
   const getFuelLabel = (fuel: string | null) => {
     if (!fuel) return '';
-    const labels: Record<string, string> = {
-      essence: 'Essence',
-      diesel: 'Diesel',
-      electric: 'Électrique',
-      hybrid: 'Hybride',
-    };
-    return labels[fuel] || fuel;
+    const key = `vehicles.fuel.${fuel}`;
+    const label = t(key);
+    return label === key ? fuel : label;
   };
 
   const headerOpacity = scrollY.interpolate({
@@ -947,13 +934,13 @@ const VehiclesScreen: React.FC = () => {
       <View style={styles.emptyIcon}>
         <Ionicons name="car-outline" size={80} color="#cbd5e1" />
       </View>
-      <Text style={styles.emptyTitle}>Aucun véhicule</Text>
+      <Text style={styles.emptyTitle}>{t('vehicles.empty')}</Text>
       <Text style={styles.emptyText}>
-        Modifiez vos critères de recherche
+        {t('vehicles.emptyHint')}
       </Text>
       {getActiveFiltersCount() > 0 && (
         <TouchableOpacity style={styles.resetBtn} onPress={handleResetFilters}>
-          <Text style={styles.resetBtnText}>Réinitialiser</Text>
+          <Text style={styles.resetBtnText}>{t('common.reset')}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -1020,10 +1007,10 @@ const VehiclesScreen: React.FC = () => {
               <View style={styles.searchToastTextCol}>
                 <Text style={styles.searchToastTitle} numberOfLines={1}>
                   {searchPlaceLabel
-                    ? `Scan autour de ${searchPlaceLabel}`
-                    : 'Scan des véhicules…'}
+                    ? t('vehicles.scanAround', { place: searchPlaceLabel })
+                    : t('vehicles.scanVehicles')}
                 </Text>
-                <Text style={styles.searchToastSub}>On peigne le quartier pour toi</Text>
+                <Text style={styles.searchToastSub}>{t('vehicles.scanSubtitle')}</Text>
               </View>
               <View style={styles.searchToastDots}>
                 {[0, 1, 2].map((i) => (
@@ -1103,12 +1090,12 @@ const VehiclesScreen: React.FC = () => {
             <Ionicons name="location" size={18} color={TRAVELER_COLORS.primary} />
             <View style={styles.locationTextContainer}>
               <Text style={styles.locationText} numberOfLines={1}>
-                {selectedLocationName ? selectedLocationName.split(',')[0] || selectedLocationName : 'Localisation'}
+                {selectedLocationName ? selectedLocationName.split(',')[0] || selectedLocationName : t('search.location')}
               </Text>
               <Text style={styles.locationSubtext} numberOfLines={1}>
                 {selectedLocationName && selectedLocationName.includes(',')
                   ? selectedLocationName.split(',').slice(1).join(',').trim() || selectedLocationName
-                  : selectedLocationName || 'Sélectionner un lieu'}
+                  : selectedLocationName || t('vehicles.selectPlace')}
               </Text>
             </View>
           </TouchableOpacity>
@@ -1125,7 +1112,7 @@ const VehiclesScreen: React.FC = () => {
                   <Text style={styles.dateTimeText}>
                     {(() => {
                       const startDate = new Date(startDateTime);
-                      const dateStr = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                      const dateStr = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' });
                       const timeStr = `${String(startDate.getUTCHours()).padStart(2, '0')}:${String(startDate.getUTCMinutes()).padStart(2, '0')}`;
                       console.log(`📅 [VehiclesScreen] Affichage début: ${dateStr} ${timeStr} (startDateTime: ${startDateTime})`);
                       return `${dateStr} ${timeStr}`;
@@ -1134,7 +1121,7 @@ const VehiclesScreen: React.FC = () => {
                   <Text style={styles.dateTimeText}>
                     {(() => {
                       const endDate = new Date(endDateTime);
-                      const dateStr = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate())).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                      const dateStr = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate())).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' });
                       const timeStr = `${String(endDate.getUTCHours()).padStart(2, '0')}:${String(endDate.getUTCMinutes()).padStart(2, '0')}`;
                       console.log(`📅 [VehiclesScreen] Affichage fin: ${dateStr} ${timeStr} (endDateTime: ${endDateTime})`);
                       return `${dateStr} ${timeStr}`;
@@ -1142,7 +1129,7 @@ const VehiclesScreen: React.FC = () => {
                   </Text>
                 </>
               ) : (
-                <Text style={styles.dateTimePlaceholder}>Quand ?</Text>
+                <Text style={styles.dateTimePlaceholder}>{t('vehicles.when')}</Text>
               )}
             </View>
           </TouchableOpacity>
@@ -1165,8 +1152,8 @@ const VehiclesScreen: React.FC = () => {
             >
               <Text style={styles.filterButtonText}>
                 {filters.vehicleType 
-                  ? VEHICLE_TYPES.find(t => t.value === filters.vehicleType)?.label || filters.vehicleType
-                  : 'Type de véhicule'}
+                  ? getVehicleTypeLabel(filters.vehicleType)
+                  : t('vehicles.vehicleType')}
               </Text>
               <Ionicons name="chevron-down" size={16} color={TRAVELER_COLORS.primary} />
             </TouchableOpacity>
@@ -1178,10 +1165,10 @@ const VehiclesScreen: React.FC = () => {
             >
               <Text style={styles.filterButtonText}>
                 {filters.autoBooking === true 
-                  ? 'Réservation automatique'
+                  ? t('vehicles.autoBooking')
                   : filters.autoBooking === false
-                  ? 'Location sur demande'
-                  : 'Mode de location'}
+                  ? t('vehicles.onDemand')
+                  : t('vehicles.rentalMode')}
               </Text>
               <Ionicons name="chevron-down" size={16} color={TRAVELER_COLORS.primary} />
             </TouchableOpacity>
@@ -1192,7 +1179,7 @@ const VehiclesScreen: React.FC = () => {
               onPress={() => setShowFilters(true)}
             >
               <Ionicons name="options-outline" size={18} color={TRAVELER_COLORS.primary} />
-              <Text style={styles.filterButtonText}>Plus de filtres</Text>
+              <Text style={styles.filterButtonText}>{t('vehicles.moreFilters')}</Text>
               {getActiveFiltersCount() > 0 && (
                 <View style={styles.filterDot}>
                   <View style={styles.filterDotInner} />
@@ -1215,7 +1202,7 @@ const VehiclesScreen: React.FC = () => {
             activeOpacity={0.9}
           >
             <Ionicons name="car-sport" size={18} color="#fff" />
-            <Text style={styles.addVehicleBtnText}>Ajouter un véhicule</Text>
+            <Text style={styles.addVehicleBtnText}>{t('vehicles.addVehicle')}</Text>
           </TouchableOpacity>
         )}
       </SafeAreaView>
@@ -1236,7 +1223,7 @@ const VehiclesScreen: React.FC = () => {
           }}
         >
           <Ionicons name="list" size={20} color="#fff" />
-          <Text style={styles.listButtonText}>Liste</Text>
+          <Text style={styles.listButtonText}>{t('search.list')}</Text>
         </TouchableOpacity>
       )}
       
@@ -1257,7 +1244,7 @@ const VehiclesScreen: React.FC = () => {
           }}
         >
           <Ionicons name="map" size={20} color="#fff" />
-          <Text style={styles.mapButtonText}>Carte</Text>
+          <Text style={styles.mapButtonText}>{t('search.map')}</Text>
         </TouchableOpacity>
       )}
 
@@ -1286,9 +1273,9 @@ const VehiclesScreen: React.FC = () => {
               {/* En-tête avec titre */}
               <View style={styles.contentHeader}>
                 <View style={styles.contentHeaderLeft}>
-                  <Text style={styles.contentTitle}>Véhicules disponibles</Text>
+                  <Text style={styles.contentTitle}>{t('vehicles.available')}</Text>
                   <Text style={styles.contentSubtitle}>
-                    Trouvez le véhicule qui correspond à vos besoins
+                    {t('vehicles.availableSubtitle')}
                   </Text>
                 </View>
                 {(getActiveFiltersCount() > 0 || startDate || endDate) && (
@@ -1297,7 +1284,7 @@ const VehiclesScreen: React.FC = () => {
                     onPress={handleResetFilters}
                   >
                     <Ionicons name="refresh-outline" size={16} color="#2563eb" />
-                    <Text style={styles.resetAllBtnText}>Tout réinitialiser</Text>
+                    <Text style={styles.resetAllBtnText}>{t('vehicles.resetAll')}</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
@@ -1312,7 +1299,7 @@ const VehiclesScreen: React.FC = () => {
                   activeOpacity={0.9}
                 >
                   <Ionicons name="car-sport" size={18} color="#fff" />
-                  <Text style={styles.addVehicleBtnText}>Ajouter un véhicule</Text>
+                  <Text style={styles.addVehicleBtnText}>{t('vehicles.addVehicle')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1326,7 +1313,7 @@ const VehiclesScreen: React.FC = () => {
                   >
                     {filters.vehicleType && (
                       <View style={styles.chip}>
-                        <Text style={styles.chipText}>{filters.vehicleType}</Text>
+                        <Text style={styles.chipText}>{getVehicleTypeLabel(filters.vehicleType)}</Text>
                         <TouchableOpacity onPress={() => removeFilter('vehicleType')}>
                           <Ionicons name="close" size={12} color="#2563eb" />
                         </TouchableOpacity>
@@ -1354,7 +1341,7 @@ const VehiclesScreen: React.FC = () => {
                     )}
                     {filters.seats && (
                       <View style={styles.chip}>
-                        <Text style={styles.chipText}>{filters.seats}+ places</Text>
+                        <Text style={styles.chipText}>{t('vehicles.seatsPlus', { count: String(filters.seats) })}</Text>
                         <TouchableOpacity onPress={() => removeFilter('seats')}>
                           <Ionicons name="close" size={12} color="#2563eb" />
                         </TouchableOpacity>
@@ -1404,7 +1391,7 @@ const VehiclesScreen: React.FC = () => {
                     {(filters.locationId || filters.locationName) && (
                       <View style={styles.chip}>
                         <Text style={styles.chipText} numberOfLines={1}>
-                          {selectedLocationName || filters.locationName || 'Lieu'}
+                          {selectedLocationName || filters.locationName || t('vehicles.place')}
                         </Text>
                         <TouchableOpacity onPress={() => {
                           removeFilter('locationId');
@@ -1432,11 +1419,11 @@ const VehiclesScreen: React.FC = () => {
                       <View style={styles.chip}>
                         <Text style={styles.chipText} numberOfLines={1}>
                           {filters.startDate && filters.endDate
-                            ? `${new Date(filters.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} - ${new Date(filters.endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
+                            ? `${new Date(filters.startDate).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' })} - ${new Date(filters.endDate).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' })}`
                             : filters.startDate
-                            ? `À partir du ${new Date(filters.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
+                            ? t('vehicles.fromDate', { date: new Date(filters.startDate).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' }) })
                             : filters.endDate
-                            ? `Jusqu'au ${new Date(filters.endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
+                            ? t('vehicles.untilDate', { date: new Date(filters.endDate).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' }) })
                             : ''}
                         </Text>
                         <TouchableOpacity
@@ -1477,7 +1464,7 @@ const VehiclesScreen: React.FC = () => {
                     {filters.withDriver !== undefined && (
                       <View style={styles.chip}>
                         <Text style={styles.chipText}>
-                          {filters.withDriver ? 'Avec chauffeur' : 'Sans chauffeur'}
+                          {filters.withDriver ? t('vehicles.withDriver') : t('vehicles.withoutDriver')}
                         </Text>
                         <TouchableOpacity onPress={() => removeFilter('withDriver')}>
                           <Ionicons name="close" size={12} color="#2563eb" />
@@ -1487,7 +1474,7 @@ const VehiclesScreen: React.FC = () => {
                     {filters.locationType && (
                       <View style={styles.chip}>
                         <Text style={styles.chipText}>
-                          {filters.locationType === 'intra_ville' ? 'Intra ville uniquement' : 'Propose hors ville'}
+                          {filters.locationType === 'intra_ville' ? t('vehicles.intraCityOnly') : t('vehicles.offersOutOfTown')}
                         </Text>
                         <TouchableOpacity onPress={() => removeFilter('locationType')}>
                           <Ionicons name="close" size={12} color="#2563eb" />
@@ -1497,7 +1484,7 @@ const VehiclesScreen: React.FC = () => {
                     {filters.features && filters.features.length > 0 && (
                       <View style={styles.chip}>
                         <Text style={styles.chipText}>
-                          {filters.features.length} équipement{filters.features.length > 1 ? 's' : ''}
+                          {t(filters.features.length > 1 ? 'vehicles.featuresCount_other' : 'vehicles.featuresCount_one', { count: String(filters.features.length) })}
                         </Text>
                         <TouchableOpacity onPress={() => removeFilter('features')}>
                           <Ionicons name="close" size={12} color="#2563eb" />
@@ -1513,7 +1500,7 @@ const VehiclesScreen: React.FC = () => {
                 <View style={styles.resultsRow}>
                   <View style={styles.resultsCount}>
                     <Text style={styles.resultsCountText}>
-                      <Text style={styles.resultsCountBold}>{vehicles.length}</Text> véhicule{vehicles.length > 1 ? 's' : ''} disponible{vehicles.length > 1 ? 's' : ''}
+                      {t(vehicles.length > 1 ? 'vehicles.availableCount_other' : 'vehicles.availableCount_one', { count: String(vehicles.length) })}
                     </Text>
                   </View>
                 </View>
@@ -1563,7 +1550,7 @@ const VehiclesScreen: React.FC = () => {
                 <View style={styles.searchModalHeaderLeft}>
                   <Ionicons name="location" size={22} color={VEHICLE_COLORS.primary} />
                   <Text style={styles.searchModalTitle} numberOfLines={1}>
-                    Choisir une localisation
+                    {t('vehicles.chooseLocation')}
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -1580,7 +1567,7 @@ const VehiclesScreen: React.FC = () => {
                 <TextInput
                   ref={locationInputRef}
                   style={styles.locationSearchInput}
-                  placeholder="Ville, commune ou quartier…"
+                  placeholder={t('search.cityPlaceholder')}
                   placeholderTextColor="#94a3b8"
                   value={locationSearchQuery}
                   onChangeText={setLocationSearchQuery}
@@ -1611,14 +1598,14 @@ const VehiclesScreen: React.FC = () => {
                 disabled={geoLoading || isSearchingLocation}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel="Autour de moi"
+                accessibilityLabel={t('search.nearMe')}
               >
                 {geoLoading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <>
                     <Ionicons name="navigate" size={18} color="#fff" />
-                    <Text style={styles.geoBtnText}>Autour de moi</Text>
+                    <Text style={styles.geoBtnText}>{t('search.nearMe')}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -1635,14 +1622,14 @@ const VehiclesScreen: React.FC = () => {
                     <View style={styles.locationEmptyContainer}>
                       <Ionicons name="search" size={48} color="#cbd5e1" />
                       <Text style={styles.locationEmptyText}>
-                        Aucun résultat pour « {locationSearchQuery} »
+                        {t('vehicles.noResultsFor', { query: locationSearchQuery })}
                       </Text>
                     </View>
                   ) : !isSearchingLocation && locationSearchQuery.length === 0 ? (
                     <View style={styles.locationEmptyContainer}>
                       <Ionicons name="location-outline" size={48} color="#cbd5e1" />
                       <Text style={styles.locationEmptyText}>
-                        Commencez à taper pour rechercher
+                        {t('vehicles.startTyping')}
                       </Text>
                     </View>
                   ) : null
@@ -1682,22 +1669,22 @@ const VehiclesScreen: React.FC = () => {
                       <Text style={styles.locationResultName}>{item.name}</Text>
                       <View style={styles.locationResultMeta}>
                         {item.fromMap && (
-                          <Text style={styles.locationResultType}>Sur la carte</Text>
+                          <Text style={styles.locationResultType}>{t('search.onMap')}</Text>
                         )}
                         {!item.fromMap && String(item.id).startsWith('recent_') && (
-                          <Text style={styles.locationResultType}>Recherche récente</Text>
+                          <Text style={styles.locationResultType}>{t('search.recentSearch')}</Text>
                         )}
                         {!item.fromMap &&
                           !String(item.id).startsWith('recent_') &&
                           item.type === 'city' && (
-                            <Text style={styles.locationResultType}>Ville</Text>
+                            <Text style={styles.locationResultType}>{t('search.city')}</Text>
                           )}
                         {!item.fromMap && item.type === 'commune' && (
-                          <Text style={styles.locationResultType}>Commune</Text>
+                          <Text style={styles.locationResultType}>{t('search.commune')}</Text>
                         )}
                         {!item.fromMap && item.type === 'neighborhood' && item.commune && (
                           <Text style={styles.locationResultType}>
-                            {item.commune} • Quartier
+                            {t('search.neighborhoodWithCommune', { commune: item.commune })}
                           </Text>
                         )}
                       </View>
@@ -1774,7 +1761,7 @@ const VehiclesScreen: React.FC = () => {
                       )}
                       <Text style={styles.vehicleHorizontalCardPriceText}>
                         {vehicle.hourly_rental_enabled && vehicle.price_per_hour ? ' • ' : ''}
-                        {formatPrice(vehicle.price_per_day)} /jour
+                        {formatPrice(vehicle.price_per_day)} {t('vehicles.perDay')}
                       </Text>
                     </View>
                   </View>
@@ -1916,10 +1903,10 @@ const VehiclesScreen: React.FC = () => {
                   <Ionicons name="information-circle" size={24} color={TRAVELER_COLORS.primary} />
                   <View style={styles.alternativeVehiclesModalHeaderText}>
                     <Text style={styles.alternativeVehiclesModalTitle}>
-                      Véhicule indisponible
+                      {t('vehicles.unavailable')}
                     </Text>
                     <Text style={styles.alternativeVehiclesModalSubtitle}>
-                      Ce véhicule n'est pas disponible pour les dates sélectionnées. Voici d'autres options dans la même ville :
+                      {t('vehicles.unavailableAlternatives')}
                     </Text>
                   </View>
                 </View>
@@ -1967,7 +1954,7 @@ const VehiclesScreen: React.FC = () => {
                         </View>
                       )}
                       <Text style={styles.alternativeVehiclePrice}>
-                        {formatPrice(item.price_per_day)} /jour
+                        {formatPrice(item.price_per_day)} {t('vehicles.perDay')}
                       </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color="#999" />
@@ -1977,7 +1964,7 @@ const VehiclesScreen: React.FC = () => {
                 ListEmptyComponent={
                   <View style={styles.alternativeVehiclesEmpty}>
                     <Text style={styles.alternativeVehiclesEmptyText}>
-                      Aucun autre véhicule disponible dans cette ville
+                      {t('vehicles.noAlternatives')}
                     </Text>
                   </View>
                 }

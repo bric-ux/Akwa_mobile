@@ -19,6 +19,7 @@ import { useHotelFavorites } from '../hooks/useHotelFavorites';
 import { useMonthlyFavorites } from '../hooks/useMonthlyFavorites';
 import type { HotelEstablishmentPublic } from '../hooks/useApprovedHotelEstablishments';
 import { useAuth } from '../services/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import PropertyCard from '../components/PropertyCard';
 import VehicleCard from '../components/VehicleCard';
 import HotelEstablishmentCard from '../components/HotelEstablishmentCard';
@@ -31,6 +32,7 @@ type FavTab = 'properties' | 'vehicles' | 'hotels' | 'monthly';
 const FavoritesScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute();
+  const { t } = useLanguage();
   const { user } = useAuth();
   const { getFavorites, loading: propertiesLoading } = useFavorites();
   const { getFavorites: getVehicleFavorites, loading: vehiclesLoading } = useVehicleFavorites();
@@ -59,7 +61,7 @@ const FavoritesScreen: React.FC = () => {
       setMonthlyFavorites(monthlyData);
     } catch (error) {
       console.error('Erreur lors du chargement des favoris:', error);
-      Alert.alert('Erreur', 'Impossible de charger vos favoris');
+      Alert.alert(t('common.error'), t('favorites.loadError'));
     }
   };
 
@@ -109,7 +111,7 @@ const FavoritesScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.centerContainer}>
-          <Text style={styles.loadingText}>Chargement de vos favoris...</Text>
+          <Text style={styles.loadingText}>{t('favorites.loading')}</Text>
         </View>
         {!isInTabNavigator && <BottomNavigationBar activeScreen="favoris" />}
       </SafeAreaView>
@@ -124,10 +126,9 @@ const FavoritesScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.centerContainer}>
           <Ionicons name="heart-outline" size={80} color="#ccc" />
-          <Text style={styles.emptyTitle}>Aucun favori</Text>
+          <Text style={styles.emptyTitle}>{t('favorites.noFavorites')}</Text>
           <Text style={styles.emptySubtitle}>
-            Explorez résidences, hôtels, bail longue durée et véhicules, puis ajoutez-les en favoris via
-            le cœur.
+            {t('favorites.noFavoritesDesc')}
           </Text>
         </View>
         {!isInTabNavigator && <BottomNavigationBar activeScreen="favoris" />}
@@ -136,22 +137,24 @@ const FavoritesScreen: React.FC = () => {
   }
 
   const tabs: { key: FavTab; label: string; count: number }[] = [
-    { key: 'properties', label: 'Résidences', count: favorites.length },
-    { key: 'hotels', label: 'Hôtels', count: hotelFavorites.length },
-    { key: 'monthly', label: 'Bail longue durée', count: monthlyFavorites.length },
-    { key: 'vehicles', label: 'Véhicules', count: vehicleFavorites.length },
+    { key: 'properties', label: t('category.residences'), count: favorites.length },
+    { key: 'hotels', label: t('category.hotels'), count: hotelFavorites.length },
+    { key: 'monthly', label: t('category.monthly'), count: monthlyFavorites.length },
+    { key: 'vehicles', label: t('category.vehicles'), count: vehicleFavorites.length },
   ];
 
   const visibleTabs = isVehicleFavoritesTab
-    ? tabs.filter((t) => t.key === 'vehicles')
-    : tabs.filter((t) => t.count > 0 || t.key === activeTab);
+    ? tabs.filter((tab) => tab.key === 'vehicles')
+    : tabs.filter((tab) => tab.count > 0 || tab.key === activeTab);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Mes Favoris</Text>
+        <Text style={styles.headerTitle}>{t('favorites.title')}</Text>
         <Text style={styles.headerSubtitle}>
-          {totalCount} favori{totalCount > 1 ? 's' : ''}
+          {t(totalCount > 1 ? 'favorites.count_other' : 'favorites.count_one', {
+            count: String(totalCount),
+          })}
         </Text>
       </View>
 

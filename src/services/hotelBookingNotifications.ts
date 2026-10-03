@@ -10,6 +10,7 @@ type HotelBookingContext = {
   check_out_date: string;
   guests_count: number;
   total_price: number;
+  host_net_amount: number | null;
   guest_id: string;
   booking_code?: string | null;
   establishment: { id: string; title: string; host_id: string };
@@ -27,6 +28,7 @@ async function loadHotelBookingContext(bookingId: string): Promise<HotelBookingC
       check_out_date,
       guests_count,
       total_price,
+      host_net_amount,
       guest_id,
       booking_code,
       establishment_id,
@@ -62,6 +64,10 @@ async function loadHotelBookingContext(bookingId: string): Promise<HotelBookingC
     check_out_date: booking.check_out_date,
     guests_count: booking.guests_count,
     total_price: booking.total_price,
+    host_net_amount:
+      (booking as any).host_net_amount != null
+        ? Number((booking as any).host_net_amount)
+        : null,
     guest_id: booking.guest_id,
     booking_code: booking.booking_code,
     establishment: {
@@ -87,6 +93,14 @@ async function invokeEmail(type: string, to: string, data: Record<string, unknow
   }
 }
 
+function hostEmailAmountFields(ctx: HotelBookingContext): Record<string, unknown> {
+  return {
+    totalPrice: ctx.total_price,
+    host_net_amount: ctx.host_net_amount,
+    hostNetAmount: ctx.host_net_amount,
+  };
+}
+
 /** Nouvelle réservation hôtel (espèces ou demande en attente). */
 export async function notifyHotelBookingCreated(bookingId: string): Promise<void> {
   const ctx = await loadHotelBookingContext(bookingId);
@@ -105,7 +119,7 @@ export async function notifyHotelBookingCreated(bookingId: string): Promise<void
       checkInDate: ctx.check_in_date,
       checkOutDate: ctx.check_out_date,
       guests: ctx.guests_count,
-      totalPrice: ctx.total_price,
+      ...hostEmailAmountFields(ctx),
       booking_code: ctx.booking_code,
       isHotel: true,
     }),
@@ -177,7 +191,7 @@ export async function notifyHotelBookingStatusChange(
         checkIn: ctx.check_in_date,
         checkOut: ctx.check_out_date,
         guests: ctx.guests_count,
-        totalPrice: ctx.total_price,
+        ...hostEmailAmountFields(ctx),
         isHotel: true,
       }),
       sendPushToUser(
@@ -207,7 +221,7 @@ export async function notifyHotelBookingStatusChange(
       checkIn: ctx.check_in_date,
       checkOut: ctx.check_out_date,
       guests: ctx.guests_count,
-      totalPrice: ctx.total_price,
+      ...hostEmailAmountFields(ctx),
       isHotel: true,
     }),
     sendPushToUser(
@@ -234,7 +248,7 @@ export async function notifyHotelBookingCancelledByGuest(bookingId: string): Pro
       checkIn: ctx.check_in_date,
       checkOut: ctx.check_out_date,
       guests: ctx.guests_count,
-      totalPrice: ctx.total_price,
+      ...hostEmailAmountFields(ctx),
       isHotel: true,
     }),
     sendPushToUser(

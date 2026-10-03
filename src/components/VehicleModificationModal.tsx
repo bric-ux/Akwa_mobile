@@ -27,6 +27,7 @@ import {
 } from '../utils/cancellationPolicy';
 import { computeVehicleRentalDurationFromIso as computeVehicleRentalDurationBase } from '../lib/vehicleRentalDuration';
 import { computeVehicleDriverFee } from '../lib/vehicleDriverFee';
+import { useLanguage } from '../contexts/LanguageContext';
 
 /** YYYY-MM-DD du créneau ISO dans le fuseau des réservations (évite jour décalé avec toISOString().split UTC). */
 const BOOKING_DISPLAY_TZ = 'Africa/Abidjan';
@@ -92,6 +93,8 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
   onModified,
 }) => {
   const { formatPrice } = useCurrency();
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
   const { modifyBooking, loading, getBookingPendingRequest } = useVehicleBookingModifications();
   const { calculateCancellationInfoForVehicle } = useBookingCancellation();
   const [startDate, setStartDate] = useState<string>('');
@@ -164,18 +167,18 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
         if (cancelled) return;
         if (rpcError) {
           console.error('[VehicleModificationModal] Erreur vérification disponibilité:', rpcError);
-          setAvailabilityError('Erreur lors de la vérification de disponibilité');
+          setAvailabilityError(t('vehicleBooking.availabilityError'));
           return;
         }
         if (!isAvailable) {
-          setAvailabilityError('Ce créneau (dates et heures) n\'est pas disponible pour ce véhicule');
+          setAvailabilityError(t('vehicleBooking.slotUnavailable'));
         } else {
           setAvailabilityError(null);
         }
       } catch (e) {
         if (!cancelled) {
           console.error('[VehicleModificationModal] disponibilité:', e);
-          setAvailabilityError('Erreur lors de la vérification de disponibilité');
+          setAvailabilityError(t('vehicleBooking.availabilityError'));
         }
       } finally {
         if (!cancelled) setAvailabilityChecking(false);
@@ -463,28 +466,28 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
 
   const handleSubmit = async () => {
     if (!startDate || !endDate) {
-      Alert.alert('Erreur', 'Veuillez sélectionner les dates de location');
+      Alert.alert(t('common.error'), t('bookingMod.selectRentalDates'));
       return;
     }
 
     // Comparer les dates en format string pour éviter les problèmes de fuseau horaire
     // Permettre l'égalité pour les locations d'un jour (ex: du 1er au 1er janvier)
     if (endDate < startDate) {
-      Alert.alert('Erreur', 'La date de fin ne peut pas être avant la date de début');
+      Alert.alert(t('common.error'), t('bookingMod.endBeforeStart'));
       return;
     }
 
     if (rentalDays < 1) {
-      Alert.alert('Erreur', 'La durée de location doit être d\'au moins 1 jour');
+      Alert.alert(t('common.error'), t('bookingMod.minOneDay'));
       return;
     }
 
     if (availabilityChecking) {
-      Alert.alert('Patientez', 'Vérification de la disponibilité en cours…');
+      Alert.alert(t('bookingMod.waitAvailability'), t('bookingMod.waitAvailabilityDesc'));
       return;
     }
     if (availabilityError) {
-      Alert.alert('Créneau indisponible', availabilityError);
+      Alert.alert(t('bookingMod.slotUnavailableTitle'), availabilityError);
       return;
     }
 
@@ -493,19 +496,19 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
       const pendingRequest = await getBookingPendingRequest(booking.id);
       if (pendingRequest) {
         Alert.alert(
-          'Demande en cours',
-          'Vous avez déjà une demande de modification en attente. Veuillez attendre la réponse du propriétaire ou annuler la demande existante.'
+          t('bookings.requestInProgress'),
+          t('bookings.requestInProgressOwner')
         );
         return;
       }
     } catch (error) {
       console.error('Erreur lors de la vérification de la demande en cours:', error);
-      Alert.alert('Erreur', 'Impossible de vérifier les demandes en cours. Veuillez réessayer.');
+      Alert.alert(t('common.error'), t('bookingMod.pendingCheckError'));
       return;
     }
 
     if (!startDateTime || !endDateTime) {
-      Alert.alert('Erreur', 'Veuillez sélectionner les dates et heures de prise et de rendu');
+      Alert.alert(t('common.error'), t('bookingMod.selectPickupReturn'));
       return;
     }
 
@@ -610,7 +613,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
 
     // Si le surplus est positif, afficher le modal de paiement
     if (priceDifference > 0) {
-      const surplusTravelerMultiplier = 1 + (commissionRates.travelerFeePercent / 100) * 1.2;
+      const surplusTravelerMultiplier = 1 + commissionRates.travelerFeePercent / 100;
       const surplusBasePrice = Math.round(priceDifference / surplusTravelerMultiplier);
       const surplusHostCommissionData = surplusBasePrice > 0 ? calculateHostCommission(surplusBasePrice, 'vehicle') : { hostCommission: 0 };
       const surplusNetOwner = surplusBasePrice - surplusHostCommissionData.hostCommission;
@@ -646,14 +649,14 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
         const result = await modifyBooking(modificationData);
 
         if (result.success) {
-          Alert.alert('Succès', 'La réservation a été modifiée avec succès');
+          Alert.alert(t('common.success'), t('bookingMod.modifiedSuccess'));
           onModified();
           onClose();
         } else {
-          Alert.alert('Erreur', result.error || 'Impossible de modifier la réservation');
+          Alert.alert(t('common.error'), result.error || t('bookingMod.modifyError'));
         }
       } catch (error: any) {
-        Alert.alert('Erreur', error.message || 'Une erreur est survenue');
+        Alert.alert(t('common.error'), error.message || t('common.errorOccurred'));
       } finally {
         setIsSubmitting(false);
       }
@@ -670,7 +673,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
       setSurplusBreakdown(null);
       setPendingModificationData(null);
       setPendingRequestPayload(null);
-      Alert.alert('Succès', 'La demande de modification a été soumise avec succès');
+      Alert.alert(t('common.success'), t('bookingMod.requestSubmitted'));
       onModified();
       onClose();
       return;
@@ -685,14 +688,14 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
       if (result.success) {
         setPendingModificationData(null);
         setPendingRequestPayload(null);
-        Alert.alert('Succès', 'La demande de modification a été soumise avec succès');
+        Alert.alert(t('common.success'), t('bookingMod.requestSubmitted'));
         onModified();
         onClose();
       } else {
-        Alert.alert('Erreur', result.error || 'Impossible de soumettre la demande de modification');
+        Alert.alert(t('common.error'), result.error || t('bookingMod.submitError'));
       }
     } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Une erreur est survenue');
+      Alert.alert(t('common.error'), error.message || t('common.errorOccurred'));
     } finally {
       setIsSubmitting(false);
     }
@@ -700,7 +703,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
+    return date.toLocaleDateString(dateLocale, {
       day: 'numeric',
       month: 'long',
       year: 'numeric',
@@ -719,7 +722,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
               <Ionicons name="create-outline" size={20} color="#2563eb" />
-              <Text style={styles.headerTitle}>Modifier la réservation</Text>
+              <Text style={styles.headerTitle}>{t('bookingMod.title')}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#333" />
@@ -729,36 +732,36 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
           <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             {/* Informations actuelles */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Réservation actuelle</Text>
+              <Text style={styles.sectionTitle}>{t('bookingMod.currentBookingSection')}</Text>
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Véhicule:</Text>
+                <Text style={styles.infoLabel}>{t('bookingMod.vehicleLabel')}</Text>
                 <Text style={styles.infoValue}>
                   {vehicle?.title || `${vehicle?.brand || ''} ${vehicle?.model || ''}`.trim()}
                 </Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Dates actuelles:</Text>
+                <Text style={styles.infoLabel}>{t('bookingMod.currentDates')}</Text>
                 <Text style={styles.infoValue}>
                   {formatDate(booking.start_date)} - {formatDate(booking.end_date)}
                 </Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Durée actuelle:</Text>
+                <Text style={styles.infoLabel}>{t('bookingMod.currentDuration')}</Text>
                 <Text style={styles.infoValue}>
-                  {referenceDuration.rentalDays} jour{referenceDuration.rentalDays > 1 ? 's' : ''}
+                  {t(referenceDuration.rentalDays === 1 ? 'vehicleBooking.days_one' : 'vehicleBooking.days_other', { count: String(referenceDuration.rentalDays) })}
                   {referenceDuration.remainingHours > 0 &&
-                    ` et ${referenceDuration.remainingHours} heure${referenceDuration.remainingHours > 1 ? 's' : ''}`}
+                    t('vehicleBooking.and') + t(referenceDuration.remainingHours === 1 ? 'vehicleBooking.hours_one' : 'vehicleBooking.hours_other', { count: String(referenceDuration.remainingHours) })}
                 </Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Prix actuel:</Text>
+                <Text style={styles.infoLabel}>{t('bookingMod.currentPrice')}</Text>
                 <Text style={styles.infoValue}>{formatPrice(booking.total_price || 0)}</Text>
               </View>
             </View>
 
             {/* Nouvelles dates */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Nouvelles dates et heures</Text>
+              <Text style={styles.sectionTitle}>{t('bookingMod.newDatesHours')}</Text>
               <TouchableOpacity
                 style={styles.dateTimeButton}
                 onPress={() => setShowDateTimePicker(true)}
@@ -772,23 +775,23 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                         {(() => {
                           const tz = 'Africa/Abidjan';
                           const startDate = new Date(startDateTime);
-                          const dateStr = startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
-                          const timeStr = startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-                          return `${dateStr} à ${timeStr}`;
+                          const dateStr = startDate.toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', timeZone: tz });
+                          const timeStr = startDate.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit', timeZone: tz });
+                          return t('bookingMod.atTime', { date: dateStr, time: timeStr });
                         })()}
                       </Text>
                       <Text style={styles.dateTimeButtonSubtext}>
                         {(() => {
                           const tz = 'Africa/Abidjan';
                           const endDate = new Date(endDateTime);
-                          const dateStr = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
-                          const timeStr = endDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-                          return `Jusqu'au ${dateStr} à ${timeStr}`;
+                          const dateStr = endDate.toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', timeZone: tz });
+                          const timeStr = endDate.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit', timeZone: tz });
+                          return t('bookingMod.untilAt', { date: dateStr, time: timeStr });
                         })()}
                       </Text>
                     </>
                   ) : (
-                    <Text style={styles.dateTimeButtonText}>Sélectionner les dates et heures</Text>
+                    <Text style={styles.dateTimeButtonText}>{t('vehicleBooking.selectDatesHours')}</Text>
                   )}
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#999" />
@@ -796,7 +799,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
               {availabilityChecking && (
                 <View style={styles.availabilityCheckingRow}>
                   <ActivityIndicator size="small" color="#2563eb" />
-                  <Text style={styles.availabilityCheckingText}>Vérification du créneau…</Text>
+                  <Text style={styles.availabilityCheckingText}>{t('bookingMod.checkingSlot')}</Text>
                 </View>
               )}
               {availabilityError ? (
@@ -809,44 +812,44 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                 <View style={styles.summaryBox}>
                   {/* Détail des modifications : dates, durée, prix avant / après */}
                   <View style={styles.modificationDetailSection}>
-                    <Text style={styles.modificationDetailTitle}>Détail des modifications</Text>
+                    <Text style={styles.modificationDetailTitle}>{t('bookingMod.changesDetail')}</Text>
                     <View style={styles.modificationDetailRow}>
-                      <Text style={styles.modificationDetailLabel}>Avant :</Text>
+                      <Text style={styles.modificationDetailLabel}>{t('bookingMod.before')}</Text>
                       <Text style={styles.modificationDetailValue}>
                         {bookingRefStartIso && bookingRefEndIso
                           ? (() => {
                               const tz = 'Africa/Abidjan';
                               const start = new Date(bookingRefStartIso);
                               const end = new Date(bookingRefEndIso);
-                              const d1 = start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
-                              const t1 = start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-                              const d2 = end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
-                              const t2 = end.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+                              const d1 = start.toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', timeZone: tz });
+                              const t1 = start.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit', timeZone: tz });
+                              const d2 = end.toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', timeZone: tz });
+                              const t2 = end.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit', timeZone: tz });
                               return `${d1} ${t1} → ${d2} ${t2}`;
                             })()
                           : `${formatDate(booking.start_date)} → ${formatDate(booking.end_date)}`}
-                        {' • '}{currentRentalDays} jour{currentRentalDays > 1 ? 's' : ''}
-                        {currentRentalHours > 0 && ` et ${currentRentalHours} h`}
+                        {' • '}{t(currentRentalDays === 1 ? 'vehicleBooking.days_one' : 'vehicleBooking.days_other', { count: String(currentRentalDays) })}
+                        {currentRentalHours > 0 && (t('vehicleBooking.and') + `${currentRentalHours} h`)}
                         {' • '}{formatPrice(originalTotalPrice)}
                       </Text>
                     </View>
                     <View style={styles.modificationDetailRow}>
-                      <Text style={[styles.modificationDetailLabel, styles.modificationDetailLabelAfter]}>Après :</Text>
+                      <Text style={[styles.modificationDetailLabel, styles.modificationDetailLabelAfter]}>{t('bookingMod.after')}</Text>
                       <Text style={[styles.modificationDetailValue, styles.modificationDetailValueAfter]}>
                         {startDateTime && endDateTime
                           ? (() => {
                               const tz = 'Africa/Abidjan';
                               const start = new Date(startDateTime);
                               const end = new Date(endDateTime);
-                              const d1 = start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
-                              const t1 = start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-                              const d2 = end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
-                              const t2 = end.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+                              const d1 = start.toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', timeZone: tz });
+                              const t1 = start.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit', timeZone: tz });
+                              const d2 = end.toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', timeZone: tz });
+                              const t2 = end.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit', timeZone: tz });
                               return `${d1} ${t1} → ${d2} ${t2}`;
                             })()
                           : `${formatDate(startDate)} → ${formatDate(endDate)}`}
-                        {' • '}{rentalDays} jour{rentalDays > 1 ? 's' : ''}
-                        {remainingHours > 0 && ` et ${remainingHours} h`}
+                        {' • '}{t(rentalDays === 1 ? 'vehicleBooking.days_one' : 'vehicleBooking.days_other', { count: String(rentalDays) })}
+                        {remainingHours > 0 && (t('vehicleBooking.and') + `${remainingHours} h`)}
                         {' • '}{formatPrice(totalPrice)}
                       </Text>
                     </View>
@@ -877,48 +880,58 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                     return (
                       <>
                         <View style={styles.summaryRow}>
-                          <Text style={styles.summaryLabel}>Durée:</Text>
+                          <Text style={styles.summaryLabel}>{t('bookingMod.durationLabel')}</Text>
                           <Text style={styles.summaryValue}>
                             {daysDiff !== 0 || hoursDiff !== 0 ? (
                               <>
-                                {daysDiff !== 0 && `${daysDiff} jour${Math.abs(daysDiff) > 1 ? 's' : ''}`}
-                                {daysDiff !== 0 && hoursDiff !== 0 && ' et '}
-                                {hoursDiff !== 0 && `${hoursDiff} heure${Math.abs(hoursDiff) > 1 ? 's' : ''}`}
+                                {daysDiff !== 0 && t(Math.abs(daysDiff) === 1 ? 'vehicleBooking.days_one' : 'vehicleBooking.days_other', { count: String(daysDiff) })}
+                                {daysDiff !== 0 && hoursDiff !== 0 && t('vehicleBooking.and')}
+                                {hoursDiff !== 0 && t(Math.abs(hoursDiff) === 1 ? 'vehicleBooking.hours_one' : 'vehicleBooking.hours_other', { count: String(hoursDiff) })}
                               </>
                             ) : (
-                              'Aucun changement'
+                              t('bookingMod.noChange')
                             )}
                           </Text>
                         </View>
                         {!isReduction && isExtensionDuration && Math.abs(invoiceVsModelDiff) >= 1 && (
                           <Text style={styles.reconciliationHint}>
-                            Le nouveau total part de votre montant payé ({formatPrice(originalTotalPrice)})
                             {Math.abs(invoiceVsModelDiff) >= 5
-                              ? ` et non du recalcul automatique du même séjour (${formatPrice(currentTotalPrice)}), pour rester aligné avec votre facture (promo, arrondis).`
-                              : '.'}
-                            {' '}Les lignes ci-dessous décomposent uniquement le supplément lié à la modification.
+                              ? t('bookingMod.reconciliationHint', {
+                                  paid: formatPrice(originalTotalPrice),
+                                  recalc: formatPrice(currentTotalPrice),
+                                })
+                              : t('bookingMod.reconciliationHintShort', {
+                                  paid: formatPrice(originalTotalPrice),
+                                })}
                           </Text>
                         )}
                         {showDetailedBreakdown && (daysPriceDiff !== 0 || hoursPriceDiff !== 0) && (
                           <>
                             {daysPriceDiff !== 0 && (
                               <View style={styles.summaryRow}>
-                                <Text style={styles.summaryLabel}>Prix des jours:</Text>
+                                <Text style={styles.summaryLabel}>{t('bookingMod.daysPrice')}</Text>
                                 <Text style={styles.summaryValue} numberOfLines={2}>
                                   {daysPriceDiff > 0 ? '+' : ''}{formatPrice(daysPriceDiff)}{'\n'}
                                   <Text style={{ fontSize: 12, color: '#6b7280' }}>
-                                    ({daysDiff > 0 ? '+' : ''}{daysDiff} jour{Math.abs(daysDiff) > 1 ? 's' : ''} × {formatPrice(dailyRate)})
+                                    {t('bookingMod.daysTimesRate', {
+                                      signedCount: `${daysDiff > 0 ? '+' : ''}${daysDiff}`,
+                                      plural: Math.abs(daysDiff) > 1 ? 's' : '',
+                                      price: formatPrice(dailyRate),
+                                    })}
                                   </Text>
                                 </Text>
                               </View>
                             )}
                             {hoursPriceDiff !== 0 && hoursDiff !== 0 && hourlyRate > 0 && (
                               <View style={styles.summaryRow}>
-                                <Text style={styles.summaryLabel}>Prix des heures:</Text>
+                                <Text style={styles.summaryLabel}>{t('bookingMod.hoursPrice')}</Text>
                                 <Text style={styles.summaryValue} numberOfLines={2}>
                                   {hoursPriceDiff > 0 ? '+' : ''}{formatPrice(hoursPriceDiff)}{'\n'}
                                   <Text style={{ fontSize: 12, color: '#6b7280' }}>
-                                    ({hoursDiff > 0 ? '+' : ''}{hoursDiff} h × {formatPrice(hourlyRate)}/h)
+                                    {t('bookingMod.hoursTimesRate', {
+                                      signedCount: `${hoursDiff > 0 ? '+' : ''}${hoursDiff}`,
+                                      price: formatPrice(hourlyRate),
+                                    })}
                                   </Text>
                                 </Text>
                               </View>
@@ -927,7 +940,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                         )}
                         {showDetailedBreakdown && (daysPriceDiff !== 0 || hoursPriceDiff !== 0) && (
                           <View style={styles.summaryRow}>
-                            <Text style={styles.summaryLabel}>Prix de base (avant réduction):</Text>
+                            <Text style={styles.summaryLabel}>{t('bookingMod.baseBeforeDiscount')}</Text>
                             <Text style={styles.summaryValue}>
                               {(daysPriceDiff + hoursPriceDiff) > 0 ? '+' : ''}{formatPrice(daysPriceDiff + hoursPriceDiff)}
                             </Text>
@@ -936,7 +949,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                         {showDetailedBreakdown && discountDiff !== 0 && (
                           <View style={styles.summaryRow}>
                             <Text style={[styles.summaryLabel, discountDiff > 0 ? { color: '#e74c3c' } : { color: '#059669' }]}>
-                              {discountDiff > 0 ? 'Perte de réduction:' : 'Gain de réduction:'}
+                              {discountDiff > 0 ? t('bookingMod.discountLoss') : t('bookingMod.discountGain')}
                             </Text>
                             <Text style={[styles.summaryValue, discountDiff > 0 ? { color: '#e74c3c' } : { color: '#059669' }]}>
                               {formatPrice(discountDiff)}
@@ -945,7 +958,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                         )}
                         {showDetailedBreakdown && basePriceDiff !== 0 && (
                           <View style={styles.summaryRow}>
-                            <Text style={styles.summaryLabel}>Prix après réduction:</Text>
+                            <Text style={styles.summaryLabel}>{t('bookingMod.priceAfterDiscount')}</Text>
                             <Text style={styles.summaryValue}>
                               {basePriceDiff > 0 ? '+' : ''}{formatPrice(basePriceDiff)}
                             </Text>
@@ -954,27 +967,27 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                         {showDriverFeeDetail && (
                           <>
                             <View style={styles.summaryRow}>
-                              <Text style={styles.summaryLabel}>Frais chauffeur (forfait)</Text>
+                              <Text style={styles.summaryLabel}>{t('bookingMod.driverFee')}</Text>
                               <Text style={styles.summaryValue} numberOfLines={2}>
                                 {driverFeeDiffUi !== 0 ? (
                                   <>
                                     {driverFeeDiffUi > 0 ? '+' : ''}{formatPrice(driverFeeDiffUi)}
                                     {'\n'}
                                     <Text style={{ fontSize: 12, color: '#6b7280' }}>
-                                      Nouveau forfait : {formatPrice(driverFee)}
+                                      {t('bookingMod.newDriverFee', { amount: formatPrice(driverFee) })}
                                     </Text>
                                   </>
                                 ) : (
                                   <>
                                     {formatPrice(driverFee)}
                                     {'\n'}
-                                    <Text style={{ fontSize: 12, color: '#6b7280' }}>(inchangé)</Text>
+                                    <Text style={{ fontSize: 12, color: '#6b7280' }}>{t('bookingMod.unchanged')}</Text>
                                   </>
                                 )}
                               </Text>
                             </View>
                             <View style={styles.summaryRow}>
-                              <Text style={styles.summaryLabel}>Sous-total (location + chauffeur)</Text>
+                              <Text style={styles.summaryLabel}>{t('bookingMod.subtotalWithDriver')}</Text>
                               <Text style={styles.summaryValue}>
                                 {subtotalWithDriverDiffUi > 0 ? '+' : ''}{formatPrice(subtotalWithDriverDiffUi)}
                               </Text>
@@ -983,7 +996,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                         )}
                         {showDetailedBreakdown && serviceFeeDiff !== 0 && !showDriverFeeDetail && (
                           <View style={styles.summaryRow}>
-                            <Text style={styles.summaryLabel}>Frais de service:</Text>
+                            <Text style={styles.summaryLabel}>{t('booking.serviceFee')}:</Text>
                             <Text style={styles.summaryValue}>
                               {serviceFeeDiff > 0 ? '+' : ''}{formatPrice(serviceFeeDiff)}
                             </Text>
@@ -993,14 +1006,14 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                           <>
                             {serviceFeeHTDiffUi !== 0 && (
                               <View style={styles.summaryRow}>
-                                <Text style={styles.summaryLabel}>Frais de service</Text>
+                                <Text style={styles.summaryLabel}>{t('booking.serviceFee')}</Text>
                                 <Text style={styles.summaryValue}>
                                   {serviceFeeHTDiffUi > 0 ? '+' : ''}{formatPrice(serviceFeeHTDiffUi)}
                                 </Text>
                               </View>
                             )}
                             <View style={styles.summaryRow}>
-                              <Text style={styles.summaryLabel}>Total frais de service</Text>
+                              <Text style={styles.summaryLabel}>{t('bookingMod.totalServiceFee')}</Text>
                               <Text style={styles.summaryValue}>
                                 {serviceFeeDiff > 0 ? '+' : ''}{formatPrice(serviceFeeDiff)}
                               </Text>
@@ -1010,27 +1023,25 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                         {totalDiff > 0 ? (
                           <View style={styles.surplusSection}>
                             <View style={styles.surplusRow}>
-                              <Text style={styles.surplusLabel}>Surplus à payer :</Text>
+                              <Text style={styles.surplusLabel}>{t('bookingMod.surplusToPay')}</Text>
                               <Text style={styles.surplusValue}>
                                 +{formatPrice(totalDiff)}
                               </Text>
                             </View>
                             {isReduction ? (
                               <Text style={styles.surplusNote}>
-                                En raccourcissant la location, le total est recalculé selon les tarifs et réductions
-                                applicables à cette durée. Vous n’êtes plus éligible à certaines réductions du séjour
-                                initial (par ex. séjour long) : la différence est à régler pour valider la modification.
+                                {t('bookingMod.surplusNoteReductionVehicle')}
                               </Text>
                             ) : isExtensionDuration ? (
                               <Text style={styles.surplusNote}>
-                                Montant supplémentaire pour la durée demandée par rapport à votre réservation actuelle.
+                                {t('bookingMod.surplusNoteExtension')}
                               </Text>
                             ) : null}
                           </View>
                         ) : (
                           <View style={[styles.summaryRow, styles.totalRow]}>
                             <Text style={styles.totalLabel}>
-                              {totalDiff < 0 ? 'Remboursement:' : 'Aucun changement'}
+                              {totalDiff < 0 ? t('bookings.refund') : t('bookingMod.noChange')}
                             </Text>
                             <Text style={[styles.totalValue, totalDiff < 0 ? { color: '#059669' } : { color: '#6b7280' }]}>
                               {totalDiff < 0
@@ -1043,7 +1054,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                           const policy = (vehicle as any)?.cancellation_policy ?? (booking as any).cancellation_policy ?? 'flexible';
                           return (
                             <View style={styles.policyNoteContainer}>
-                              <Text style={styles.policyNoteLabel}>Conditions d'annulation :</Text>
+                              <Text style={styles.policyNoteLabel}>{t('bookingMod.cancellationTerms')}</Text>
                               <Text style={styles.policyNote}>
                                 {getCancellationPolicyText(policy, 'vehicle')}
                               </Text>
@@ -1059,10 +1070,10 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
 
             {/* Message optionnel */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Message au propriétaire (optionnel)</Text>
+              <Text style={styles.sectionTitle}>{t('vehicleBooking.messageToOwner')}</Text>
               <TextInput
                 style={styles.messageInput}
-                placeholder="Expliquez la raison de la modification..."
+                placeholder={t('bookingMod.messageToOwnerPlaceholder')}
                 value={message}
                 onChangeText={setMessage}
                 multiline
@@ -1087,12 +1098,12 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
               ) : (
                 <>
                   <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-                  <Text style={styles.submitButtonText}>Confirmer la modification</Text>
+                  <Text style={styles.submitButtonText}>{t('bookingMod.confirmModification')}</Text>
                 </>
               )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelButtonText}>Annuler</Text>
+              <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -1135,20 +1146,20 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
             });
             if (rpcError) {
               console.error('[VehicleModificationModal] beforeConfirm disponibilité:', rpcError);
-              Alert.alert('Erreur', 'Erreur lors de la vérification de disponibilité');
+              Alert.alert(t('common.error'), t('vehicleBooking.availabilityError'));
               return false;
             }
             if (!isAvailable) {
               Alert.alert(
-                'Créneau indisponible',
-                'Ce créneau n\'est pas disponible pour ce véhicule. Choisissez d\'autres dates ou heures.'
+                t('bookingMod.slotUnavailableTitle'),
+                t('bookingMod.slotUnavailableVehicle')
               );
               return false;
             }
             return true;
           } catch (e) {
             console.error('[VehicleModificationModal] beforeConfirm:', e);
-            Alert.alert('Erreur', 'Erreur lors de la vérification de disponibilité');
+            Alert.alert(t('common.error'), t('vehicleBooking.availabilityError'));
             return false;
           }
         }}

@@ -6,10 +6,10 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import IdentityUpload from './IdentityUpload';
 import { useAuth } from '../services/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface BookingIdentityAlertProps {
   onVerificationComplete?: () => void;
@@ -18,8 +18,8 @@ interface BookingIdentityAlertProps {
 export const BookingIdentityAlert: React.FC<BookingIdentityAlertProps> = ({ 
   onVerificationComplete 
 }) => {
-  const navigation = useNavigation();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const { verificationStatus, isVerified, checkIdentityStatus } = useIdentityVerification();
   const [showUploadForm, setShowUploadForm] = useState(false);
 
@@ -34,22 +34,22 @@ export const BookingIdentityAlert: React.FC<BookingIdentityAlertProps> = ({
         return {
           icon: 'time-outline',
           color: '#f59e0b',
-          title: 'Vérification en cours',
-          message: 'Votre pièce d\'identité est en cours de vérification. Vous pouvez déjà effectuer des réservations.'
+          title: t('identity.pendingTitle'),
+          message: t('identity.pendingMessage'),
         };
       case 'rejected':
         return {
           icon: 'close-circle-outline',
           color: '#ef4444',
-          title: 'Document refusé',
-          message: 'Votre document a été refusé. Veuillez envoyer un nouveau document valide.'
+          title: t('profile.identityRejected'),
+          message: t('identity.rejectedMessage'),
         };
       default:
         return {
           icon: 'shield-checkmark-outline',
           color: '#f59e0b',
-          title: 'Vérification d\'identité requise',
-          message: 'Pour réserver, vous devez vérifier votre identité en téléchargeant une pièce d\'identité.'
+          title: t('booking.identityRequired'),
+          message: t('identity.requiredMessage'),
         };
     }
   };
@@ -79,7 +79,7 @@ export const BookingIdentityAlert: React.FC<BookingIdentityAlertProps> = ({
       <View style={styles.uploadContainer}>
         <View style={styles.uploadHeader}>
           <Text style={styles.uploadTitle}>
-            {verificationStatus === 'pending' ? 'Statut de vérification' : 'Vérification d\'identité'}
+            {verificationStatus === 'pending' ? t('identity.statusTitle') : t('identity.verifyTitle')}
           </Text>
           <TouchableOpacity
             style={styles.closeButton}
@@ -94,27 +94,25 @@ export const BookingIdentityAlert: React.FC<BookingIdentityAlertProps> = ({
           <View style={styles.pendingStatus}>
             <View style={styles.pendingHeader}>
               <Ionicons name="time-outline" size={24} color="#f59e0b" />
-              <Text style={styles.pendingTitle}>Vérification en cours</Text>
+              <Text style={styles.pendingTitle}>{t('identity.pendingTitle')}</Text>
             </View>
             <Text style={styles.pendingMessage}>
-              Votre document est en cours de vérification par notre équipe. 
-              Vous pouvez déjà effectuer des réservations pendant cette période. 
-              Vous recevrez une notification une fois la vérification terminée.
+              {t('identity.pendingDetail')}
             </Text>
             <View style={styles.pendingInfo}>
-              <Text style={styles.pendingInfoTitle}>Que se passe-t-il maintenant ?</Text>
+              <Text style={styles.pendingInfoTitle}>{t('identity.whatHappensNow')}</Text>
               <View style={styles.pendingSteps}>
                 <View style={styles.pendingStep}>
                   <Ionicons name="checkmark-circle" size={16} color="#10b981" />
-                  <Text style={styles.pendingStepText}>Document reçu</Text>
+                  <Text style={styles.pendingStepText}>{t('identity.docReceived')}</Text>
                 </View>
                 <View style={styles.pendingStep}>
                   <Ionicons name="time" size={16} color="#f59e0b" />
-                  <Text style={styles.pendingStepText}>Vérification en cours</Text>
+                  <Text style={styles.pendingStepText}>{t('identity.pendingTitle')}</Text>
                 </View>
                 <View style={styles.pendingStep}>
                   <Ionicons name="hourglass-outline" size={16} color="#6b7280" />
-                  <Text style={styles.pendingStepText}>Notification à venir</Text>
+                  <Text style={styles.pendingStepText}>{t('identity.notificationComing')}</Text>
                 </View>
               </View>
             </View>
@@ -163,9 +161,9 @@ export const BookingIdentityAlert: React.FC<BookingIdentityAlertProps> = ({
               color="#fff" 
             />
             <Text style={styles.actionButtonText}>
-              {verificationStatus === 'pending' ? 'Voir le statut' :
-               verificationStatus === 'rejected' ? 'Envoyer un nouveau document' : 
-               'Vérifier mon identité'}
+              {verificationStatus === 'pending' ? t('identity.viewStatus') :
+               verificationStatus === 'rejected' ? t('identity.sendNewDoc') : 
+               t('identity.verifyMine')}
             </Text>
           </TouchableOpacity>
         )}

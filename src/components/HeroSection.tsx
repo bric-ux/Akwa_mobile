@@ -229,7 +229,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 },
               ]}
             >
-              Découvrez des logements uniques en Côte d'Ivoire
+              Résidences meublées, hôtels, bail longue durée et véhicules en Côte d'Ivoire
             </Text>
             <Text
               style={[

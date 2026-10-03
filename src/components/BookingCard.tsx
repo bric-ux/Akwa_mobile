@@ -18,6 +18,7 @@ import { calculateTotalPrice, type DiscountConfig } from '../hooks/usePricing';
 import { useCurrency } from '../hooks/useCurrency';
 import MediaThumb from './MediaThumb';
 import { getPropertyCoverUrl, isVideoUrl } from '../utils/media';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface BookingCardProps {
   booking: Booking;
@@ -38,6 +39,8 @@ const BookingCard: React.FC<BookingCardProps> = ({
 }) => {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-GB' : 'fr-FR';
   const { currency, rates } = useCurrency();
   const { createOrGetConversation } = useMessaging();
   const { getBookingPendingRequest, cancelModificationRequest } = useBookingModifications();
@@ -58,18 +61,18 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const handleContactHost = async () => {
     if (!user) {
       Alert.alert(
-        'Connexion requise',
-        'Vous devez être connecté pour contacter l\'hôte.',
+        t('auth.loginRequired'),
+        t('messages.contactHostLogin'),
         [
-          { text: 'Annuler', style: 'cancel' },
-          { text: 'Se connecter', onPress: () => (navigation as any).navigate('Auth') },
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('auth.signIn'), onPress: () => (navigation as any).navigate('Auth') },
         ]
       );
       return;
     }
 
     if (!booking.properties?.host_id || !booking.properties?.id) {
-      Alert.alert('Erreur', 'Impossible de contacter l\'hôte. Informations manquantes.');
+      Alert.alert(t('common.error'), t('messages.contactHostMissing'));
       return;
     }
 
@@ -82,8 +85,8 @@ const BookingCard: React.FC<BookingCardProps> = ({
         .single();
       
       const hostName = hostProfile 
-        ? `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Hôte'
-        : 'Hôte';
+        ? `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || t('messages.host')
+        : t('messages.host');
       
       const conversationId = await createOrGetConversation(
         booking.properties.id, // propertyId
@@ -103,16 +106,16 @@ const BookingCard: React.FC<BookingCardProps> = ({
           }
         });
       } else {
-        Alert.alert('Erreur', 'Impossible de créer la conversation');
+        Alert.alert(t('common.error'), t('messages.createConversationError'));
       }
     } catch (error: any) {
       console.error('Erreur lors du contact de l\'hôte:', error);
-      Alert.alert('Erreur', 'Impossible de contacter l\'hôte');
+      Alert.alert(t('common.error'), t('messages.contactHostError'));
     }
   };
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
+    return date.toLocaleDateString(dateLocale, {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -217,15 +220,17 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const getStatusText = (status: string) => {
     switch (status) {
       case 'pending':
-        return (booking as any).payment_method === 'card' ? 'En attente d\'acceptation' : 'En attente';
+        return (booking as any).payment_method === 'card'
+          ? t('bookings.awaitingAcceptance')
+          : t('bookings.pending');
       case 'confirmed':
-        return 'Confirmée';
+        return t('bookings.confirmed');
       case 'in_progress':
-        return 'En cours';
+        return t('bookings.inProgress');
       case 'cancelled':
-        return 'Annulée';
+        return t('bookings.cancelledStatus');
       case 'completed':
-        return 'Terminée';
+        return t('bookings.completed');
       default:
         return status;
     }
@@ -340,18 +345,18 @@ const BookingCard: React.FC<BookingCardProps> = ({
           <View style={styles.propertyDetails}>
             <View style={styles.titleRow}>
               <Text style={styles.propertyTitle} numberOfLines={2}>
-                {booking.properties?.title || 'Propriété non trouvée'}
+                {booking.properties?.title || t('bookings.propertyNotFound')}
               </Text>
             </View>
             <Text style={styles.propertyLocation}>
-              📍 {booking.properties?.location?.name || booking.properties?.locations?.name || 'Localisation inconnue'}
+              📍 {booking.properties?.location?.name || booking.properties?.locations?.name || t('bookings.locationUnknown')}
             </Text>
             <View style={styles.dateContainer}>
               <Text style={styles.dateText}>
                 {formatDate(booking.check_in_date)} - {formatDate(booking.check_out_date)}
               </Text>
               <Text style={styles.nightsText}>
-                {nights} nuit{nights > 1 ? 's' : ''}
+                {t(nights > 1 ? 'bookings.nights_other' : 'bookings.nights_one', { count: String(nights) })}
               </Text>
             </View>
           </View>
@@ -370,21 +375,23 @@ const BookingCard: React.FC<BookingCardProps> = ({
         <View style={styles.modificationRequestBanner}>
           <Ionicons name="time-outline" size={18} color="#f39c12" />
           <View style={styles.modificationRequestContent}>
-            <Text style={styles.modificationRequestTitle}>Demande en attente</Text>
+            <Text style={styles.modificationRequestTitle}>{t('bookings.pendingRequest')}</Text>
             <Text style={styles.modificationRequestDates}>
-              Nouvelles dates proposées: {formatDate(pendingRequest.requested_check_in)} - {formatDate(pendingRequest.requested_check_out)}
+              {t('bookings.proposedDates', {
+                dates: `${formatDate(pendingRequest.requested_check_in)} - ${formatDate(pendingRequest.requested_check_out)}`,
+              })}
             </Text>
             <TouchableOpacity
               style={styles.cancelModificationButton}
               onPress={async () => {
                 if (cancelling) return;
                 Alert.alert(
-                  'Annuler la demande',
-                  'Êtes-vous sûr de vouloir annuler cette demande de modification ?',
+                  t('bookings.cancelRequest'),
+                  t('bookings.cancelRequestConfirm'),
                   [
-                    { text: 'Non', style: 'cancel' },
+                    { text: t('common.no'), style: 'cancel' },
                     {
-                      text: 'Oui',
+                      text: t('common.yes'),
                       style: 'destructive',
                       onPress: async () => {
                         setCancelling(true);
@@ -402,7 +409,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
             >
               <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
               <Text style={styles.cancelModificationButtonText}>
-                {cancelling ? 'Annulation...' : 'Annuler la demande'}
+                {cancelling ? t('bookings.cancelling') : t('bookings.cancelRequest')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -413,9 +420,9 @@ const BookingCard: React.FC<BookingCardProps> = ({
         <View style={styles.guestsInfo}>
           <Ionicons name="people-outline" size={16} color="#666" />
           <Text style={styles.guestsText}>
-            {booking.adults_count} adulte{booking.adults_count > 1 ? 's' : ''}
-            {booking.children_count > 0 && `, ${booking.children_count} enfant${booking.children_count > 1 ? 's' : ''}`}
-            {booking.infants_count > 0 && `, ${booking.infants_count} bébé${booking.infants_count > 1 ? 's' : ''}`}
+            {t(booking.adults_count > 1 ? 'bookings.adults_other' : 'bookings.adults_one', { count: String(booking.adults_count) })}
+            {booking.children_count > 0 && `, ${t(booking.children_count > 1 ? 'bookings.children_other' : 'bookings.children_one', { count: String(booking.children_count) })}`}
+            {booking.infants_count > 0 && `, ${t(booking.infants_count > 1 ? 'bookings.infants_other' : 'bookings.infants_one', { count: String(booking.infants_count) })}`}
           </Text>
         </View>
 
@@ -428,7 +435,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
 
       {booking.message_to_host && (
         <View style={styles.messageContainer}>
-          <Text style={styles.messageLabel}>Message à l'hôte :</Text>
+          <Text style={styles.messageLabel}>{t('bookings.messageToHostLabel')}</Text>
           <Text style={styles.messageText}>{booking.message_to_host}</Text>
         </View>
       )}
@@ -438,12 +445,12 @@ const BookingCard: React.FC<BookingCardProps> = ({
         <View style={styles.cancellationContainer}>
           <View style={styles.cancellationHeader}>
             <Ionicons name="close-circle-outline" size={20} color="#e74c3c" />
-            <Text style={styles.cancellationTitle}>Réservation annulée</Text>
+            <Text style={styles.cancellationTitle}>{t('bookings.alreadyCancelledTitle')}</Text>
           </View>
           {booking.cancellation_penalty !== undefined && booking.cancellation_penalty > 0 && (
             <View style={styles.cancellationInfo}>
               <Text style={styles.cancellationLabel}>
-                {booking.properties ? 'Nuit(s) consommée(s) + Frais d\'annulation :' : 'Pénalité d\'annulation :'}
+                {booking.properties ? t('bookings.consumedNightsPenalty') : t('bookings.cancellationPenalty')}
               </Text>
               <Text style={styles.cancellationPenalty}>
                 {formatPrice(booking.cancellation_penalty)}
@@ -452,7 +459,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
           )}
           {booking.cancellation_penalty !== undefined && booking.cancellation_penalty >= 0 && (
             <View style={styles.cancellationInfo}>
-              <Text style={styles.cancellationLabel}>Remboursement :</Text>
+              <Text style={styles.cancellationLabel}>{t('bookings.refund')}</Text>
               <Text style={styles.cancellationRefund}>
                 {formatPrice(booking.total_price - (booking.cancellation_penalty || 0))}
               </Text>
@@ -460,16 +467,18 @@ const BookingCard: React.FC<BookingCardProps> = ({
           )}
           {booking.cancellation_reason && (
             <View style={styles.cancellationReason}>
-              <Text style={styles.cancellationReasonLabel}>Raison :</Text>
+              <Text style={styles.cancellationReasonLabel}>{t('bookings.reason')}</Text>
               <Text style={styles.cancellationReasonText}>{booking.cancellation_reason}</Text>
             </View>
           )}
           {booking.cancelled_at && (
             <Text style={styles.cancellationDate}>
-              Annulée le {new Date(booking.cancelled_at).toLocaleDateString('fr-FR', {
-                day: '2-digit',
-                month: 'long',
-                year: 'numeric',
+              {t('bookings.cancelledOn', {
+                date: new Date(booking.cancelled_at).toLocaleDateString(dateLocale, {
+                  day: '2-digit',
+                  month: 'long',
+                  year: 'numeric',
+                }),
               })}
             </Text>
           )}
@@ -482,14 +491,14 @@ const BookingCard: React.FC<BookingCardProps> = ({
           onPress={handleViewDetails}
         >
           <Ionicons name="receipt-outline" size={16} color="#2E7D32" />
-          <Text style={styles.actionButtonText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>Voir détails</Text>
+          <Text style={styles.actionButtonText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t('bookings.viewDetailsShort')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => onViewProperty(booking.property_id)}
         >
           <Ionicons name="eye-outline" size={16} color="#2E7D32" />
-          <Text style={styles.actionButtonText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>Voir propriété</Text>
+          <Text style={styles.actionButtonText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t('bookings.viewProperty')}</Text>
         </TouchableOpacity>
 
         {/* Bouton Contacter l'hôte - disponible pour toutes les réservations sauf annulées */}
@@ -500,7 +509,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
           >
             <Ionicons name="chatbubble-outline" size={16} color="#e67e22" />
             <Text style={[styles.actionButtonText, styles.contactButtonText]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-              Contacter
+              {t('bookings.contact')}
             </Text>
           </TouchableOpacity>
         )}
@@ -512,7 +521,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
           >
             <Ionicons name="star-outline" size={16} color="#FFD700" />
             <Text style={[styles.actionButtonText, styles.reviewButtonText]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-              Avis
+              {t('bookings.review')}
             </Text>
           </TouchableOpacity>
         )}
@@ -526,7 +535,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
               >
                 <Ionicons name="create-outline" size={16} color="#3498db" />
                 <Text style={[styles.actionButtonText, styles.modifyButtonText]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                  Modifier
+                  {t('bookings.modify')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -536,7 +545,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
             >
               <Ionicons name="close-outline" size={16} color="#e74c3c" />
               <Text style={[styles.actionButtonText, styles.cancelButtonText]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                Annuler
+                {t('bookings.cancel')}
               </Text>
             </TouchableOpacity>
           </>

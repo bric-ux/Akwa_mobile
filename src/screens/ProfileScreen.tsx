@@ -48,7 +48,7 @@ const ProfileScreen: React.FC = () => {
   
   // Détecter si on est dans le TabNavigator (ProfileTab) ou dans le Stack (Profile)
   const isInTabNavigator = route.name === 'ProfileTab' || route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab' || route.name === 'VehicleProfileTab' || route.name === 'MonthlyRentalProfileTab' || route.name === 'HotelProfileTab';
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const { monthlyRental, hotel: hotelEnabled, loading: flagsLoading } = useFeatureFlags();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus, isVerified } = useIdentityVerification();
@@ -335,13 +335,13 @@ const ProfileScreen: React.FC = () => {
     },
     {
       id: 'addListing',
-      title: 'Ajouter un bien',
+      title: t('account.addListing'),
       icon: 'add-circle-outline',
       onPress: () => navigation.navigate('AddListingChoice' as never),
     },
     {
       id: 'myGuestReviews',
-      title: 'Mes avis',
+      title: t('profile.myReviews'),
       icon: 'star-outline',
       onPress: () => navigation.navigate('MyGuestReviews' as never),
     },
@@ -386,12 +386,12 @@ const ProfileScreen: React.FC = () => {
   // Élément pour l'espace véhicules (navigation complète avec onglets)
   const vehicleSpaceItem = {
     id: 'vehicleSpace',
-    title: 'Espace Véhicules',
+    title: t('account.vehicleSpace'),
     icon: 'car-outline',
     onPress: async () => {
       Alert.alert(
-        'Espace Véhicules',
-        'Voulez-vous accéder à votre espace véhicules ?',
+        t('account.vehicleSpace'),
+        t('profile.switchToVehicleConfirmDesc'),
         [
           {
             text: t('common.cancel'),
@@ -423,7 +423,7 @@ const ProfileScreen: React.FC = () => {
     },
     {
       id: 'conciergerie',
-      title: 'Conciergerie',
+      title: t('header.concierge'),
       icon: 'sparkles-outline',
       onPress: () => navigation.navigate('Conciergerie' as never),
     },
@@ -444,7 +444,7 @@ const ProfileScreen: React.FC = () => {
   if (spacesUiReady && monthlyRental && !isInMonthlyRentalMode) {
     menuItems.splice(3, 0, {
       id: 'myMonthlyCandidatures',
-      title: 'Mes candidatures bail',
+      title: t('account.monthlyApplications'),
       icon: 'document-text-outline',
       onPress: () => navigation.navigate('MyMonthlyRentalCandidatures' as never),
       showAlert: monthlyCandidatureAlertCount > 0,
@@ -465,12 +465,12 @@ const ProfileScreen: React.FC = () => {
   if (spacesUiReady && monthlyRental && hasMonthlyListings && !isInMonthlyRentalMode) {
     menuItems.push({
       id: 'monthlyRentalSpace',
-      title: 'Mode bail longue durée',
+      title: t('account.monthlySpace'),
       icon: 'business-outline',
       onPress: () => {
         Alert.alert(
-          'Mode bail longue durée',
-          'Gérer vos annonces et candidatures pour le bail longue durée. La publication est gratuite.',
+          t('account.monthlySpace'),
+          t('profile.switchToMonthlyConfirmDesc'),
           [
             { text: t('common.cancel'), style: 'cancel' },
             {
@@ -493,10 +493,10 @@ const ProfileScreen: React.FC = () => {
   if (spacesUiReady && hotelEnabled && hasHotels && !isInHotelMode) {
     menuItems.push({
       id: 'hotelSpace',
-      title: 'Espace Hôtel',
+      title: t('account.hotelSpace'),
       icon: 'business-outline',
       onPress: () => {
-        Alert.alert('Espace Hôtel', 'Gérer vos établissements et réservations.', [
+        Alert.alert(t('account.hotelSpace'), t('profile.switchToHotelConfirmDesc'), [
           { text: t('common.cancel'), style: 'cancel' },
           {
             text: t('common.continue'),
@@ -517,10 +517,10 @@ const ProfileScreen: React.FC = () => {
   if (spacesUiReady && !isInTravelerMode) {
     menuItems.push({
       id: 'travelerSpace',
-      title: 'Espace voyageur',
+      title: t('account.travelerSpace'),
       icon: 'airplane-outline',
       onPress: () => {
-        Alert.alert('Espace voyageur', "Accéder à l'espace voyageur ?", [
+        Alert.alert(t('account.travelerSpace'), t('profile.switchToTravelerConfirmDesc'), [
           { text: t('common.cancel'), style: 'cancel' },
           {
             text: t('common.continue'),
@@ -543,7 +543,7 @@ const ProfileScreen: React.FC = () => {
   if (isOwnerSpace && (profile?.is_host || hasVehicles || hasMonthlyListings || hasHotels)) {
     menuItems.push({
       id: 'penalties',
-      title: 'Remboursements & Pénalités',
+      title: t('account.penalties'),
       icon: 'alert-circle-outline',
       onPress: () => navigation.navigate('Penalties' as never),
     });
@@ -552,7 +552,7 @@ const ProfileScreen: React.FC = () => {
   // Déclarer un litige : onglet voyageur (visible pour tous, envoi des infos à accueil@akwahome.com)
   menuItems.push({
     id: 'declareDispute',
-    title: 'Déclarer un litige',
+    title: t('account.declareDispute'),
     icon: 'document-text-outline',
     onPress: () => navigation.navigate('DeclareDispute' as never),
   });
@@ -564,7 +564,7 @@ const ProfileScreen: React.FC = () => {
   if (profile?.role === 'admin') {
     menuItems.push({
       id: 'admin',
-      title: 'Administration',
+      title: t('account.admin'),
       icon: 'shield-outline',
       onPress: () => navigation.navigate('Admin'),
     });
@@ -649,7 +649,7 @@ const ProfileScreen: React.FC = () => {
             )}
           </View>
           <Text style={styles.userName}>
-            {profile?.first_name || 'Utilisateur'} {profile?.last_name || ''}
+            {profile?.first_name || t('profile.userFallback')} {profile?.last_name || ''}
           </Text>
           {(() => {
             const phoneAccount = isPhonePseudoEmail(user?.email);
@@ -724,9 +724,9 @@ const ProfileScreen: React.FC = () => {
                          verificationStatus === 'rejected' ? '#ef4444' : '#6b7280'
                 }
               ]}>
-                {verificationStatus === 'verified' ? 'Identité vérifiée' :
-                 verificationStatus === 'pending' ? 'Vérification en cours' :
-                 verificationStatus === 'rejected' ? 'Document refusé' : 'Non vérifié'}
+                {verificationStatus === 'verified' ? t('profile.identityVerified') :
+                 verificationStatus === 'pending' ? t('profile.identityPending') :
+                 verificationStatus === 'rejected' ? t('profile.identityRejected') : t('profile.identityUnverified')}
               </Text>
             </View>
           )}
@@ -777,8 +777,8 @@ const ProfileScreen: React.FC = () => {
                       <Ionicons name="car" size={18} color="#fff" />
                     </View>
                     <View style={styles.vehicleSpaceTextContainer}>
-                      <Text style={styles.vehicleSpaceText}>Espace Véhicules</Text>
-                      <Text style={styles.vehicleSpaceSubtext}>Gérez vos véhicules et réservations</Text>
+                      <Text style={styles.vehicleSpaceText}>{t('account.vehicleSpace')}</Text>
+                      <Text style={styles.vehicleSpaceSubtext}>{t('account.vehicleSubtitle')}</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color="#fff" />
                   </View>
@@ -792,8 +792,8 @@ const ProfileScreen: React.FC = () => {
                   style={styles.monthlyRentalSpaceButton}
                   onPress={() => {
                     Alert.alert(
-                      'Mode bail longue durée',
-                      'Gérer vos annonces et candidatures. La publication est gratuite.',
+                      t('account.monthlySpace'),
+                      t('profile.switchToMonthlyConfirmDesc'),
                       [
                         { text: t('common.cancel'), style: 'cancel' },
                         {
@@ -816,9 +816,9 @@ const ProfileScreen: React.FC = () => {
                       <Ionicons name="business" size={18} color="#fff" />
                     </View>
                     <View style={styles.monthlyRentalSpaceTextContainer}>
-                      <Text style={styles.monthlyRentalSpaceText}>Mode bail longue durée</Text>
+                      <Text style={styles.monthlyRentalSpaceText}>{t('account.monthlySpace')}</Text>
                       <Text style={styles.monthlyRentalSpaceSubtext}>
-                        Logements & candidatures — publication gratuite
+                        {t('account.monthlySubtitle')}
                       </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color="#fff" />
@@ -832,7 +832,7 @@ const ProfileScreen: React.FC = () => {
                 <TouchableOpacity
                   style={styles.hotelSpaceButton}
                   onPress={() => {
-                    Alert.alert('Espace Hôtel', 'Gérer vos établissements et réservations.', [
+                    Alert.alert(t('account.hotelSpace'), t('profile.switchToHotelConfirmDesc'), [
                       { text: t('common.cancel'), style: 'cancel' },
                       {
                         text: t('common.continue'),
@@ -853,8 +853,8 @@ const ProfileScreen: React.FC = () => {
                       <Ionicons name="business" size={18} color="#fff" />
                     </View>
                     <View style={styles.hotelSpaceTextContainer}>
-                      <Text style={styles.hotelSpaceText}>Espace Hôtel</Text>
-                      <Text style={styles.hotelSpaceSubtext}>Établissements & réservations</Text>
+                      <Text style={styles.hotelSpaceText}>{t('account.hotelSpace')}</Text>
+                      <Text style={styles.hotelSpaceSubtext}>{t('account.hotelSubtitle')}</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color="#fff" />
                   </View>
@@ -867,7 +867,7 @@ const ProfileScreen: React.FC = () => {
                 <TouchableOpacity
                   style={styles.travelerSpaceButton}
                   onPress={() => {
-                    Alert.alert('Espace voyageur', "Accéder à l'espace voyageur ?", [
+                    Alert.alert(t('account.travelerSpace'), t('profile.switchToTravelerConfirmDesc'), [
                       { text: t('common.cancel'), style: 'cancel' },
                       {
                         text: t('common.continue'),
@@ -888,8 +888,8 @@ const ProfileScreen: React.FC = () => {
                       <Ionicons name="airplane" size={18} color="#fff" />
                     </View>
                     <View style={styles.travelerSpaceTextContainer}>
-                      <Text style={styles.travelerSpaceText}>Espace voyageur</Text>
-                      <Text style={styles.travelerSpaceSubtext}>Recherche, réservations, favoris</Text>
+                      <Text style={styles.travelerSpaceText}>{t('account.travelerSpace')}</Text>
+                      <Text style={styles.travelerSpaceSubtext}>{t('account.travelerSubtitle')}</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color="#fff" />
                   </View>
@@ -901,6 +901,32 @@ const ProfileScreen: React.FC = () => {
 
         {/* Menu Items */}
         <View style={styles.menuContainer}>
+          <View style={styles.languageRow}>
+            <View style={styles.languageRowLeft}>
+              <Ionicons name="language-outline" size={24} color="#333" />
+              <Text style={[styles.menuItemText, { marginLeft: 12 }]}>{t('settings.language')}</Text>
+            </View>
+            <View style={styles.languageToggle}>
+              <TouchableOpacity
+                style={[styles.languageChip, language === 'fr' && styles.languageChipActive]}
+                onPress={() => void setLanguage('fr')}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.languageChipText, language === 'fr' && styles.languageChipTextActive]}>
+                  FR
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.languageChip, language === 'en' && styles.languageChipActive]}
+                onPress={() => void setLanguage('en')}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.languageChipText, language === 'en' && styles.languageChipTextActive]}>
+                  EN
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
           {menuItems
             .filter(
               (item) =>
@@ -938,7 +964,7 @@ const ProfileScreen: React.FC = () => {
         <View style={styles.appInfo}>
           <Text style={styles.appVersion}>AkwaHome v{APP_VERSION}</Text>
           <Text style={styles.appDescription}>
-            Votre plateforme de réservation d'hébergements en Côte d'Ivoire
+            {t('profile.appDescription')}
           </Text>
         </View>
       </ScrollView>
@@ -1119,6 +1145,44 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     borderRadius: 12,
     overflow: 'hidden',
+  },
+  languageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#eee',
+  },
+  languageRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+  },
+  languageToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 20,
+    padding: 3,
+  },
+  languageChip: {
+    minWidth: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 17,
+    alignItems: 'center',
+  },
+  languageChipActive: {
+    backgroundColor: '#e67e22',
+  },
+  languageChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+  },
+  languageChipTextActive: {
+    color: '#fff',
   },
   hostSpaceContainer: {
     marginHorizontal: 20,

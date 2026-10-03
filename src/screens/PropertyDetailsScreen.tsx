@@ -45,19 +45,14 @@ import { useNetwork } from '../contexts/NetworkContext';
 import { classifyLoadError, type LoadFailureKind } from '../utils/loadError';
 import LoadErrorCard from '../components/LoadErrorCard';
 
-const PROPERTY_TYPE_LABELS: Record<string, string> = {
-  apartment: 'Appartement',
-  house: 'Maison',
-  villa: 'Villa',
-  studio: 'Studio',
-  guesthouse: 'Maison d\'hôtes',
-  eco_lodge: 'Éco-lodge',
-  other: 'Autre',
-};
-
-const getPropertyTypeLabel = (type?: string | null): string => {
-  if (!type) return 'Non spécifié';
-  return PROPERTY_TYPE_LABELS[type] ?? type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+const PROPERTY_TYPE_KEYS: Record<string, string> = {
+  apartment: 'property.typeApartment',
+  house: 'property.typeHouse',
+  villa: 'property.typeVilla',
+  studio: 'property.typeStudio',
+  guesthouse: 'property.typeGuesthouse',
+  eco_lodge: 'property.typeEcoLodge',
+  other: 'property.typeOther',
 };
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
@@ -67,6 +62,13 @@ const PropertyDetailsScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
+
+  const getPropertyTypeLabel = (type?: string | null): string => {
+    if (!type) return t('property.notSpecified');
+    const key = PROPERTY_TYPE_KEYS[type];
+    if (key) return t(key);
+    return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  };
   const { isOffline } = useNetwork();
   const { formatPrice: formatCurrencyPrice } = useCurrency();
   const {
@@ -407,7 +409,7 @@ const PropertyDetailsScreen: React.FC = () => {
               ? property.location.name 
               : typeof property.location === 'string' 
               ? property.location 
-              : (property as any).locations?.name || 'Localisation inconnue'}
+              : (property as any).locations?.name || t('bookings.locationUnknown')}
           </Text>
         </View>
 
@@ -452,10 +454,10 @@ const PropertyDetailsScreen: React.FC = () => {
             onPress={() => setVirtualTourOpen(true)}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Visite virtuelle"
+            accessibilityLabel={t('property.virtualTourA11y')}
           >
             <Ionicons name="scan-circle-outline" size={24} color="#fff" />
-            <Text style={styles.virtualTourButtonText}>Visite virtuelle 360°</Text>
+            <Text style={styles.virtualTourButtonText}>{t('property.virtualTour')}</Text>
             <Ionicons name="chevron-forward" size={22} color="#fff" />
           </TouchableOpacity>
         ) : null}
@@ -549,11 +551,11 @@ const PropertyDetailsScreen: React.FC = () => {
 
         {/* Politique d'annulation */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Politique d'annulation</Text>
+          <Text style={styles.sectionTitle}>{t('property.cancellationPolicy')}</Text>
           <View style={styles.rulesCard}>
             <View style={styles.rulesCardHeader}>
               <Ionicons name="document-text-outline" size={20} color="#e67e22" />
-              <Text style={styles.rulesCardTitle}>Conditions en cas d'annulation</Text>
+              <Text style={styles.rulesCardTitle}>{t('property.cancellationConditions')}</Text>
             </View>
             <View style={styles.rulesCardContent}>
               <Text style={styles.rulesText}>
@@ -576,19 +578,19 @@ const PropertyDetailsScreen: React.FC = () => {
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>{t('property.guests')}</Text>
               <Text style={styles.infoValue}>
-                {property.max_guests || 'Non spécifié'}
+                {property.max_guests || t('property.notSpecified')}
               </Text>
             </View>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>{t('property.bedrooms')}</Text>
               <Text style={styles.infoValue}>
-                {property.bedrooms || 'Non spécifié'}
+                {property.bedrooms || t('property.notSpecified')}
               </Text>
             </View>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>{t('property.bathrooms')}</Text>
               <Text style={styles.infoValue}>
-                {property.bathrooms || 'Non spécifié'}
+                {property.bathrooms || t('property.notSpecified')}
               </Text>
             </View>
           </View>
@@ -600,7 +602,7 @@ const PropertyDetailsScreen: React.FC = () => {
             <Text style={styles.sectionTitle}>{t('property.yourHost')}</Text>
             <View style={styles.hostLoadingRow}>
               <ActivityIndicator size="small" color="#e67e22" />
-              <Text style={styles.hostLoadingText}>Chargement…</Text>
+              <Text style={styles.hostLoadingText}>{t('common.loading')}</Text>
             </View>
           </View>
         ) : null}
@@ -641,7 +643,7 @@ const PropertyDetailsScreen: React.FC = () => {
                 
                 <View style={styles.hostDetails}>
                   <Text style={styles.hostName}>
-                    {hostProfile ? `${hostProfile.first_name} ${hostProfile.last_name}` : 'Chargement...'}
+                    {hostProfile ? `${hostProfile.first_name} ${hostProfile.last_name}` : t('common.loading')}
                   </Text>
                   <Text style={styles.hostTitle}>{t('property.hostOnAkwaHome')}</Text>
                   
@@ -668,7 +670,13 @@ const PropertyDetailsScreen: React.FC = () => {
                           hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                         >
                           <Text style={[styles.hostStat, styles.hostStatLink]}>
-                            {hostProfile.total_properties} propriété{hostProfile.total_properties > 1 ? 's' : ''}
+                            {hostProfile.total_properties > 1
+                              ? t('property.propertiesCount_other', {
+                                  count: String(hostProfile.total_properties),
+                                })
+                              : t('property.propertiesCount_one', {
+                                  count: String(hostProfile.total_properties),
+                                })}
                           </Text>
                         </TouchableOpacity>
                       )}
@@ -802,7 +810,7 @@ const PropertyDetailsScreen: React.FC = () => {
           <SafeAreaView style={styles.virtualTourModalRoot} edges={['top', 'bottom']}>
             <View style={styles.virtualTourHeader}>
               <TouchableOpacity onPress={() => setVirtualTourOpen(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                <Text style={styles.virtualTourHeaderAction}>Fermer</Text>
+                <Text style={styles.virtualTourHeaderAction}>{t('common.close')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {
@@ -811,7 +819,7 @@ const PropertyDetailsScreen: React.FC = () => {
                 }}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
-                <Text style={styles.virtualTourHeaderAction}>Ouvrir dans le navigateur</Text>
+                <Text style={styles.virtualTourHeaderAction}>{t('property.openInBrowser')}</Text>
               </TouchableOpacity>
             </View>
             {normalizeVirtualTourUrl(property.virtual_tour_url ?? null) ? (

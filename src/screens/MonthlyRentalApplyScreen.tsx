@@ -20,19 +20,13 @@ import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { useMonthlyRentalCandidatures } from '../hooks/useMonthlyRentalCandidatures';
 import { useToast } from '../contexts/ToastContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import type { MonthlyRentalCandidature, RootStackParamList } from '../types';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import {
   monthlyRentalDocumentLabel,
   type MonthlyRentalApplicationDocument,
 } from '../constants/monthlyRentalDocuments';
-
-const STATUS_LABEL: Record<string, string> = {
-  sent: 'Dossier envoyé',
-  viewed: 'Dossier vu par le propriétaire',
-  accepted: 'Dossier accepté — visite à organiser',
-  rejected: 'Dossier refusé',
-};
 
 type Route = RouteProp<RootStackParamList, 'MonthlyRentalApply'>;
 
@@ -48,6 +42,7 @@ export default function MonthlyRentalApplyScreen() {
   const route = useRoute<Route>();
   const { listingId, listingTitle } = route.params;
   const { user } = useAuth();
+  const { t } = useLanguage();
   const { submitCandidature, getMyCandidatureForListing, loading } = useMonthlyRentalCandidatures();
   const { showToast } = useToast();
   const [existing, setExisting] = useState<MonthlyRentalCandidature | null>(null);
@@ -63,6 +58,16 @@ export default function MonthlyRentalApplyScreen() {
     desired_move_in_date: '',
     duration_months: '',
   });
+
+  const statusLabel = (status: string) => {
+    const map: Record<string, string> = {
+      sent: t('monthly.statusSent'),
+      viewed: t('monthly.statusViewed'),
+      accepted: t('monthly.statusAccepted'),
+      rejected: t('monthly.statusRejected'),
+    };
+    return map[status] || status;
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -128,7 +133,7 @@ export default function MonthlyRentalApplyScreen() {
         },
       }));
     } catch {
-      Alert.alert('Erreur', 'Impossible d’ouvrir le sélecteur de fichiers.');
+      Alert.alert(t('common.error'), t('monthly.pickerError'));
     }
   };
 
@@ -155,14 +160,16 @@ export default function MonthlyRentalApplyScreen() {
 
   const handleSubmit = async () => {
     if (!form.full_name.trim() || !form.email.trim() || !form.phone.trim()) {
-      Alert.alert('Champs requis', 'Nom, email et téléphone sont obligatoires.');
+      Alert.alert(t('monthly.fieldsRequired'), t('monthly.fieldsRequiredDesc'));
       return;
     }
     const missing = requiredDocuments.filter((id) => !localDocs[id]);
     if (missing.length > 0) {
       Alert.alert(
-        'Documents manquants',
-        `Joignez tous les documents demandés :\n${missing.map(monthlyRentalDocumentLabel).join('\n')}`,
+        t('monthly.missingDocuments'),
+        t('monthly.missingDocumentsDesc', {
+          list: missing.map(monthlyRentalDocumentLabel).join('\n'),
+        }),
       );
       return;
     }
@@ -176,7 +183,7 @@ export default function MonthlyRentalApplyScreen() {
         }
       } catch {
         setUploading(false);
-        Alert.alert('Erreur', 'Impossible d’envoyer certains documents. Réessayez.');
+        Alert.alert(t('common.error'), t('monthly.docsUploadError'));
         return;
       }
       setUploading(false);
@@ -195,11 +202,11 @@ export default function MonthlyRentalApplyScreen() {
       application_documents: applicationDocuments,
     });
     if (result.success) {
-      showToast('Candidature envoyée — le propriétaire va l’étudier.', 'success');
+      showToast(t('monthly.submitSuccess'), 'success');
       const candidature = await getMyCandidatureForListing(listingId);
       setExisting(candidature);
     } else {
-      showToast(result.error || 'Impossible d’envoyer la candidature.', 'error');
+      showToast(result.error || t('monthly.submitError'), 'error');
     }
   };
 
@@ -212,7 +219,7 @@ export default function MonthlyRentalApplyScreen() {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          Postuler
+          {t('monthly.apply')}
         </Text>
         <View style={{ width: 44 }} />
       </View>
@@ -221,7 +228,7 @@ export default function MonthlyRentalApplyScreen() {
         <ActivityIndicator style={{ marginTop: 40 }} color={MONTHLY_RENTAL_COLORS.primary} />
       ) : !user ? (
         <View style={styles.box}>
-          <Text style={styles.boxText}>Connectez-vous pour postuler à cette annonce.</Text>
+          <Text style={styles.boxText}>{t('monthly.loginRequired')}</Text>
           <TouchableOpacity
             style={styles.primaryBtn}
             onPress={() =>
@@ -231,34 +238,34 @@ export default function MonthlyRentalApplyScreen() {
               })
             }
           >
-            <Text style={styles.primaryBtnText}>Se connecter</Text>
+            <Text style={styles.primaryBtnText}>{t('auth.signIn')}</Text>
           </TouchableOpacity>
         </View>
       ) : existing ? (
         <ScrollView contentContainerStyle={styles.content}>
           <View style={[styles.box, styles.boxSuccess, { margin: 0 }]}>
-            <Text style={styles.successTitle}>Candidature envoyée</Text>
+            <Text style={styles.successTitle}>{t('monthly.applicationSent')}</Text>
             <Text style={styles.boxText}>
-              Statut : {STATUS_LABEL[existing.status] || existing.status}
+              {t('monthly.status', { status: statusLabel(existing.status) })}
             </Text>
             <Text style={[styles.boxText, { marginTop: 8 }]}>
               {existing.status === 'accepted'
-                ? 'Votre dossier a été accepté. Le propriétaire vous contactera pour organiser la visite.'
+                ? t('monthly.statusAcceptedDesc')
                 : existing.status === 'rejected'
-                  ? 'Le propriétaire a décliné votre dossier pour ce logement.'
-                  : 'Le propriétaire étudie votre dossier. Une visite ne sera proposée que s’il correspond.'}
+                  ? t('monthly.statusRejectedDesc')
+                  : t('monthly.statusPendingDesc')}
             </Text>
           </View>
           <TouchableOpacity
             style={styles.secondaryBtn}
             onPress={() => navigation.navigate('MyMonthlyRentalCandidatures')}
           >
-            <Text style={styles.secondaryBtnText}>Voir toutes mes candidatures</Text>
+            <Text style={styles.secondaryBtnText}>{t('monthly.seeAllApplications')}</Text>
           </TouchableOpacity>
           {Array.isArray(existing.application_documents) &&
           existing.application_documents.length > 0 ? (
             <View style={styles.docsBlock}>
-              <Text style={styles.label}>Documents envoyés</Text>
+              <Text style={styles.label}>{t('monthly.documentsSent')}</Text>
               {existing.application_documents.map((doc) => (
                 <TouchableOpacity
                   key={`${doc.type}-${doc.url}`}
@@ -281,23 +288,20 @@ export default function MonthlyRentalApplyScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <Text style={styles.title}>Postuler pour ce logement</Text>
+            <Text style={styles.title}>{t('monthly.applyTitle')}</Text>
             <Text style={styles.sub} numberOfLines={2}>
               {listingTitle}
             </Text>
-            <Text style={styles.intro}>
-              Étape 1 — candidature. Le propriétaire trie les dossiers avant d’organiser une visite,
-              pour éviter des déplacements inutiles.
-            </Text>
+            <Text style={styles.intro}>{t('monthly.applyIntro')}</Text>
 
-            <Text style={styles.label}>Nom complet *</Text>
+            <Text style={styles.label}>{t('monthly.fullName')}</Text>
             <TextInput
               style={styles.input}
               value={form.full_name}
               onChangeText={(v) => setForm((f) => ({ ...f, full_name: v }))}
             />
 
-            <Text style={styles.label}>Email *</Text>
+            <Text style={styles.label}>{t('monthly.email')}</Text>
             <TextInput
               style={styles.input}
               keyboardType="email-address"
@@ -306,7 +310,7 @@ export default function MonthlyRentalApplyScreen() {
               onChangeText={(v) => setForm((f) => ({ ...f, email: v }))}
             />
 
-            <Text style={styles.label}>Téléphone *</Text>
+            <Text style={styles.label}>{t('monthly.phone')}</Text>
             <TextInput
               style={styles.input}
               keyboardType="phone-pad"
@@ -314,7 +318,7 @@ export default function MonthlyRentalApplyScreen() {
               onChangeText={(v) => setForm((f) => ({ ...f, phone: v }))}
             />
 
-            <Text style={styles.label}>Date d’entrée souhaitée (AAAA-MM-JJ)</Text>
+            <Text style={styles.label}>{t('monthly.moveInDate')}</Text>
             <TextInput
               style={styles.input}
               placeholder="2026-10-01"
@@ -323,7 +327,7 @@ export default function MonthlyRentalApplyScreen() {
               onChangeText={(v) => setForm((f) => ({ ...f, desired_move_in_date: v }))}
             />
 
-            <Text style={styles.label}>Durée envisagée (mois)</Text>
+            <Text style={styles.label}>{t('monthly.durationMonths')}</Text>
             <TextInput
               style={styles.input}
               keyboardType="number-pad"
@@ -331,12 +335,12 @@ export default function MonthlyRentalApplyScreen() {
               onChangeText={(v) => setForm((f) => ({ ...f, duration_months: v }))}
             />
 
-            <Text style={styles.label}>Présentez votre dossier</Text>
+            <Text style={styles.label}>{t('monthly.presentDossier')}</Text>
             <TextInput
               style={[styles.input, styles.textarea]}
               multiline
               textAlignVertical="top"
-              placeholder="Situation, composition du foyer, budget, garanties, motifs du déménagement…"
+              placeholder={t('monthly.messagePlaceholder')}
               placeholderTextColor="#94a3b8"
               value={form.message}
               onChangeText={(v) => setForm((f) => ({ ...f, message: v }))}
@@ -344,10 +348,8 @@ export default function MonthlyRentalApplyScreen() {
 
             {requiredDocuments.length > 0 ? (
               <View style={styles.docsBlock}>
-                <Text style={styles.label}>Documents demandés *</Text>
-                <Text style={styles.docsHint}>
-                  Joignez chaque pièce (PDF ou image) avant d’envoyer votre candidature.
-                </Text>
+                <Text style={styles.label}>{t('monthly.requiredDocuments')}</Text>
+                <Text style={styles.docsHint}>{t('monthly.docsHint')}</Text>
                 {requiredDocuments.map((docType) => {
                   const attached = localDocs[docType];
                   return (
@@ -359,7 +361,7 @@ export default function MonthlyRentalApplyScreen() {
                             {attached.name}
                           </Text>
                         ) : (
-                          <Text style={styles.docPickEmpty}>Aucun fichier</Text>
+                          <Text style={styles.docPickEmpty}>{t('monthly.noFile')}</Text>
                         )}
                       </View>
                       <TouchableOpacity
@@ -373,7 +375,7 @@ export default function MonthlyRentalApplyScreen() {
                           color={attached ? '#2E7D32' : MONTHLY_RENTAL_COLORS.primary}
                         />
                         <Text style={styles.docPickBtnText}>
-                          {attached ? 'Remplacer' : 'Ajouter'}
+                          {attached ? t('monthly.replace') : t('monthly.add')}
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -390,7 +392,7 @@ export default function MonthlyRentalApplyScreen() {
               {busy ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.primaryBtnText}>Envoyer ma candidature</Text>
+                <Text style={styles.primaryBtnText}>{t('monthly.submitApplication')}</Text>
               )}
             </TouchableOpacity>
           </ScrollView>

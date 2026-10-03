@@ -23,6 +23,7 @@ import VehicleModificationModal from '../components/VehicleModificationModal';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 import { getCancellationPolicyLabel, getCancellationPolicyText } from '../utils/cancellationPolicy';
 import HostBookingFinancialAlerts from '../components/HostBookingFinancialAlerts';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type VehicleBookingDetailsRouteProp = RouteProp<RootStackParamList, 'VehicleBookingDetails'>;
 
@@ -31,6 +32,8 @@ const VehicleBookingDetailsScreen: React.FC = () => {
   const route = useRoute<VehicleBookingDetailsRouteProp>();
   const { bookingId } = route.params;
   const { user } = useAuth();
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
   const { getMyBookings } = useVehicleBookings();
   const { getBookingPendingRequest, cancelModificationRequest } = useVehicleBookingModifications();
   const [cancelling, setCancelling] = useState(false);
@@ -71,12 +74,11 @@ const VehicleBookingDetailsScreen: React.FC = () => {
       setLoading(true);
       
       if (!user) {
-        Alert.alert('Erreur', 'Utilisateur non connecté');
+        Alert.alert(t('common.error'), t('bookings.notLoggedIn'));
         navigation.goBack();
         return;
       }
 
-      // Charger directement la réservation par ID avec toutes les relations
       console.log('🔍 [VehicleBookingDetails] Chargement réservation ID:', bookingId);
       
       const { data: bookingData, error: bookingError } = await supabase
@@ -127,14 +129,14 @@ const VehicleBookingDetailsScreen: React.FC = () => {
 
       if (bookingError) {
         console.error('❌ [VehicleBookingDetails] Erreur Supabase:', bookingError);
-        Alert.alert('Erreur', `Impossible de charger la réservation: ${bookingError.message}`);
+        Alert.alert(t('common.error'), t('bookings.loadError', { message: bookingError.message }));
         navigation.goBack();
         return;
       }
 
       if (!bookingData) {
         console.error('❌ [VehicleBookingDetails] Aucune donnée retournée');
-        Alert.alert('Erreur', 'Réservation introuvable');
+        Alert.alert(t('common.error'), t('bookings.notFound'));
         navigation.goBack();
         return;
       }
@@ -149,11 +151,10 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         hourly_rate: bookingData.hourly_rate,
         hourly_rental_enabled: bookingData.vehicle?.hourly_rental_enabled,
         price_per_hour: bookingData.vehicle?.price_per_hour,
-        start_datetime: bookingData.start_datetime, // Ajouté pour debug
-        end_datetime: bookingData.end_datetime, // Ajouté pour debug
+        start_datetime: bookingData.start_datetime,
+        end_datetime: bookingData.end_datetime,
       });
 
-      // Charger les infos du propriétaire séparément si le véhicule existe
       let ownerData = null;
       if (bookingData.vehicle?.owner_id) {
         const { data: owner, error: ownerError } = await supabase
@@ -170,7 +171,6 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         }
       }
 
-      // Vérifier que l'utilisateur est soit le locataire soit le propriétaire
       const isRenter = bookingData.renter_id === user.id;
       const isOwner = bookingData.vehicle?.owner_id === user.id;
 
@@ -183,12 +183,11 @@ const VehicleBookingDetailsScreen: React.FC = () => {
       });
 
       if (!isRenter && !isOwner) {
-        Alert.alert('Erreur', 'Vous n\'avez pas accès à cette réservation');
+        Alert.alert(t('common.error'), t('bookings.accessDenied'));
         navigation.goBack();
         return;
       }
 
-      // Construire l'objet booking avec les données chargées
       const bookingWithRelations: VehicleBooking = {
         ...bookingData,
         vehicle: bookingData.vehicle ? {
@@ -207,7 +206,6 @@ const VehicleBookingDetailsScreen: React.FC = () => {
 
       setBooking(bookingWithRelations);
 
-      // Utiliser les infos du propriétaire chargées
       if (ownerData) {
         setOwnerInfo({
           first_name: ownerData.first_name,
@@ -216,7 +214,6 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         });
       }
 
-      // Charger les infos de paiement
       const { data: paymentData } = await supabase
         .from('vehicle_payments')
         .select('*')
@@ -227,7 +224,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
       setPayment(paymentData);
     } catch (error) {
       console.error('Erreur lors du chargement des détails:', error);
-      Alert.alert('Erreur', 'Impossible de charger les détails de la réservation');
+      Alert.alert(t('common.error'), t('bookings.loadDetailsError'));
     } finally {
       setLoading(false);
     }
@@ -236,7 +233,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
+    return date.toLocaleDateString(dateLocale, {
       day: '2-digit',
       month: 'long',
       year: 'numeric',
@@ -259,11 +256,11 @@ const VehicleBookingDetailsScreen: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { color: string; label: string }> = {
-      pending: { color: '#f39c12', label: 'En attente' },
-      confirmed: { color: '#27ae60', label: 'Confirmée' },
-      in_progress: { color: '#3498db', label: 'En cours' },
-      cancelled: { color: '#e74c3c', label: 'Annulée' },
-      completed: { color: '#3498db', label: 'Terminée' },
+      pending: { color: '#f39c12', label: t('bookings.pending') },
+      confirmed: { color: '#27ae60', label: t('bookings.confirmed') },
+      in_progress: { color: '#3498db', label: t('bookings.inProgress') },
+      cancelled: { color: '#e74c3c', label: t('bookings.cancelledStatus') },
+      completed: { color: '#3498db', label: t('bookings.completed') },
     };
     
     const config = statusConfig[status] || { color: '#95a5a6', label: status };
@@ -278,10 +275,8 @@ const VehicleBookingDetailsScreen: React.FC = () => {
   const canModifyBooking = () => {
     if (!booking) return false;
     
-    // Ne peut pas modifier si annulée ou terminée
     if (booking.status === 'cancelled' || booking.status === 'completed') return false;
     
-    // Ne peut pas modifier si la date de fin est passée
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const endDate = new Date(booking.end_date);
@@ -291,7 +286,6 @@ const VehicleBookingDetailsScreen: React.FC = () => {
     const startDate = new Date(booking.start_date);
     startDate.setHours(0, 0, 0, 0);
     
-    // Peut modifier si la date de début est dans le futur ou aujourd'hui
     return startDate >= today || booking.status === 'pending' || booking.status === 'confirmed' || booking.status === 'in_progress';
   };
 
@@ -300,7 +294,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
-          <Text style={styles.loadingText}>Chargement des détails...</Text>
+          <Text style={styles.loadingText}>{t('bookings.loadingDetails')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -311,7 +305,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={64} color="#e74c3c" />
-          <Text style={styles.errorText}>Réservation introuvable</Text>
+          <Text style={styles.errorText}>{t('bookings.notFound')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -321,14 +315,23 @@ const VehicleBookingDetailsScreen: React.FC = () => {
   const isOwner = !!user && booking.vehicle?.owner_id === user.id;
   const commissionRates = getCommissionRates('vehicle', undefined, booking.payment_method === 'card');
   
-  // Calculer le prix en tenant compte des heures
   const rentalDays = booking.rental_days || 0;
   const rentalHours = booking.rental_hours || 0;
   const daysPrice = (booking.daily_rate || 0) * rentalDays;
   const hourlyRate = booking.hourly_rate || booking.vehicle?.price_per_hour || 0;
   const hoursPrice = rentalHours > 0 && hourlyRate > 0 ? rentalHours * hourlyRate : 0;
-  const basePrice = daysPrice + hoursPrice - (booking.discount_amount || 0); // Prix après réduction
+  const basePrice = daysPrice + hoursPrice - (booking.discount_amount || 0);
   const renterServiceFee = Math.round(basePrice * (commissionRates.travelerFeePercent / 100));
+
+  const formatDuration = (days: number, hours?: number) => {
+    const daysKey = days === 1 ? 'vehicleBooking.days_one' : 'vehicleBooking.days_other';
+    let duration = t(daysKey, { count: String(days) });
+    if (hours && hours > 0) {
+      const hoursKey = hours === 1 ? 'vehicleBooking.hours_one' : 'vehicleBooking.hours_other';
+      duration += t('vehicleBooking.and') + t(hoursKey, { count: String(hours) });
+    }
+    return duration;
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -340,7 +343,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         >
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Détails de réservation</Text>
+        <Text style={styles.headerTitle}>{t('bookings.detailsTitle')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -359,7 +362,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
 
         {booking.vehicle && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Politique d'annulation</Text>
+            <Text style={styles.sectionTitle}>{t('property.cancellationPolicy')}</Text>
             <Text style={styles.policyDetailText}>
               <Text style={styles.policyDetailEmphasis}>
                 {getCancellationPolicyLabel(booking.vehicle.cancellation_policy, 'vehicle')}
@@ -372,7 +375,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
 
         {/* Numéro de réservation (code court) */}
         <View style={[styles.section, { marginBottom: 0 }]}>
-          <Text style={styles.sectionTitle}>Numéro de réservation</Text>
+          <Text style={styles.sectionTitle}>{t('bookings.reservationNumber')}</Text>
           <Text style={styles.reservationId}>
             #{(booking as any).vehicle_booking_code || (booking as any).booking_code || `AKWA-${(booking.id || '').toString().substring(0, 8).toUpperCase()}`}
           </Text>
@@ -383,17 +386,25 @@ const VehicleBookingDetailsScreen: React.FC = () => {
           <View style={styles.modificationRequestBanner}>
             <Ionicons name="time-outline" size={18} color="#f39c12" />
             <View style={styles.modificationRequestContent}>
-              <Text style={styles.modificationRequestTitle}>Demande en attente</Text>
+              <Text style={styles.modificationRequestTitle}>{t('bookings.pendingRequest')}</Text>
               <Text style={styles.modificationRequestDates}>
-                Nouvelles dates proposées: {formatDate(pendingRequest.requested_start_date)} - {formatDate(pendingRequest.requested_end_date)}
+                {t('bookings.proposedDates', {
+                  dates: `${formatDate(pendingRequest.requested_start_date)} - ${formatDate(pendingRequest.requested_end_date)}`,
+                })}
               </Text>
               <Text style={styles.modificationRequestInfo}>
-                Durée: {pendingRequest.requested_rental_days} jour{pendingRequest.requested_rental_days > 1 ? 's' : ''}
-                {pendingRequest.requested_rental_hours && pendingRequest.requested_rental_hours > 0 && ` et ${pendingRequest.requested_rental_hours} heure${pendingRequest.requested_rental_hours > 1 ? 's' : ''}`}
+                {t('bookings.duration', {
+                  duration: formatDuration(
+                    pendingRequest.requested_rental_days,
+                    pendingRequest.requested_rental_hours,
+                  ),
+                })}
               </Text>
               {pendingRequest.requested_total_price !== booking.total_price && (
                 <Text style={styles.modificationRequestInfo}>
-                  Prix payé en surplus: {formatPrice(pendingRequest.requested_total_price - booking.total_price)}
+                  {t('bookings.surplusPaid', {
+                    amount: formatPrice(pendingRequest.requested_total_price - booking.total_price),
+                  })}
                 </Text>
               )}
               <TouchableOpacity
@@ -401,18 +412,18 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                 onPress={async () => {
                   if (cancelling) return;
                   Alert.alert(
-                    'Annuler la demande',
-                    'Êtes-vous sûr de vouloir annuler cette demande de modification ?',
+                    t('bookings.cancelRequest'),
+                    t('bookings.cancelRequestConfirm'),
                     [
-                      { text: 'Non', style: 'cancel' },
+                      { text: t('common.no'), style: 'cancel' },
                       {
-                        text: 'Oui',
+                        text: t('common.yes'),
                         style: 'destructive',
                         onPress: async () => {
                           setCancelling(true);
                           const result = await cancelModificationRequest(pendingRequest.id);
                           if (result.success) {
-                            await loadPendingRequest(); // Recharger pour mettre à jour l'affichage
+                            await loadPendingRequest();
                           }
                           setCancelling(false);
                         },
@@ -424,7 +435,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
               >
                 <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
                 <Text style={styles.cancelModificationButtonText}>
-                  {cancelling ? 'Annulation...' : 'Annuler la demande'}
+                  {cancelling ? t('bookings.cancelling') : t('bookings.cancelRequest')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -435,7 +446,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         {/* Contact du propriétaire */}
         {isConfirmed && (ownerInfo || booking.vehicle?.owner) && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Contact du propriétaire</Text>
+            <Text style={styles.sectionTitle}>{t('bookings.ownerContact')}</Text>
             <View style={styles.infoRow}>
               <Ionicons name="person-outline" size={20} color="#666" />
               <View style={styles.infoContent}>
@@ -444,7 +455,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                     ? `${ownerInfo.first_name || ''} ${ownerInfo.last_name || ''}`.trim()
                     : booking.vehicle?.owner
                     ? `${booking.vehicle.owner.first_name || ''} ${booking.vehicle.owner.last_name || ''}`.trim()
-                    : 'Propriétaire'}
+                    : t('bookings.ownerFallback')}
                 </Text>
                 {(ownerInfo?.phone || booking.vehicle?.owner?.phone) && (
                   <TouchableOpacity
@@ -469,7 +480,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         {!isConfirmed && (
           <View style={styles.section}>
             <Text style={styles.infoNote}>
-              Les coordonnées du propriétaire seront disponibles après confirmation de la réservation
+              {t('bookings.ownerContactAfterConfirm')}
             </Text>
           </View>
         )}
@@ -483,22 +494,21 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                 serviceType="vehicle"
                 booking={{
                   id: booking.id,
-                  // Code court lisible (en base) pour l'affichage
                   vehicle_booking_code: (booking as any).vehicle_booking_code,
                   start_date: booking.start_date,
                   end_date: booking.end_date,
-                  start_datetime: booking.start_datetime, // Ajouté pour afficher les heures
-                  end_datetime: booking.end_datetime, // Ajouté pour afficher les heures
+                  start_datetime: booking.start_datetime,
+                  end_datetime: booking.end_datetime,
                   total_price: booking.total_price,
                   discount_amount: booking.discount_amount,
                   discount_applied: booking.discount_applied,
                   payment_method: payment?.payment_method || booking.payment_method,
                   status: booking.status,
-                  rental_days: booking.rental_days, // Passer rental_days pour le calcul correct
-                  rental_hours: booking.rental_hours || 0, // Passer rental_hours pour l'affichage
-                  hourly_rate: booking.hourly_rate || 0, // Passer hourly_rate de la réservation
-                  with_driver: booking.with_driver, // Préserver la valeur originale (true/false/null/undefined) pour le calcul
-                  security_deposit: booking.security_deposit || booking.vehicle?.security_deposit || 0, // Caution
+                  rental_days: booking.rental_days,
+                  rental_hours: booking.rental_hours || 0,
+                  hourly_rate: booking.hourly_rate || 0,
+                  with_driver: booking.with_driver,
+                  security_deposit: booking.security_deposit || booking.vehicle?.security_deposit || 0,
                   vehicle: {
                     rules: booking.vehicle?.rules || [],
                     cancellation_policy: booking.vehicle?.cancellation_policy ?? undefined,
@@ -510,9 +520,9 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                     long_stay_discount_percentage: booking.vehicle?.long_stay_discount_percentage,
                     hourly_rental_enabled: booking.vehicle?.hourly_rental_enabled,
                     price_per_hour: booking.vehicle?.price_per_hour,
-                    with_driver: booking.vehicle?.with_driver, // Ajouté pour afficher si avec chauffeur
-                    driver_fee: booking.vehicle?.driver_fee || 0, // Surplus chauffeur
-                    security_deposit: booking.vehicle?.security_deposit || 0, // Caution du véhicule
+                    with_driver: booking.vehicle?.with_driver,
+                    driver_fee: booking.vehicle?.driver_fee || 0,
+                    security_deposit: booking.vehicle?.security_deposit || 0,
                   },
                 } as any}
                 pricePerUnit={booking.daily_rate || 0}
@@ -533,7 +543,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
           >
             <Ionicons name="create-outline" size={20} color="#2563eb" />
             <Text style={styles.modifyButtonText}>
-              {booking.status === 'pending' ? 'Modifier la demande' : 'Modifier la réservation'}
+              {booking.status === 'pending' ? t('bookings.modifyRequest') : t('bookings.modifyBooking')}
             </Text>
           </TouchableOpacity>
         )}
@@ -545,7 +555,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
             onPress={() => navigation.navigate('VehicleDetails' as never, { vehicleId: booking.vehicle!.id } as never)}
           >
             <Ionicons name="eye-outline" size={20} color="#2563eb" />
-            <Text style={styles.viewVehicleButtonText}>Voir le véhicule</Text>
+            <Text style={styles.viewVehicleButtonText}>{t('bookings.viewVehicleFull')}</Text>
           </TouchableOpacity>
         )}
 
@@ -555,7 +565,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
             visible={modificationModalVisible}
             onClose={() => {
               setModificationModalVisible(false);
-              loadBookingDetails(); // Recharger les détails après modification
+              loadBookingDetails();
             }}
             booking={booking}
             onModified={() => {
@@ -811,9 +821,3 @@ const styles = StyleSheet.create({
 });
 
 export default VehicleBookingDetailsScreen;
-
-
-
-
-
-

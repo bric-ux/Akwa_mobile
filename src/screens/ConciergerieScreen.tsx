@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../services/supabase';
 import { displayEmailOrPhone, isPhonePseudoEmail } from '../lib/displayContact';
 import { HOST_COLORS, TRAVELER_COLORS } from '../constants/colors';
@@ -36,45 +37,6 @@ type FormState = {
   selectedPlan: string;
 };
 
-const PLANS = [
-  {
-    name: 'Basique',
-    description: 'Gestion essentielle de votre bien',
-    features: [
-      'Gestion des entrées et sorties',
-      'Communication avec le voyageur 24h/24',
-      'Visibilité des propriétés sur AkwaHome',
-      'Gestion du calendrier',
-    ],
-    popular: false,
-  },
-  {
-    name: 'Premium',
-    description: 'Accompagnement complet',
-    features: [
-      'Toute l’offre Basique',
-      'Ménage en cours et après séjour',
-      'Optimisation des prix',
-      'Rapport mensuel détaillé',
-    ],
-    popular: true,
-  },
-  {
-    name: 'Luxe',
-    description: 'Service haut de gamme',
-    features: [
-      'Toute l’offre Premium',
-      'Décoration et staging',
-      'Photographie professionnelle',
-      'Gestionnaire dédié',
-      'Démarches administratives',
-      'Assistance des voyageurs sur place',
-      'Prestations complémentaires sur devis',
-    ],
-    popular: false,
-  },
-];
-
 const emptyForm = (): FormState => ({
   name: '',
   contactMethod: 'email',
@@ -91,11 +53,54 @@ const emptyForm = (): FormState => ({
 
 const ConciergerieScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { t } = useLanguage();
   const scrollViewRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const { profile, loading: profileLoading } = useUserProfile();
   const [formData, setFormData] = useState<FormState>(emptyForm);
+
+  const plans = [
+    {
+      name: 'Basique',
+      label: t('concierge.planBasic'),
+      description: t('concierge.planBasicDesc'),
+      features: [
+        t('concierge.planBasicF1'),
+        t('concierge.planBasicF2'),
+        t('concierge.planBasicF3'),
+        t('concierge.planBasicF4'),
+      ],
+      popular: false,
+    },
+    {
+      name: 'Premium',
+      label: t('concierge.planPremium'),
+      description: t('concierge.planPremiumDesc'),
+      features: [
+        t('concierge.planPremiumF1'),
+        t('concierge.planPremiumF2'),
+        t('concierge.planPremiumF3'),
+        t('concierge.planPremiumF4'),
+      ],
+      popular: true,
+    },
+    {
+      name: 'Luxe',
+      label: t('concierge.planLuxury'),
+      description: t('concierge.planLuxuryDesc'),
+      features: [
+        t('concierge.planLuxuryF1'),
+        t('concierge.planLuxuryF2'),
+        t('concierge.planLuxuryF3'),
+        t('concierge.planLuxuryF4'),
+        t('concierge.planLuxuryF5'),
+        t('concierge.planLuxuryF6'),
+        t('concierge.planLuxuryF7'),
+      ],
+      popular: false,
+    },
+  ];
 
   useEffect(() => {
     if (!user || !profile || profileLoading) return;
@@ -130,18 +135,18 @@ const ConciergerieScreen: React.FC = () => {
   const handleSubmit = async () => {
     const contact = formData.contactValue.trim();
     if (!formData.name.trim() || !contact) {
-      Alert.alert('Informations manquantes', 'Veuillez renseigner votre nom et un moyen de contact.');
+      Alert.alert(t('concierge.missingFields'), t('concierge.missingFieldsDesc'));
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^[0-9+\-\s()]{8,}$/;
     if (formData.contactMethod === 'email' && !emailRegex.test(contact)) {
-      Alert.alert('Contact invalide', 'Veuillez saisir une adresse email valide.');
+      Alert.alert(t('concierge.invalidContact'), t('concierge.invalidEmail'));
       return;
     }
     if (formData.contactMethod === 'phone' && !phoneRegex.test(contact)) {
-      Alert.alert('Contact invalide', 'Veuillez saisir un numéro valide (au moins 8 chiffres).');
+      Alert.alert(t('concierge.invalidContact'), t('concierge.invalidPhone'));
       return;
     }
 
@@ -182,8 +187,8 @@ const ConciergerieScreen: React.FC = () => {
       }
 
       Alert.alert(
-        'Demande envoyée',
-        'Notre équipe vous recontactera sous 24 h.',
+        t('concierge.sentTitle'),
+        t('concierge.sentDesc'),
         [
           {
             text: 'OK',
@@ -198,8 +203,8 @@ const ConciergerieScreen: React.FC = () => {
       setFormData(emptyForm());
     } catch (error: unknown) {
       const message =
-        error instanceof Error ? error.message : "Une erreur est survenue. Veuillez réessayer.";
-      Alert.alert('Erreur', message);
+        error instanceof Error ? error.message : t('concierge.errorDesc');
+      Alert.alert(t('concierge.error'), message);
     } finally {
       setLoading(false);
     }
@@ -216,7 +221,7 @@ const ConciergerieScreen: React.FC = () => {
         <TouchableOpacity onPress={goBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1f2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Conciergerie</Text>
+        <Text style={styles.headerTitle}>{t('concierge.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -233,23 +238,23 @@ const ConciergerieScreen: React.FC = () => {
           contentContainerStyle={styles.scrollContent}
         >
           <View style={styles.heroSection}>
-            <Text style={styles.heroEyebrow}>Gestion locative</Text>
-            <Text style={styles.heroTitle}>Conciergerie AkwaHome</Text>
+            <Text style={styles.heroEyebrow}>{t('concierge.managementEyebrow')}</Text>
+            <Text style={styles.heroTitle}>{t('concierge.heroTitle')}</Text>
             <Text style={styles.heroDescription}>
-              Accueil des voyageurs, ménage et suivi de vos annonces — délégué à notre équipe.
+              {t('concierge.heroIntro')}
             </Text>
             <TouchableOpacity style={styles.primaryButton} onPress={scrollToContact}>
-              <Text style={styles.primaryButtonText}>Demander un devis</Text>
+              <Text style={styles.primaryButtonText}>{t('concierge.ctaContact')}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Formules</Text>
+            <Text style={styles.sectionTitle}>{t('concierge.plansTitle')}</Text>
             <Text style={styles.sectionSubtitle}>
-              Choisissez une offre, puis complétez le formulaire ci-dessous.
+              {t('concierge.plansSubtitle')}
             </Text>
 
-            {PLANS.map((plan) => {
+            {plans.map((plan) => {
               const isSelected = formData.selectedPlan === plan.name;
               return (
                 <TouchableOpacity
@@ -267,12 +272,12 @@ const ConciergerieScreen: React.FC = () => {
                 >
                   {plan.popular ? (
                     <Text style={styles.planHint}>
-                      {isSelected ? 'Sélectionnée' : 'Recommandée'}
+                      {isSelected ? t('concierge.selected') : t('concierge.popular')}
                     </Text>
                   ) : isSelected ? (
-                    <Text style={styles.planHint}>Sélectionnée</Text>
+                    <Text style={styles.planHint}>{t('concierge.selected')}</Text>
                   ) : null}
-                  <Text style={styles.planName}>{plan.name}</Text>
+                  <Text style={styles.planName}>{plan.label}</Text>
                   <Text style={styles.planDescription}>{plan.description}</Text>
                   <View style={styles.planFeatures}>
                     {plan.features.map((feature) => (
@@ -288,25 +293,25 @@ const ConciergerieScreen: React.FC = () => {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Votre demande</Text>
+            <Text style={styles.sectionTitle}>{t('concierge.formTitle')}</Text>
             <Text style={styles.sectionSubtitle}>
-              Réponse sous 24 h ouvrissage.
+              {t('concierge.formSubtitle')}
             </Text>
 
             <View style={styles.formCard}>
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Nom complet *</Text>
+                <Text style={styles.inputLabel}>{t('concierge.name')}</Text>
                 <TextInput
                   style={styles.input}
                   value={formData.name}
                   onChangeText={(text) => update('name', text)}
-                  placeholder="Votre nom"
+                  placeholder={t('concierge.namePlaceholder')}
                   placeholderTextColor="#9ca3af"
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Contact *</Text>
+                <Text style={styles.inputLabel}>{t('concierge.contact')}</Text>
                 <View style={styles.contactMethodRow}>
                   <TouchableOpacity
                     style={[
@@ -327,7 +332,7 @@ const ConciergerieScreen: React.FC = () => {
                         formData.contactMethod === 'email' && styles.contactMethodBtnTextActive,
                       ]}
                     >
-                      Email
+                      {t('concierge.email')}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -349,7 +354,7 @@ const ConciergerieScreen: React.FC = () => {
                         formData.contactMethod === 'phone' && styles.contactMethodBtnTextActive,
                       ]}
                     >
-                      Téléphone
+                      {t('concierge.phone')}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -358,7 +363,9 @@ const ConciergerieScreen: React.FC = () => {
                   value={formData.contactValue}
                   onChangeText={(text) => update('contactValue', text)}
                   placeholder={
-                    formData.contactMethod === 'email' ? 'votre@email.com' : '+225 XX XX XX XX XX'
+                    formData.contactMethod === 'email'
+                      ? t('concierge.emailPlaceholder')
+                      : t('concierge.phonePlaceholder')
                   }
                   placeholderTextColor="#9ca3af"
                   keyboardType={formData.contactMethod === 'email' ? 'email-address' : 'phone-pad'}
@@ -367,35 +374,35 @@ const ConciergerieScreen: React.FC = () => {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Type de propriété</Text>
+                <Text style={styles.inputLabel}>{t('concierge.propertyType')}</Text>
                 <TextInput
                   style={styles.input}
                   value={formData.propertyType}
                   onChangeText={(text) => update('propertyType', text)}
-                  placeholder="Appartement, villa…"
+                  placeholder={t('concierge.propertyTypePlaceholder')}
                   placeholderTextColor="#9ca3af"
                 />
               </View>
 
               <View style={styles.row}>
                 <View style={[styles.inputGroup, styles.half]}>
-                  <Text style={styles.inputLabel}>Pièces</Text>
+                  <Text style={styles.inputLabel}>{t('concierge.numberOfRooms')}</Text>
                   <TextInput
                     style={styles.input}
                     value={formData.numberOfRooms}
                     onChangeText={(text) => update('numberOfRooms', text)}
-                    placeholder="Ex. 4"
+                    placeholder={t('concierge.numberOfRoomsPlaceholder')}
                     placeholderTextColor="#9ca3af"
                     keyboardType="number-pad"
                   />
                 </View>
                 <View style={[styles.inputGroup, styles.half]}>
-                  <Text style={styles.inputLabel}>Surface (m²)</Text>
+                  <Text style={styles.inputLabel}>{t('concierge.surface')}</Text>
                   <TextInput
                     style={styles.input}
                     value={formData.surface}
                     onChangeText={(text) => update('surface', text)}
-                    placeholder="Ex. 120"
+                    placeholder={t('concierge.surfacePlaceholder')}
                     placeholderTextColor="#9ca3af"
                     keyboardType="decimal-pad"
                   />
@@ -403,23 +410,23 @@ const ConciergerieScreen: React.FC = () => {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Lieu du bien</Text>
+                <Text style={styles.inputLabel}>{t('concierge.propertyLocation')}</Text>
                 <TextInput
                   style={styles.input}
                   value={formData.propertyLocation}
                   onChangeText={(text) => update('propertyLocation', text)}
-                  placeholder="Ville, quartier"
+                  placeholder={t('concierge.propertyLocationPlaceholder')}
                   placeholderTextColor="#9ca3af"
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Caractéristiques</Text>
+                <Text style={styles.inputLabel}>{t('concierge.characteristics')}</Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   value={formData.characteristics}
                   onChangeText={(text) => update('characteristics', text)}
-                  placeholder="Piscine, parking, climatisation…"
+                  placeholder={t('concierge.characteristicsPlaceholder')}
                   placeholderTextColor="#9ca3af"
                   multiline
                   numberOfLines={2}
@@ -429,17 +436,19 @@ const ConciergerieScreen: React.FC = () => {
               {formData.selectedPlan ? (
                 <View style={styles.selectedPlanRow}>
                   <Ionicons name="checkmark-circle" size={18} color={HOST_COLORS.primary} />
-                  <Text style={styles.selectedPlanText}>Formule {formData.selectedPlan}</Text>
+                  <Text style={styles.selectedPlanText}>
+                    {t('concierge.selectedPlanLabel', { plan: formData.selectedPlan })}
+                  </Text>
                 </View>
               ) : null}
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Vos besoins</Text>
+                <Text style={styles.inputLabel}>{t('concierge.needs')}</Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   value={formData.needs}
                   onChangeText={(text) => update('needs', text)}
-                  placeholder="Décrivez ce dont vous avez besoin…"
+                  placeholder={t('concierge.needsPlaceholder')}
                   placeholderTextColor="#9ca3af"
                   multiline
                   numberOfLines={3}
@@ -447,12 +456,12 @@ const ConciergerieScreen: React.FC = () => {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Message</Text>
+                <Text style={styles.inputLabel}>{t('concierge.message')}</Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   value={formData.message}
                   onChangeText={(text) => update('message', text)}
-                  placeholder="Informations complémentaires…"
+                  placeholder={t('concierge.messagePlaceholder')}
                   placeholderTextColor="#9ca3af"
                   multiline
                   numberOfLines={3}
@@ -469,7 +478,7 @@ const ConciergerieScreen: React.FC = () => {
                 ) : (
                   <>
                     <Ionicons name="send-outline" size={18} color="#fff" />
-                    <Text style={styles.submitButtonText}>Envoyer la demande</Text>
+                    <Text style={styles.submitButtonText}>{t('concierge.submit')}</Text>
                   </>
                 )}
               </TouchableOpacity>

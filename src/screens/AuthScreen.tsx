@@ -555,7 +555,7 @@ const AuthScreen: React.FC = () => {
                 resizeMode="contain"
               />
               <Text style={styles.logoText}>AkwaHome</Text>
-              <Text style={styles.logoSubtext}>Ici c'est chez vous !</Text>
+              <Text style={styles.logoSubtext}>{t('brand.tagline')}</Text>
             </View>
           </View>
 

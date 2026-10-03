@@ -23,6 +23,7 @@ import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useCurrency } from '../hooks/useCurrency';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
+import { useLanguage } from '../contexts/LanguageContext';
 import type { RootStackParamList } from '../types';
 import { HOTEL_COLORS } from '../constants/colors';
 import PropertyMap from '../components/PropertyMap';
@@ -76,10 +77,10 @@ function toISODate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function formatFrDate(iso: string): string {
+function formatStayDate(iso: string, locale: string, emptyLabel: string): string {
   const d = parseISODate(iso);
-  if (!d) return 'Choisir';
-  return d.toLocaleDateString('fr-FR', {
+  if (!d) return emptyLabel;
+  return d.toLocaleDateString(locale, {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -109,8 +110,12 @@ export default function HotelEstablishmentDetailScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<Route>();
   const { user } = useAuth();
-  const { formatPrice, currency, rates } = useCurrency();
+  const { t, language } = useLanguage();
+  const { formatPrice, currency, rates, changeCurrency } = useCurrency();
   const { hasUploadedIdentity, isVerified, verificationStatus } = useIdentityVerification();
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
+  const nightLabel = (n: number) =>
+    t(n > 1 ? 'hotel.night_other' : 'hotel.night_one');
   const {
     establishmentId,
     roomTypeId: initialRoomTypeId,
@@ -301,11 +306,11 @@ export default function HotelEstablishmentDetailScreen() {
     (bookingId?: string) => {
       resetPendingPay();
       Alert.alert(
-        'Paiement confirmé',
-        'Votre réservation hôtel a été enregistrée.',
+        t('hotel.paymentConfirmed'),
+        t('hotel.paymentConfirmedDesc'),
         [
           {
-            text: 'Voir ma réservation',
+            text: t('hotel.viewBooking'),
             onPress: () => {
               if (bookingId) {
                 navigation.replace('HotelBookingDetail', {
@@ -317,11 +322,11 @@ export default function HotelEstablishmentDetailScreen() {
               }
             },
           },
-          { text: 'OK', onPress: () => navigation.goBack() },
+          { text: t('common.ok'), onPress: () => navigation.goBack() },
         ],
       );
     },
-    [navigation, resetPendingPay],
+    [navigation, resetPendingPay, t],
   );
 
   const verifyPendingPay = useCallback(async () => {
@@ -333,7 +338,10 @@ export default function HotelEstablishmentDetailScreen() {
         wave: pendingWave,
       });
       setPayStatusHint(
-        `paiement ${result.payment_status || 'pending'} · résa ${result.booking_status || 'pending'}`,
+        t('hotel.payStatusHint', {
+          payment: result.payment_status || 'pending',
+          booking: result.booking_status || 'pending',
+        }),
       );
       if (result.paid) {
         onPaymentConfirmed(result.bookingId);
@@ -341,7 +349,7 @@ export default function HotelEstablishmentDetailScreen() {
     } finally {
       setCheckingPay(false);
     }
-  }, [pendingToken, pendingWave, onPaymentConfirmed]);
+  }, [pendingToken, pendingWave, onPaymentConfirmed, t]);
 
   useEffect(() => {
     if (!pendingToken) return;
@@ -360,14 +368,14 @@ export default function HotelEstablishmentDetailScreen() {
 
   useEffect(() => {
     if (!pendingToken || !pendingStartedAt) return;
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       if (Date.now() - pendingStartedAt > STRIPE_PENDING_TIMEOUT_MS) {
         resetPendingPay();
-        Alert.alert('Paiement', 'Délai expiré. Vous pourrez recommencer une réservation.');
+        Alert.alert(t('hotel.paymentTimeoutTitle'), t('hotel.paymentTimeoutDesc'));
       }
     }, 5000);
-    return () => clearInterval(t);
-  }, [pendingToken, pendingStartedAt, resetPendingPay]);
+    return () => clearInterval(timer);
+  }, [pendingToken, pendingStartedAt, resetPendingPay, t]);
 
   const handleBook = useCallback(async () => {
     if (!user) {
@@ -384,24 +392,27 @@ export default function HotelEstablishmentDetailScreen() {
       return;
     }
     if (!selectedRoom) {
-      Alert.alert('Chambres', 'Sélectionnez un type de chambre.');
+      Alert.alert(t('hotel.selectRoomTitle'), t('hotel.selectRoom'));
       return;
     }
     if (nights < 1) {
-      Alert.alert('Dates', 'Choisissez une arrivée et un départ.');
+      Alert.alert(t('hotel.selectDatesTitle'), t('hotel.selectDatesMsg'));
       return;
     }
     if (nights < selectedRoom.minimum_nights) {
       Alert.alert(
-        'Séjour minimum',
-        `Minimum ${selectedRoom.minimum_nights} nuit${selectedRoom.minimum_nights > 1 ? 's' : ''}.`,
+        t('hotel.minStayTitle'),
+        t('hotel.minStay', {
+          count: String(selectedRoom.minimum_nights),
+          nightLabel: nightLabel(selectedRoom.minimum_nights),
+        }),
       );
       return;
     }
     if (guests > selectedRoom.max_guests) {
       Alert.alert(
-        'Capacité',
-        `Ce type accepte au maximum ${selectedRoom.max_guests} voyageur(s).`,
+        t('hotel.capacityTitle'),
+        t('hotel.capacity', { count: String(selectedRoom.max_guests) }),
       );
       return;
     }
@@ -409,19 +420,27 @@ export default function HotelEstablishmentDetailScreen() {
     // Carte / Wave : identité requise (comme logements) — espèces OK sans
     if (paymentMethod === 'card' || paymentMethod === 'wave') {
       if (!hasUploadedIdentity) {
-        Alert.alert(
-          'Identité requise',
-          'Pour payer par carte ou Wave, veuillez d’abord déposer une pièce d’identité dans votre profil.',
-        );
+        Alert.alert(t('hotel.identityRequiredTitle'), t('hotel.identityRequiredDesc'));
         return;
       }
       if (!isVerified && verificationStatus !== 'pending') {
-        Alert.alert(
-          'Vérification',
-          'Votre identité doit être en cours de vérification ou validée pour ce mode de paiement.',
-        );
+        Alert.alert(t('hotel.verificationTitle'), t('hotel.verificationDesc'));
         return;
       }
+    }
+
+    if (paymentMethod === 'wave' && currency !== 'XOF') {
+      Alert.alert(t('hotel.currencyRequiredTitle'), t('hotel.currencyRequiredDesc'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('hotel.switchToCfa'),
+          onPress: async () => {
+            await changeCurrency('XOF');
+            Alert.alert(t('hotel.currencyUpdatedTitle'), t('hotel.currencyUpdatedDesc'));
+          },
+        },
+      ]);
+      return;
     }
 
     setSubmitting(true);
@@ -435,9 +454,9 @@ export default function HotelEstablishmentDetailScreen() {
       });
       if (!avail.ok) {
         Alert.alert(
-          'Indisponible',
+          t('hotel.unavailableTitle'),
           avail.error ||
-            `Plus assez de chambres libres sur ces dates (${avail.availableUnits} restante(s)).`,
+            t('hotel.notEnoughRooms', { count: String(avail.availableUnits) }),
         );
         setAvailableUnits(avail.availableUnits);
         return;
@@ -445,7 +464,7 @@ export default function HotelEstablishmentDetailScreen() {
 
       const draftInput = {
         establishmentId,
-        establishmentTitle: item?.title || 'Hôtel',
+        establishmentTitle: item?.title || t('hotel.defaultTitle'),
         roomTypeId: selectedRoom.id,
         roomName: selectedRoom.name,
         checkIn,
@@ -525,39 +544,76 @@ export default function HotelEstablishmentDetailScreen() {
           .single());
       }
       if (error) throw error;
-      if (!booking) throw new Error('Réservation non créée');
+      if (!booking) throw new Error(t('hotel.bookingNotCreated'));
 
+      const lineTotal = roomSubtotal + taxesTotal + cleaningFee;
       const { error: itemErr } = await supabase.from('hotel_booking_items').insert({
         booking_id: booking.id,
         room_type_id: selectedRoom.id,
         quantity: 1,
         price_per_night: selectedRoom.price_per_night,
         cleaning_fee: selectedRoom.cleaning_fee || 0,
-        line_total: total,
+        line_total: lineTotal,
       });
       if (itemErr) throw itemErr;
+
+      try {
+        await supabase.from('booking_calculation_details').insert({
+          booking_id: booking.id,
+          booking_type: 'hotel',
+          base_price: roomSubtotal,
+          price_after_discount: roomSubtotal,
+          discount_amount: 0,
+          discount_applied: false,
+          service_fee: serviceFee,
+          service_fee_ht: serviceFee,
+          service_fee_vat: 0,
+          host_commission: hostCommission,
+          host_commission_ht: hostCommission,
+          host_commission_vat: 0,
+          effective_cleaning_fee: cleaningFee,
+          effective_taxes: taxesTotal,
+          total_price: total,
+          host_net_amount: hostNetAmount,
+        } as any);
+      } catch (calcErr) {
+        if (__DEV__) console.warn('[hotel cash] booking_calculation_details:', calcErr);
+      }
 
       notifyHotelBookingCreated(booking.id).catch(() => {});
 
       Alert.alert(
-        autoConfirm ? 'Réservation confirmée' : 'Demande envoyée',
+        autoConfirm ? t('hotel.bookingConfirmed') : t('hotel.requestSent'),
         autoConfirm
-          ? `Payez ${formatPrice(total)} en espèces à l’arrivée.\nCode : ${bookingCode}`
-          : `L’hôtel confirmera votre séjour. Paiement en espèces à l’arrivée (${formatPrice(total)}).\nCode : ${bookingCode}`,
+          ? t('hotel.cashConfirmedDesc', {
+              amount: formatPrice(total),
+              code: bookingCode,
+            })
+          : t('hotel.cashPendingDesc', {
+              amount: formatPrice(total),
+              code: bookingCode,
+            }),
         [
           {
-            text: 'Voir ma réservation',
+            text: t('hotel.viewBooking'),
             onPress: () =>
               navigation.replace('HotelBookingDetail', {
                 bookingId: booking!.id,
                 role: 'guest',
               }),
           },
-          { text: 'OK', style: 'cancel', onPress: () => navigation.goBack() },
+          {
+            text: t('common.ok'),
+            style: 'cancel',
+            onPress: () => navigation.goBack(),
+          },
         ],
       );
     } catch (e) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Réservation impossible');
+      Alert.alert(
+        t('common.error'),
+        e instanceof Error ? e.message : t('hotel.bookingImpossible'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -585,6 +641,11 @@ export default function HotelEstablishmentDetailScreen() {
     verificationStatus,
     currency,
     rates,
+    changeCurrency,
+    roomSubtotal,
+    cleaningFee,
+    t,
+    nightLabel,
   ]);
 
   const canBook =
@@ -616,7 +677,7 @@ export default function HotelEstablishmentDetailScreen() {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {selectedRoom?.name || item?.title || 'Hôtel'}
+          {selectedRoom?.name || item?.title || t('hotel.defaultTitle')}
         </Text>
         <View style={{ width: 44 }} />
       </View>
@@ -624,7 +685,7 @@ export default function HotelEstablishmentDetailScreen() {
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={HOTEL_COLORS.primary} />
       ) : !item ? (
-        <Text style={styles.empty}>Établissement introuvable.</Text>
+        <Text style={styles.empty}>{t('hotel.notFound')}</Text>
       ) : (
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {gallery.length > 0 ? (
@@ -691,17 +752,21 @@ export default function HotelEstablishmentDetailScreen() {
           ) : null}
 
           <View style={styles.infoBlock}>
-            <Text style={styles.infoBlockTitle}>Conditions & infos</Text>
+            <Text style={styles.infoBlockTitle}>{t('hotel.conditionsInfo')}</Text>
             {(item.check_in_time || item.check_out_time) && (
               <View style={styles.infoRow}>
                 <Ionicons name="time-outline" size={18} color={HOTEL_COLORS.primary} />
                 <Text style={styles.infoText}>
                   {item.check_in_time
-                    ? `Arrivée à partir de ${formatHotelTime(item.check_in_time)}`
+                    ? t('hotel.checkInFrom', {
+                        time: formatHotelTime(item.check_in_time),
+                      })
                     : null}
                   {item.check_in_time && item.check_out_time ? ' · ' : ''}
                   {item.check_out_time
-                    ? `Départ avant ${formatHotelTime(item.check_out_time)}`
+                    ? t('hotel.checkOutBefore', {
+                        time: formatHotelTime(item.check_out_time),
+                      })
                     : null}
                 </Text>
               </View>
@@ -709,15 +774,18 @@ export default function HotelEstablishmentDetailScreen() {
             <View style={styles.infoRow}>
               <Ionicons name="paw-outline" size={18} color={HOTEL_COLORS.primary} />
               <Text style={styles.infoText}>
-                {item.pets_allowed ? 'Animaux autorisés' : 'Animaux non autorisés'}
+                {item.pets_allowed ? t('hotel.petsAllowed') : t('hotel.petsNotAllowed')}
               </Text>
             </View>
             {Array.isArray(item.spoken_languages) && item.spoken_languages.length > 0 ? (
               <View style={styles.infoRow}>
                 <Ionicons name="chatbubbles-outline" size={18} color={HOTEL_COLORS.primary} />
                 <Text style={styles.infoText}>
-                  Langues :{' '}
-                  {item.spoken_languages.map((l: string) => hotelLanguageLabel(l)).join(', ')}
+                  {t('hotel.languages', {
+                    list: item.spoken_languages
+                      .map((l: string) => hotelLanguageLabel(l))
+                      .join(', '),
+                  })}
                 </Text>
               </View>
             ) : null}
@@ -725,7 +793,9 @@ export default function HotelEstablishmentDetailScreen() {
               <View style={styles.infoRow}>
                 <Ionicons name="shield-checkmark-outline" size={18} color={HOTEL_COLORS.primary} />
                 <Text style={styles.infoText}>
-                  Annulation : {hotelCancellationLabel(item.cancellation_policy)}
+                  {t('hotel.cancellation', {
+                    policy: hotelCancellationLabel(item.cancellation_policy),
+                  })}
                 </Text>
               </View>
             ) : null}
@@ -740,15 +810,15 @@ export default function HotelEstablishmentDetailScreen() {
             ) : null}
             {item.house_rules ? (
               <View style={{ marginTop: 10 }}>
-                <Text style={styles.rulesTitle}>Règlement</Text>
+                <Text style={styles.rulesTitle}>{t('hotel.houseRules')}</Text>
                 <Text style={styles.rulesText}>{item.house_rules}</Text>
               </View>
             ) : null}
           </View>
 
-          <Text style={styles.sectionTitle}>Types de chambres</Text>
+          <Text style={styles.sectionTitle}>{t('hotel.roomTypes')}</Text>
           {rooms.length === 0 ? (
-            <Text style={styles.emptyRooms}>Aucune chambre publiée pour le moment.</Text>
+            <Text style={styles.emptyRooms}>{t('hotel.noRoomsPublished')}</Text>
           ) : (
             rooms.map((room) => {
               const selected = room.id === selectedRoomId;
@@ -782,14 +852,17 @@ export default function HotelEstablishmentDetailScreen() {
                       </Text>
                     )}
                     <Text style={styles.roomMeta}>
-                      Jusqu’à {room.max_guests} pers. · min. {room.minimum_nights} nuit
-                      {room.minimum_nights > 1 ? 's' : ''}
+                      {t('hotel.roomMeta', {
+                        max: String(room.max_guests),
+                        nights: String(room.minimum_nights),
+                        nightLabel: nightLabel(room.minimum_nights),
+                      })}
                     </Text>
                   </View>
                   <Text style={styles.roomPrice}>
                     {formatPrice(room.price_per_night)}
                     {'\n'}
-                    <Text style={styles.roomPriceUnit}>/nuit</Text>
+                    <Text style={styles.roomPriceUnit}>{t('search.perNight')}</Text>
                   </Text>
                 </TouchableOpacity>
               );
@@ -798,7 +871,7 @@ export default function HotelEstablishmentDetailScreen() {
 
           {rooms.length > 0 ? (
             <View style={styles.bookPanel}>
-              <Text style={styles.bookPanelTitle}>Votre séjour</Text>
+              <Text style={styles.bookPanelTitle}>{t('hotel.yourStay')}</Text>
 
               <View style={styles.datesRow}>
                 <TouchableOpacity
@@ -806,8 +879,10 @@ export default function HotelEstablishmentDetailScreen() {
                   onPress={() => setDatePicker('in')}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.dateLabel}>Arrivée</Text>
-                  <Text style={styles.dateValue}>{formatFrDate(checkIn)}</Text>
+                  <Text style={styles.dateLabel}>{t('booking.arrival')}</Text>
+                  <Text style={styles.dateValue}>
+                    {formatStayDate(checkIn, dateLocale, t('hotel.chooseDate'))}
+                  </Text>
                 </TouchableOpacity>
                 <View style={styles.dateArrow}>
                   <Ionicons name="arrow-forward" size={16} color="#94a3b8" />
@@ -817,16 +892,20 @@ export default function HotelEstablishmentDetailScreen() {
                   onPress={() => setDatePicker('out')}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.dateLabel}>Départ</Text>
-                  <Text style={styles.dateValue}>{formatFrDate(checkOut)}</Text>
+                  <Text style={styles.dateLabel}>{t('booking.departure')}</Text>
+                  <Text style={styles.dateValue}>
+                    {formatStayDate(checkOut, dateLocale, t('hotel.chooseDate'))}
+                  </Text>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.guestsRow}>
                 <View>
-                  <Text style={styles.dateLabel}>Voyageurs</Text>
+                  <Text style={styles.dateLabel}>{t('booking.guests')}</Text>
                   <Text style={styles.guestsHint}>
-                    max. {selectedRoom?.max_guests ?? '—'}
+                    {t('hotel.maxGuests', {
+                      max: String(selectedRoom?.max_guests ?? '—'),
+                    })}
                   </Text>
                 </View>
                 <View style={styles.stepper}>
@@ -866,20 +945,35 @@ export default function HotelEstablishmentDetailScreen() {
                 textAlignVertical="top"
                 value={message}
                 onChangeText={setMessage}
-                placeholder="Message à l’hôtel (optionnel)"
+                placeholder={t('hotel.messagePlaceholder')}
                 placeholderTextColor="#94a3b8"
               />
 
               {/* Méthodes de paiement */}
               <Text style={[styles.dateLabel, { marginTop: 14, marginBottom: 8 }]}>
-                Paiement
+                {t('hotel.payment')}
               </Text>
               <View style={styles.payMethods}>
                 {(
                   [
-                    { id: 'cash' as const, icon: 'cash' as const, label: 'Espèces', hint: 'À l’arrivée' },
-                    { id: 'wave' as const, icon: 'phone-portrait' as const, label: 'Wave', hint: 'Recommandé' },
-                    { id: 'card' as const, icon: 'card' as const, label: 'Carte', hint: 'Stripe' },
+                    {
+                      id: 'cash' as const,
+                      icon: 'cash' as const,
+                      label: t('booking.cash'),
+                      hint: t('hotel.cashHint'),
+                    },
+                    {
+                      id: 'wave' as const,
+                      icon: 'phone-portrait' as const,
+                      label: t('booking.wave'),
+                      hint: t('hotel.waveRecommended'),
+                    },
+                    {
+                      id: 'card' as const,
+                      icon: 'card' as const,
+                      label: t('hotel.cardShort'),
+                      hint: t('hotel.cardHint'),
+                    },
                   ] as const
                 ).map((m) => {
                   const selected = paymentMethod === m.id;
@@ -911,10 +1005,8 @@ export default function HotelEstablishmentDetailScreen() {
                     <Ionicons name="cash" size={22} color={HOTEL_COLORS.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.payCardTitle}>Espèces à l’arrivée</Text>
-                    <Text style={styles.payCardDesc}>
-                      Vous réglez le séjour à l’accueil le jour du check-in.
-                    </Text>
+                    <Text style={styles.payCardTitle}>{t('hotel.cashOnArrival')}</Text>
+                    <Text style={styles.payCardDesc}>{t('hotel.cashOnArrivalDesc')}</Text>
                   </View>
                   <Ionicons name="checkmark-circle" size={22} color={HOTEL_COLORS.primary} />
                 </View>
@@ -929,12 +1021,14 @@ export default function HotelEstablishmentDetailScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.payCardTitle}>
-                      {paymentMethod === 'wave' ? 'Paiement Wave' : 'Carte bancaire'}
+                      {paymentMethod === 'wave'
+                        ? t('hotel.wavePayment')
+                        : t('booking.card')}
                     </Text>
                     <Text style={styles.payCardDesc}>
                       {paymentMethod === 'wave'
-                        ? 'Redirection vers Wave. La réservation est créée après paiement validé.'
-                        : 'Redirection Stripe sécurisée. La réservation est créée après paiement validé.'}
+                        ? t('hotel.waveRedirectDesc')
+                        : t('hotel.stripeRedirectDesc')}
                     </Text>
                   </View>
                 </View>
@@ -944,12 +1038,12 @@ export default function HotelEstablishmentDetailScreen() {
                 <View style={styles.pendingBox}>
                   <ActivityIndicator color={pendingWave ? '#8b5cf6' : '#2563eb'} />
                   <Text style={styles.pendingText}>
-                    {pendingWave
-                      ? 'Finalisez le paiement sur Wave, puis revenez ici.'
-                      : 'Finalisez le paiement sur Stripe, puis revenez ici.'}
+                    {pendingWave ? t('hotel.finalizeWave') : t('hotel.finalizeStripe')}
                   </Text>
                   {payStatusHint ? (
-                    <Text style={styles.pendingHint}>Statut : {payStatusHint}</Text>
+                    <Text style={styles.pendingHint}>
+                      {t('hotel.statusPrefix', { status: payStatusHint })}
+                    </Text>
                   ) : null}
                   <View style={styles.pendingActions}>
                     <TouchableOpacity
@@ -960,11 +1054,13 @@ export default function HotelEstablishmentDetailScreen() {
                       {checkingPay ? (
                         <ActivityIndicator color="#fff" size="small" />
                       ) : (
-                        <Text style={styles.pendingPrimaryText}>Vérifier le paiement</Text>
+                        <Text style={styles.pendingPrimaryText}>
+                          {t('booking.verifyPayment')}
+                        </Text>
                       )}
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.pendingSecondary} onPress={resetPendingPay}>
-                      <Text style={styles.pendingSecondaryText}>Annuler</Text>
+                      <Text style={styles.pendingSecondaryText}>{t('common.cancel')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -982,41 +1078,52 @@ export default function HotelEstablishmentDetailScreen() {
                       ]}
                     >
                       {availableUnits < 1
-                        ? 'Indisponible sur ces dates'
-                        : `${availableUnits} chambre${availableUnits > 1 ? 's' : ''} disponible${availableUnits > 1 ? 's' : ''}`}
+                        ? t('hotel.unavailableDates')
+                        : availableUnits === 1
+                          ? t('hotel.roomsAvailable_one')
+                          : t('hotel.roomsAvailable_other', {
+                              count: String(availableUnits),
+                            })}
                     </Text>
                   ) : null}
 
                   <View style={styles.sumLine}>
                     <Text style={styles.sumLabel}>
-                      {formatPrice(selectedRoom.price_per_night)} × {nights} nuit
-                      {nights > 1 ? 's' : ''}
+                      {t('hotel.nightsLine', {
+                        price: formatPrice(selectedRoom.price_per_night),
+                        nights: String(nights),
+                        nightLabel: nightLabel(nights),
+                      })}
                     </Text>
                     <Text style={styles.sumValue}>{formatPrice(roomSubtotal)}</Text>
                   </View>
                   {taxesTotal > 0 ? (
                     <View style={styles.sumLine}>
-                      <Text style={styles.sumLabel}>Taxes</Text>
+                      <Text style={styles.sumLabel}>{t('hotel.taxes')}</Text>
                       <Text style={styles.sumValue}>{formatPrice(taxesTotal)}</Text>
                     </View>
                   ) : null}
                   {cleaningFee > 0 ? (
                     <View style={styles.sumLine}>
-                      <Text style={styles.sumLabel}>Ménage</Text>
+                      <Text style={styles.sumLabel}>{t('hotel.cleaning')}</Text>
                       <Text style={styles.sumValue}>{formatPrice(cleaningFee)}</Text>
                     </View>
                   ) : null}
                   {serviceFee > 0 ? (
                     <View style={styles.sumLine}>
                       <Text style={styles.sumLabel}>
-                        Frais de service ({hotelAmounts.travelerFeePercent}%)
+                        {t('hotel.serviceFeePercent', {
+                          percent: String(hotelAmounts.travelerFeePercent),
+                        })}
                       </Text>
                       <Text style={styles.sumValue}>{formatPrice(serviceFee)}</Text>
                     </View>
                   ) : null}
                   <View style={[styles.sumLine, styles.sumTotal]}>
                     <Text style={styles.sumTotalLabel}>
-                      {paymentMethod === 'cash' ? 'Total à régler à l’arrivée' : 'Total'}
+                      {paymentMethod === 'cash'
+                        ? t('hotel.totalOnArrival')
+                        : t('booking.total')}
                     </Text>
                     <Text style={styles.sumTotalValue}>{formatPrice(total)}</Text>
                   </View>
@@ -1036,14 +1143,14 @@ export default function HotelEstablishmentDetailScreen() {
                 ) : (
                   <Text style={styles.bookBtnText}>
                     {nights < 1
-                      ? 'Choisir des dates'
+                      ? t('hotel.chooseDates')
                       : availableUnits != null && availableUnits < 1
-                        ? 'Indisponible'
+                        ? t('hotel.unavailable')
                         : paymentMethod === 'cash'
-                          ? 'Réserver · payer à l’arrivée'
+                          ? t('hotel.bookPayOnArrival')
                           : paymentMethod === 'wave'
-                            ? 'Payer avec Wave'
-                            : 'Payer par carte'}
+                            ? t('booking.payWithWave')
+                            : t('hotel.payByCard')}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -1076,10 +1183,10 @@ export default function HotelEstablishmentDetailScreen() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <TouchableOpacity onPress={() => setDatePicker(null)}>
-                <Text style={styles.modalCancel}>Annuler</Text>
+                <Text style={styles.modalCancel}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <Text style={styles.modalTitle}>
-                {datePicker === 'out' ? 'Départ' : 'Arrivée'}
+                {datePicker === 'out' ? t('booking.departure') : t('booking.arrival')}
               </Text>
               <TouchableOpacity
                 onPress={() => {
@@ -1087,7 +1194,7 @@ export default function HotelEstablishmentDetailScreen() {
                   setDatePicker(null);
                 }}
               >
-                <Text style={styles.modalDone}>OK</Text>
+                <Text style={styles.modalDone}>{t('common.ok')}</Text>
               </TouchableOpacity>
             </View>
             <DateTimePicker
@@ -1098,7 +1205,7 @@ export default function HotelEstablishmentDetailScreen() {
               onChange={(_, date) => {
                 if (date && datePicker) onPickDate(datePicker, date);
               }}
-              locale="fr-FR"
+              locale={dateLocale}
             />
           </View>
         </View>

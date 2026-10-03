@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import {
   notifyHotelBookingCancelledByGuest,
   notifyHotelBookingStatusChange,
@@ -34,6 +35,7 @@ export default function HotelBookingDetailScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<Route>();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const { bookingId, role } = route.params;
   const isHost = role === 'host';
 
@@ -95,8 +97,8 @@ export default function HotelBookingDetailScreen() {
       setRaw(booking);
       setInvoice({
         bookingCode: booking.booking_code,
-        hotelTitle: est?.title || 'Hôtel',
-        roomName: room?.name || 'Chambre',
+        hotelTitle: est?.title || t('hotel.defaultTitle'),
+        roomName: room?.name || t('hotel.defaultRoom'),
         checkIn: booking.check_in_date,
         checkOut: booking.check_out_date,
         nights,
@@ -118,11 +120,14 @@ export default function HotelBookingDetailScreen() {
       });
     } catch (e) {
       console.error('HotelBookingDetail load:', e);
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Chargement impossible');
+      Alert.alert(
+        t('common.error'),
+        e instanceof Error ? e.message : t('booking.loadError'),
+      );
     } finally {
       setLoading(false);
     }
-  }, [bookingId]);
+  }, [bookingId, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -145,22 +150,25 @@ export default function HotelBookingDetailScreen() {
       if (notifyStatus) {
         notifyHotelBookingStatusChange(bookingId, notifyStatus).catch(() => {});
       }
-      Alert.alert('OK', successMsg);
+      Alert.alert(t('common.ok'), successMsg);
       await load();
     } catch (e) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Action impossible');
+      Alert.alert(
+        t('common.error'),
+        e instanceof Error ? e.message : t('booking.actionImpossible'),
+      );
     } finally {
       setActing(false);
     }
   };
 
   const confirm = () =>
-    void updateBooking({ status: 'confirmed' }, 'Réservation confirmée.', 'confirmed');
+    void updateBooking({ status: 'confirmed' }, t('booking.confirmedShort'), 'confirmed');
   const refuse = () =>
-    Alert.alert('Refuser', 'Refuser cette demande ?', [
-      { text: 'Annuler', style: 'cancel' },
+    Alert.alert(t('booking.refuse'), t('booking.refuseConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Refuser',
+        text: t('booking.refuse'),
         style: 'destructive',
         onPress: () =>
           void updateBooking(
@@ -169,37 +177,38 @@ export default function HotelBookingDetailScreen() {
               cancelled_at: new Date().toISOString(),
               cancelled_by: user?.id,
             },
-            'Demande refusée.',
+            t('booking.refused'),
             'cancelled',
           ),
       },
     ]);
   const markPaid = () =>
-    Alert.alert(
-      'Encaissement',
-      'Confirmer la réception du paiement en espèces à l’arrivée ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Marquer payé',
-          onPress: () =>
-            void updateBooking(
-              {
-                payment_status: 'paid',
-                paid_at: new Date().toISOString(),
-                paid_by: user?.id,
-                status: raw?.status === 'confirmed' ? 'confirmed' : raw?.status,
-              },
-              'Paiement enregistré.',
-            ),
-        },
-      ],
-    );
-  const cancelAsGuest = () =>
-    Alert.alert('Annuler', 'Annuler votre demande de réservation ?', [
-      { text: 'Non', style: 'cancel' },
+    Alert.alert(t('booking.cashCollection'), t('booking.cashCollectionConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Oui, annuler',
+        text: t('booking.markPaid'),
+        onPress: () =>
+          void updateBooking(
+            {
+              payment_status: 'paid',
+              paid_at: new Date().toISOString(),
+              paid_by: user?.id,
+              status: raw?.status === 'confirmed' ? 'confirmed' : raw?.status,
+            },
+            t('booking.paymentRecorded'),
+          ),
+      },
+    ]);
+  const cancelAsGuest = () => {
+    const payStatus = String((raw as any)?.payment_status || 'unpaid').toLowerCase();
+    if (payStatus === 'paid') {
+      Alert.alert(t('booking.cancelImpossible'), t('booking.cancelPaidOnline'));
+      return;
+    }
+    Alert.alert(t('common.cancel'), t('booking.cancelRequestConfirm'), [
+      { text: t('common.no'), style: 'cancel' },
+      {
+        text: t('booking.cancelYes'),
         style: 'destructive',
         onPress: async () => {
           setActing(true);
@@ -212,19 +221,24 @@ export default function HotelBookingDetailScreen() {
                 cancelled_by: user?.id,
                 updated_at: new Date().toISOString(),
               })
-              .eq('id', bookingId);
+              .eq('id', bookingId)
+              .neq('payment_status', 'paid');
             if (error) throw error;
             notifyHotelBookingCancelledByGuest(bookingId).catch(() => {});
-            Alert.alert('OK', 'Réservation annulée.');
+            Alert.alert(t('common.ok'), t('booking.cancelled'));
             await load();
           } catch (e) {
-            Alert.alert('Erreur', e instanceof Error ? e.message : 'Action impossible');
+            Alert.alert(
+              t('common.error'),
+              e instanceof Error ? e.message : t('booking.actionImpossible'),
+            );
           } finally {
             setActing(false);
           }
         },
       },
     ]);
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -232,21 +246,21 @@ export default function HotelBookingDetailScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Réservation hôtel</Text>
+        <Text style={styles.headerTitle}>{t('booking.hotelTitle')}</Text>
         <View style={{ width: 44 }} />
       </View>
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={HOTEL_COLORS.primary} />
       ) : !invoice ? (
-        <Text style={styles.empty}>Réservation introuvable.</Text>
+        <Text style={styles.empty}>{t('booking.notFound')}</Text>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           <HotelInvoiceCard data={invoice} variant={isHost ? 'host' : 'traveler'} />
 
           {raw?.message_to_host ? (
             <View style={styles.msgBox}>
-              <Text style={styles.msgLabel}>Message</Text>
+              <Text style={styles.msgLabel}>{t('booking.message')}</Text>
               <Text style={styles.msgText}>{raw.message_to_host}</Text>
             </View>
           ) : null}
@@ -258,14 +272,14 @@ export default function HotelBookingDetailScreen() {
                 onPress={confirm}
                 disabled={acting}
               >
-                <Text style={styles.btnTextLight}>Confirmer</Text>
+                <Text style={styles.btnTextLight}>{t('common.confirm')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.btn, styles.btnRefuse]}
                 onPress={refuse}
                 disabled={acting}
               >
-                <Text style={styles.btnTextDark}>Refuser</Text>
+                <Text style={styles.btnTextDark}>{t('booking.refuse')}</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -280,17 +294,19 @@ export default function HotelBookingDetailScreen() {
               disabled={acting}
             >
               <Ionicons name="cash" size={18} color="#fff" />
-              <Text style={styles.btnTextLight}>Encaisser espèces à l’arrivée</Text>
+              <Text style={styles.btnTextLight}>{t('booking.collectCash')}</Text>
             </TouchableOpacity>
           ) : null}
 
-          {!isHost && raw?.status === 'pending' ? (
+          {!isHost &&
+          raw?.status === 'pending' &&
+          String((raw as any)?.payment_status || 'unpaid') !== 'paid' ? (
             <TouchableOpacity
               style={[styles.btn, styles.btnRefuse]}
               onPress={cancelAsGuest}
               disabled={acting}
             >
-              <Text style={styles.btnTextDark}>Annuler ma demande</Text>
+              <Text style={styles.btnTextDark}>{t('booking.cancelRequest')}</Text>
             </TouchableOpacity>
           ) : null}
 

@@ -16,6 +16,7 @@ import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { Property } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
+import { useLanguage } from '../contexts/LanguageContext';
 import { TRAVELER_COLORS, COMMON_COLORS } from '../constants/colors';
 import PropertyCard from './PropertyCard';
 import { getPriceForDate, getAveragePriceForPeriod, getPricesForDateBatch } from '../utils/priceCalculator';
@@ -50,6 +51,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
   const [selectedPropertyPrice, setSelectedPropertyPrice] = useState<number | null>(null);
   const [propertyPrices, setPropertyPrices] = useState<Map<string, number>>(new Map());
   const webViewRef = useRef<WebView>(null);
+  const { t } = useLanguage();
   const { formatPrice: formatPriceWithCurrency, currency, currencySymbol, convert } = useCurrency();
   // sheetTop représente directement la position top du bottom sheet (MAP_HEIGHT = position minimale)
   const sheetTop = useRef(new Animated.Value(MAP_HEIGHT)).current;
@@ -859,7 +861,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
                   <Text style={styles.propertyDetailPriceAmount}>
                     {formatPrice(selectedPropertyPrice !== null ? selectedPropertyPrice : (selectedProperty.price_per_night || 0))}
                   </Text>
-                  <Text style={styles.propertyDetailPriceLabel}>/nuit</Text>
+                  <Text style={styles.propertyDetailPriceLabel}>{t('search.perNight')}</Text>
                 </View>
               </View>
 
@@ -873,7 +875,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={styles.viewDetailsButtonText}>Voir les détails</Text>
+                <Text style={styles.viewDetailsButtonText}>{t('search.seeDetails')}</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -882,11 +884,18 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
             <View style={styles.bottomSheetHeader}>
               <Text style={styles.resultsCount}>
                 {properties.length > 1000
-                  ? `Plus de ${Math.floor(properties.length / 1000) * 1000} logements`
-                  : `${properties.length} logement${properties.length > 1 ? 's' : ''}`}
+                  ? t('search.listingsCountMore', {
+                      count: String(Math.floor(properties.length / 1000) * 1000),
+                    })
+                  : t(
+                      properties.length === 1
+                        ? 'search.listingsCount_one'
+                        : 'search.listingsCount_other',
+                      { count: String(properties.length) },
+                    )}
               </Text>
               <View style={styles.sortInfo}>
-                <Text style={styles.sortLabel}>Classement des résultats</Text>
+                <Text style={styles.sortLabel}>{t('search.resultsRanking')}</Text>
                 <TouchableOpacity style={styles.infoButton}>
                   <Ionicons name="information-circle-outline" size={16} color="#666" />
                 </TouchableOpacity>

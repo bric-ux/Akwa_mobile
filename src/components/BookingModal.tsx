@@ -353,7 +353,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
     if (!user) {
       setVoucherDiscount({
         valid: false,
-        error: 'Vous devez être connecté pour utiliser un code promotionnel'
+        error: t('booking.voucherLoginRequired')
       });
       return;
     }
@@ -371,7 +371,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       if (error || !data) {
         setVoucherDiscount({
           valid: false,
-          error: 'Code promotionnel invalide ou déjà utilisé'
+          error: t('booking.voucherInvalid')
         });
         return;
       }
@@ -380,7 +380,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       if (data.valid_until && new Date(data.valid_until) < new Date()) {
         setVoucherDiscount({
           valid: false,
-          error: 'Ce code promotionnel a expiré'
+          error: t('booking.voucherExpired')
         });
         return;
       }
@@ -395,7 +395,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       console.error('Error validating voucher:', error);
       setVoucherDiscount({
         valid: false,
-        error: 'Erreur lors de la validation du code'
+          error: t('booking.voucherValidateError')
       });
     } finally {
       setValidatingVoucher(false);
@@ -497,12 +497,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   const handleSubmit = async () => {
     if (!user) {
-      Alert.alert('Erreur', 'Vous devez être connecté pour faire une réservation');
+      Alert.alert(t('common.error'), t('booking.loginRequired'));
       return;
     }
 
     if (!checkIn || !checkOut) {
-      Alert.alert('Erreur', 'Veuillez sélectionner les dates d\'arrivée et de départ');
+      Alert.alert(t('common.error'), t('booking.selectDatesRequired'));
       return;
     }
 
@@ -511,16 +511,18 @@ const BookingModal: React.FC<BookingModalProps> = ({
     
     if (nights < minimumNights) {
       Alert.alert(
-        'Durée insuffisante',
-        `Cette propriété nécessite un minimum de ${minimumNights} nuit${minimumNights > 1 ? 's' : ''}`
+        t('booking.minNightsTitle'),
+        t(minimumNights > 1 ? 'booking.minNightsDesc_other' : 'booking.minNightsDesc_one', {
+          count: String(minimumNights),
+        })
       );
       return;
     }
 
     if (totalGuests > (property.max_guests || 10)) {
       Alert.alert(
-        'Erreur',
-        `Le nombre maximum de voyageurs est ${property.max_guests || 10}`
+        t('common.error'),
+        t('booking.maxGuestsExceeded', { count: String(property.max_guests || 10) })
       );
       return;
     }
@@ -551,22 +553,22 @@ const BookingModal: React.FC<BookingModalProps> = ({
     // Paiement par carte ou Wave (résidence) : pas de résa en base avant paiement → checkout session puis redirection
     if (selectedPaymentMethod === 'card') {
       if (identityLoading) {
-        Alert.alert('Vérification', 'Vérification de l\'identité en cours...');
+        Alert.alert(t('booking.identityChecking'), t('booking.identityCheckingDesc'));
         return;
       }
       if (!hasUploadedIdentity) {
         Alert.alert(
-          'Vérification d\'identité requise',
-          'Vous devez envoyer une pièce d\'identité pour effectuer une réservation. Rendez-vous dans votre profil.',
-          [{ text: 'OK' }]
+          t('booking.identityRequired'),
+          t('booking.identityRequiredDesc'),
+          [{ text: t('common.ok') }]
         );
         return;
       }
       if (!isVerified && verificationStatus !== 'pending') {
         Alert.alert(
-          'Identité en cours de vérification',
-          'Votre pièce d\'identité est en cours de vérification. Vous pourrez réserver une fois qu\'elle sera validée par notre équipe.',
-          [{ text: 'OK' }]
+          t('booking.identityPendingTitle'),
+          t('booking.identityPendingDesc'),
+          [{ text: t('common.ok') }]
         );
         return;
       }
@@ -579,35 +581,35 @@ const BookingModal: React.FC<BookingModalProps> = ({
     if (selectedPaymentMethod === 'wave') {
       if (currency !== 'XOF') {
         Alert.alert(
-          'Devise requise',
-          'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Voulez-vous passer en CFA pour pouvoir payer avec Wave ?',
+          t('booking.currencyRequired'),
+          t('booking.waveCurrencyDesc'),
           [
-            { text: 'Annuler', style: 'cancel' },
-            { text: 'Passer en CFA', onPress: async () => {
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('booking.switchToCfa'), onPress: async () => {
               await changeCurrency('XOF');
-              Alert.alert('Devise mise à jour', 'La devise a été passée en Franc CFA. Vous pouvez maintenant cliquer sur le bouton de paiement pour continuer avec Wave.');
+              Alert.alert(t('booking.currencyUpdated'), t('booking.currencyUpdatedDesc'));
             } },
           ]
         );
         return;
       }
       if (identityLoading) {
-        Alert.alert('Vérification', 'Vérification de l\'identité en cours...');
+        Alert.alert(t('booking.identityChecking'), t('booking.identityCheckingDesc'));
         return;
       }
       if (!hasUploadedIdentity) {
         Alert.alert(
-          'Vérification d\'identité requise',
-          'Vous devez envoyer une pièce d\'identité pour effectuer une réservation. Rendez-vous dans votre profil.',
-          [{ text: 'OK' }]
+          t('booking.identityRequired'),
+          t('booking.identityRequiredDesc'),
+          [{ text: t('common.ok') }]
         );
         return;
       }
       if (!isVerified && verificationStatus !== 'pending') {
         Alert.alert(
-          'Identité en cours de vérification',
-          'Votre pièce d\'identité est en cours de vérification. Vous pourrez réserver une fois qu\'elle sera validée par notre équipe.',
-          [{ text: 'OK' }]
+          t('booking.identityPendingTitle'),
+          t('booking.identityPendingDesc'),
+          [{ text: t('common.ok') }]
         );
         return;
       }
@@ -664,17 +666,17 @@ const BookingModal: React.FC<BookingModalProps> = ({
         Linking.openURL(checkoutResult.url).catch((openErr) => {
           console.error('Linking.openURL failed:', openErr);
           Alert.alert(
-            'Paiement',
-            'La page de paiement n\'a pas pu s\'ouvrir. Veuillez réessayer.',
-            [{ text: 'OK' }]
+            t('booking.payment'),
+            t('booking.paymentOpenFailed'),
+            [{ text: t('common.ok') }]
           );
         });
         return;
       } catch (stripeErr) {
         console.error('Stripe checkout error:', stripeErr);
         setOpeningStripe(false);
-        const msg = stripeErr instanceof Error ? stripeErr.message : 'Le paiement n\'a pas pu être initié. Veuillez réessayer.';
-        Alert.alert('Paiement', msg, [{ text: 'OK' }]);
+        const msg = stripeErr instanceof Error ? stripeErr.message : t('booking.paymentInitFailed');
+        Alert.alert(t('booking.payment'), msg, [{ text: t('common.ok') }]);
         return;
       }
     }
@@ -683,9 +685,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
       try {
         setOpeningStripe(true);
         const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
-        const waveAmountXof = currency === 'EUR' && rates.EUR
-          ? Math.round(cardChargeAmount * rates.EUR)
-          : Math.round(cardChargeAmount);
+        // Montants métier toujours en XOF (Wave n’accepte que le FCFA).
+        const waveAmountXof = Math.round(cardChargeAmount);
         const waveBody: Record<string, unknown> = {
           checkout_token: checkoutToken,
           payment_type: 'booking',
@@ -726,8 +727,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
       } catch (waveErr) {
         console.error('Wave checkout error:', waveErr);
         setOpeningStripe(false);
-        const msg = waveErr instanceof Error ? waveErr.message : 'Le paiement Wave n\'a pas pu être initié. Veuillez réessayer.';
-        Alert.alert('Paiement Wave', msg, [{ text: 'OK' }]);
+        const msg = waveErr instanceof Error ? waveErr.message : t('booking.waveInitFailed');
+        Alert.alert(t('booking.paymentWave'), msg, [{ text: t('common.ok') }]);
         return;
       }
     }
@@ -756,17 +757,17 @@ const BookingModal: React.FC<BookingModalProps> = ({
     if (!result.success && 'error' in result) {
       if (result.error === 'IDENTITY_REQUIRED') {
         Alert.alert(
-          'Vérification d\'identité requise',
-          'Vous devez envoyer une pièce d\'identité pour effectuer une réservation. Rendez-vous dans votre profil.',
-          [{ text: 'OK' }]
+          t('booking.identityRequired'),
+          t('booking.identityRequiredDesc'),
+          [{ text: t('common.ok') }]
         );
         return;
       }
       if (result.error === 'IDENTITY_NOT_VERIFIED') {
         Alert.alert(
-          'Identité en cours de vérification',
-          'Votre pièce d\'identité est en cours de vérification. Vous pourrez réserver une fois qu\'elle sera validée par notre équipe.',
-          [{ text: 'OK' }]
+          t('booking.identityPendingTitle'),
+          t('booking.identityPendingDesc'),
+          [{ text: t('common.ok') }]
         );
         return;
       }
@@ -775,12 +776,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
     if (result.success) {
       const isAutoBooking = property.auto_booking === true;
       Alert.alert(
-        isAutoBooking ? 'Réservation confirmée !' : 'Demande envoyée !',
+        isAutoBooking ? t('booking.success') : t('booking.requestSent'),
         isAutoBooking
-          ? 'Votre réservation a été confirmée automatiquement. Vous recevrez une confirmation par email.'
-          : 'Votre demande de réservation a été envoyée au propriétaire. Vous recevrez une notification lorsqu\'il répondra.',
+          ? t('booking.successAutoDesc')
+          : t('booking.requestSentDesc'),
         [{
-          text: 'OK',
+          text: t('common.ok'),
           onPress: () => {
             setCheckIn(null);
             setCheckOut(null);
@@ -797,8 +798,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
     } else {
       console.error('Erreur de réservation:', result.error || 'Erreur inconnue');
       Alert.alert(
-        'Erreur', 
-        result.error || 'Une erreur est survenue lors de l\'envoi de votre réservation. Veuillez réessayer.'
+        t('common.error'), 
+        result.error || t('booking.submitError')
       );
     }
   };
@@ -913,33 +914,33 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
     if (pendingWaveCheckoutToken) {
       Alert.alert(
-        'Abandonner le paiement ?',
-        "Vous pourrez réserver à nouveau plus tard. Aucune réservation n'a été créée.",
+        t('booking.abandonPayment'),
+        t('booking.abandonPaymentDesc'),
         [
-          { text: 'Continuer le paiement', style: 'cancel' },
-          { text: "J'abandonne", style: 'destructive', onPress: () => { resetStripePendingState(); onClose(); } },
+          { text: t('booking.continuePayment'), style: 'cancel' },
+          { text: t('booking.abandonConfirm'), style: 'destructive', onPress: () => { resetStripePendingState(); onClose(); } },
         ]
       );
       return;
     }
     if (pendingStripeCheckoutToken) {
       Alert.alert(
-        'Abandonner le paiement ?',
-        "Vous pourrez réserver à nouveau plus tard. Aucune réservation n'a été créée.",
+        t('booking.abandonPayment'),
+        t('booking.abandonPaymentDesc'),
         [
-          { text: 'Continuer le paiement', style: 'cancel' },
-          { text: "J'abandonne", style: 'destructive', onPress: () => { resetStripePendingState(); onClose(); } },
+          { text: t('booking.continuePayment'), style: 'cancel' },
+          { text: t('booking.abandonConfirm'), style: 'destructive', onPress: () => { resetStripePendingState(); onClose(); } },
         ]
       );
       return;
     }
     Alert.alert(
-      'Abandonner le paiement ?',
-      'Cette opération annulera la demande en attente et libérera les dates.',
+      t('booking.abandonPayment'),
+      t('booking.abandonPaymentDescWithBooking'),
       [
-        { text: 'Continuer le paiement', style: 'cancel' },
+        { text: t('booking.continuePayment'), style: 'cancel' },
         {
-          text: 'J’abandonne',
+          text: t('booking.abandonConfirm'),
           style: 'destructive',
           onPress: async () => {
             await cancelPendingCardBooking(pendingStripeBookingId, 'Paiement carte abandonné');
@@ -949,7 +950,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
         },
       ]
     );
-  }, [isPendingStripe, pendingStripeCheckoutToken, pendingWaveCheckoutToken, pendingStripeBookingId, cancelPendingCardBooking, resetStripePendingState, onClose]);
+  }, [isPendingStripe, pendingStripeCheckoutToken, pendingWaveCheckoutToken, pendingStripeBookingId, cancelPendingCardBooking, resetStripePendingState, onClose, t]);
 
   const verifyStripePaymentNow = useCallback(async () => {
     const hasPending = pendingStripeCheckoutToken || pendingStripeBookingId || pendingWaveCheckoutToken;
@@ -972,8 +973,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
     if (result.paid) {
       setCardPaymentSuccessSubtitle(
         property.auto_booking
-          ? 'Votre réservation est confirmée. Vous recevrez une confirmation par email.'
-          : 'Votre demande a été envoyée au propriétaire. Vous serez notifié de sa réponse.'
+          ? t('booking.successAutoShort')
+          : t('booking.requestSentShort')
       );
       setShowCardPaymentSuccess(true);
       resetStripePendingState();
@@ -997,6 +998,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
     property.auto_booking,
     resetStripePendingState,
     onClose,
+    t,
   ]);
 
   useEffect(() => {
@@ -1016,10 +1018,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
           }
           resetStripePendingState();
           Alert.alert(
-            'Paiement expiré',
+            t('booking.paymentExpired'),
             pendingStripeCheckoutToken
-              ? 'Le délai de paiement est dépassé. Aucune réservation n\'a été créée.'
-              : 'Le délai de paiement est dépassé. La demande en attente a été annulée.'
+              ? t('booking.paymentExpiredNoBooking')
+              : t('booking.paymentExpiredCancelled')
           );
         })();
       }
@@ -1080,14 +1082,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   const validatePaymentInfo = () => {
     if (!selectedPaymentMethod) {
-      Alert.alert('Méthode de paiement requise', 'Veuillez choisir une méthode de paiement pour continuer.');
+      Alert.alert(t('booking.paymentMethodRequired'), t('booking.paymentMethodRequiredDesc'));
       return false;
     }
     // Carte, Wave, cash : pas de saisie dans l'app (carte/Wave → checkout, cash → résa directe).
     if (selectedPaymentMethod === 'card' || selectedPaymentMethod === 'cash' || selectedPaymentMethod === 'wave') {
       return true;
     }
-    Alert.alert('Bientot disponible', 'Ce moyen de paiement sera bientot disponible.');
+    Alert.alert(t('booking.comingSoon'), t('booking.comingSoonDesc'));
     return false;
   };
 
@@ -1151,7 +1153,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 ? (property.location as any).name 
                 : typeof property.location === 'string' 
                 ? property.location 
-                : (property as any).locations?.name || 'Localisation inconnue'}
+                : (property as any).locations?.name || t('bookings.locationUnknown')}
             </Text>
             <Text style={styles.propertyPrice}>
               {formatPrice(property.price_per_night || 0)}/{t('common.perNight')}
@@ -1399,18 +1401,18 @@ const BookingModal: React.FC<BookingModalProps> = ({
           {(pendingStripeBookingId || pendingStripeCheckoutToken || pendingWaveCheckoutToken) && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
-                {property.auto_booking ? 'Paiement en attente' : 'En attente d\'acceptation'}
+                {property.auto_booking ? t('booking.paymentPending') : t('booking.awaitingAcceptance')}
               </Text>
               <View style={styles.stripePendingBox}>
                 <ActivityIndicator size="small" color={pendingWaveCheckoutToken ? '#8b5cf6' : '#2563eb'} />
                 <Text style={styles.stripePendingText}>
                   {pendingWaveCheckoutToken
                     ? (property.auto_booking
-                        ? 'Finalisez le paiement sur Wave. En revenant ici, la confirmation se fera automatiquement.'
-                        : 'Finalisez le paiement sur Wave. En revenant ici, votre demande sera enregistrée et vous serez en attente d\'acceptation par l\'hôte.')
+                        ? t('booking.wavePendingAuto')
+                        : t('booking.wavePendingRequest'))
                     : (property.auto_booking
-                        ? 'Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.'
-                        : 'Finalisez le paiement sur Stripe. En revenant ici, votre demande sera enregistrée et vous serez en attente d\'acceptation par l\'hôte.')}
+                        ? t('booking.stripePendingAuto')
+                        : t('booking.stripePendingRequest'))}
                 </Text>
                 {lastPaymentStatus && (
                   <Text style={styles.stripeStatusText}>
@@ -1418,7 +1420,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   </Text>
                 )}
                 <Text style={styles.stripePendingCountdown}>
-                  Expiration dans {Math.max(0, Math.floor(stripeTimeLeftSec / 60))}:{String(Math.max(0, stripeTimeLeftSec % 60)).padStart(2, '0')}
+                  {t('booking.expiresIn', {
+                    time: `${Math.max(0, Math.floor(stripeTimeLeftSec / 60))}:${String(Math.max(0, stripeTimeLeftSec % 60)).padStart(2, '0')}`,
+                  })}
                 </Text>
                 <View style={styles.stripePendingActions}>
                   <TouchableOpacity
@@ -1429,14 +1433,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     {checkingStripeStatus ? (
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
-                      <Text style={styles.stripeActionPrimaryText}>Verifier le paiement</Text>
+                      <Text style={styles.stripeActionPrimaryText}>{t('booking.verifyPayment')}</Text>
                     )}
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.stripeActionButton, styles.stripeActionDanger]}
                     onPress={handleAbandonStripeOperation}
                   >
-                    <Text style={styles.stripeActionDangerText}>Annuler le paiement</Text>
+                    <Text style={styles.stripeActionDangerText}>{t('booking.cancelPayment')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1447,7 +1451,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           {checkIn && checkOut && nights > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t('booking.paymentMethod')}</Text>
-              <Text style={styles.paymentMethodHint}>Cliquez pour choisir votre moyen de paiement</Text>
+              <Text style={styles.paymentMethodHint}>{t('booking.clickToChoosePayment')}</Text>
               
               {/* Bouton pour ouvrir la pop-up de sélection */}
               <TouchableOpacity
@@ -1458,25 +1462,25 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   {!selectedPaymentMethod && (
                     <>
                       <Ionicons name="wallet-outline" size={24} color="#666" />
-                      <Text style={[styles.paymentMethodSelectorText, { color: '#666' }]}>Choisir une méthode de paiement</Text>
+                      <Text style={[styles.paymentMethodSelectorText, { color: '#666' }]}>{t('booking.choosePaymentMethod')}</Text>
                     </>
                   )}
                   {selectedPaymentMethod === 'card' && (
                     <>
                       <Ionicons name="card" size={24} color="#2563eb" />
-                      <Text style={styles.paymentMethodSelectorText}>Carte bancaire</Text>
+                      <Text style={styles.paymentMethodSelectorText}>{t('booking.card')}</Text>
                     </>
                   )}
                   {selectedPaymentMethod === 'wave' && (
                     <>
                       <Ionicons name="phone-portrait" size={24} color="#8b5cf6" />
-                      <Text style={styles.paymentMethodSelectorText}>Wave • Recommandé</Text>
+                      <Text style={styles.paymentMethodSelectorText}>{t('booking.wave')}</Text>
                     </>
                   )}
                   {selectedPaymentMethod === 'cash' && (
                     <>
                       <Ionicons name="cash" size={24} color="#6b7280" />
-                      <Text style={styles.paymentMethodSelectorText}>Espèces • Recommandé</Text>
+                      <Text style={styles.paymentMethodSelectorText}>{t('booking.cash')}</Text>
                     </>
                   )}
                 </View>
@@ -1490,8 +1494,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     <Ionicons name="card" size={20} color="#2563eb" />
                     <Text style={styles.securityText}>
                       {property.auto_booking
-                        ? 'Vous serez redirigé vers Stripe pour un paiement sécurisé. Après paiement validé, votre réservation sera confirmée automatiquement.'
-                        : 'Vous serez redirigé vers Stripe pour un paiement sécurisé. Après paiement validé, votre demande de réservation sera envoyée au propriétaire.'}
+                        ? t('booking.stripeRedirectAuto')
+                        : t('booking.stripeRedirectRequest')}
                     </Text>
                   </View>
                 </View>
@@ -1503,8 +1507,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     <Ionicons name="phone-portrait" size={20} color="#8b5cf6" />
                     <Text style={styles.securityText}>
                       {property.auto_booking
-                        ? 'Vous serez redirigé vers l\'app Wave pour un paiement sécurisé. Après paiement validé, votre réservation sera confirmée automatiquement.'
-                        : 'Vous serez redirigé vers l\'app Wave pour un paiement sécurisé. Après paiement validé, votre demande de réservation sera envoyée au propriétaire.'}
+                        ? t('booking.waveRedirectAuto')
+                        : t('booking.waveRedirectRequest')}
                     </Text>
                   </View>
                 </View>
@@ -1513,17 +1517,16 @@ const BookingModal: React.FC<BookingModalProps> = ({
               {/* Informations pour espèces - Affiché juste en dessous */}
               {selectedPaymentMethod === 'cash' && (
                 <View style={styles.paymentInfoContainer}>
-                  <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
+                  <Text style={styles.paymentInfoTitle}>{t('booking.paymentInfo')}</Text>
                   <View style={styles.paymentForm}>
                     <View style={styles.cashInfo}>
                       <Ionicons name="cash" size={48} color="#6b7280" />
-                      <Text style={styles.cashTitle}>Paiement en espèces</Text>
+                      <Text style={styles.cashTitle}>{t('booking.cashPayment')}</Text>
                       <Text style={styles.cashDescription}>
-                        Vous paierez directement à l'hôte lors de votre arrivée. 
-                        Assurez-vous d'avoir le montant exact en espèces.
+                        {t('booking.cashPaymentDesc')}
                       </Text>
                       <View style={styles.cashAmount}>
-                        <Text style={styles.cashAmountLabel}>Montant à payer :</Text>
+                        <Text style={styles.cashAmountLabel}>{t('booking.amountToPay')}</Text>
                         <Text style={styles.cashAmountValue}>{formatPayment(finalTotal)}</Text>
                       </View>
                     </View>
@@ -1541,7 +1544,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <View style={styles.priceRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.priceLabel}>
-                      {formatPayment(effectivePrice !== null ? effectivePrice : (property.price_per_night || 0))} × {nights} nuit{nights > 1 ? 's' : ''}
+                      {formatPayment(effectivePrice !== null ? effectivePrice : (property.price_per_night || 0))}{' '}
+                      {t(nights > 1 ? 'booking.nightsTimes_other' : 'booking.nightsTimes', { count: String(nights) })}
                     </Text>
                   </View>
                   <Text style={styles.priceValue}>{formatPayment(pricing.originalTotal)}</Text>
@@ -1551,8 +1555,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   <View style={styles.priceRow}>
                     <Text style={styles.discountLabel}>
                       {pricing.discountType === 'long_stay' 
-                        ? `Réduction long séjour (${property.long_stay_discount_percentage}% pour ${property.long_stay_discount_min_nights}+ nuits)`
-                        : `Réduction (${property.discount_percentage}% pour ${property.discount_min_nights}+ nuits)`
+                        ? t('booking.longStayDiscount', {
+                            pct: String(property.long_stay_discount_percentage),
+                            nights: String(property.long_stay_discount_min_nights),
+                          })
+                        : t('booking.stayDiscount', {
+                            pct: String(property.discount_percentage),
+                            nights: String(property.discount_min_nights),
+                          })
                       }
                     </Text>
                     <Text style={styles.discountValue}>-{formatPayment(pricing.discountAmount)}</Text>
@@ -1596,9 +1606,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <View style={[styles.priceRow, styles.totalRow]}>
                   <Text style={styles.totalLabel}>
                     {(selectedPaymentMethod === 'card' || selectedPaymentMethod === 'wave') && effectivePaymentPlan === 'split'
-                      ? 'Total à payer maintenant'
+                      ? t('booking.totalPayNow')
                       : selectedPaymentMethod === 'card'
-                        ? 'Total à payer par carte'
+                        ? t('booking.totalPayByCard')
                         : t('booking.total')}
                   </Text>
                   <Text style={styles.totalValue}>
@@ -1617,7 +1627,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 </View>
                 {(selectedPaymentMethod === 'card' || selectedPaymentMethod === 'wave') && effectivePaymentPlan === 'split' && (
                   <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>Restant à l'arrivée</Text>
+                    <Text style={styles.priceLabel}>{t('booking.remainingOnArrival')}</Text>
                     <Text style={styles.priceValue}>{formatPayment(finalTotal - cardChargeAmount)}</Text>
                   </View>
                 )}
@@ -1644,23 +1654,23 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 {!hasUploadedIdentity
                   ? t('booking.identityRequired')
                   : hasUploadedIdentity && !isVerified && verificationStatus === 'rejected'
-                    ? 'Identité rejetée'
+                    ? t('booking.identityRejected')
                     : openingStripe
-                      ? (selectedPaymentMethod === 'wave' ? 'Ouverture de Wave...' : 'Ouverture de Stripe...')
+                      ? (selectedPaymentMethod === 'wave' ? t('booking.openingWave') : t('booking.openingStripe'))
                     : isPendingStripe
-                      ? (property.auto_booking ? 'Paiement en attente...' : 'En attente d\'acceptation...')
+                      ? (property.auto_booking ? t('booking.paymentPendingEllipsis') : t('booking.awaitingAcceptanceEllipsis'))
                     : selectedPaymentMethod === 'card'
                       ? property.auto_booking
-                        ? 'Payer et confirmer'
-                        : 'Payer et envoyer la demande'
+                        ? t('booking.payAndConfirm')
+                        : t('booking.payAndSendRequest')
                     : selectedPaymentMethod === 'wave'
                       ? property.auto_booking
-                        ? 'Payer avec Wave'
-                        : 'Payer avec Wave et envoyer la demande'
+                        ? t('booking.payWithWave')
+                        : t('booking.payWithWaveAndSend')
                     : selectedPaymentMethod === 'cash'
                       ? t('booking.confirmBooking')
                     : !selectedPaymentMethod
-                      ? 'Choisir une méthode de paiement'
+                      ? t('booking.choosePaymentMethod')
                     : effectivePaymentPlan === 'split'
                           ? `${t('booking.pay')} ${formatPayment(cardChargeAmount)} ${t('common.now')}`
                           : property.auto_booking 
@@ -1736,9 +1746,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   <View style={styles.paymentMethodContent}>
                     <Ionicons name="card" size={24} color="#2563eb" />
                     <View style={styles.paymentMethodInfo}>
-                      <Text style={styles.paymentMethodTitle}>Carte bancaire</Text>
+                      <Text style={styles.paymentMethodTitle}>{t('booking.card')}</Text>
                       <Text style={styles.paymentMethodDescription}>
-                        Visa, Mastercard
+                        {t('booking.cardNetworks')}
                       </Text>
                     </View>
                   </View>
@@ -1759,11 +1769,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 onPress={() => {
                   if (currency !== 'XOF') {
                     Alert.alert(
-                      'Devise requise',
-                      'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Voulez-vous passer en CFA pour pouvoir payer avec Wave ?',
+                      t('booking.currencyRequired'),
+                      t('booking.waveCurrencyDesc'),
                       [
-                        { text: 'Annuler', style: 'cancel' },
-                        { text: 'Passer en CFA', onPress: async () => {
+                        { text: t('common.cancel'), style: 'cancel' },
+                        { text: t('booking.switchToCfa'), onPress: async () => {
                           await changeCurrency('XOF');
                           setSelectedPaymentMethod('wave');
                           setShowPaymentMethodModal(false);
@@ -1783,11 +1793,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
                       <Text style={styles.paymentMethodTitle}>Wave</Text>
                       <View style={styles.recommendedBadge}>
                         <Ionicons name="star" size={10} color="#FFD700" />
-                        <Text style={styles.recommendedText}>Recommandé</Text>
+                        <Text style={styles.recommendedText}>{t('booking.recommended')}</Text>
                       </View>
                     </View>
                     <Text style={styles.paymentMethodDescription}>
-                      Paiement mobile Wave
+                      {t('booking.waveMobilePayment')}
                     </Text>
                   </View>
                 </View>
@@ -1814,10 +1824,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   <Ionicons name="cash" size={24} color="#6b7280" />
                   <View style={styles.paymentMethodInfo}>
                     <View style={styles.paypalHeader}>
-                      <Text style={styles.paymentMethodTitle}>Espèces</Text>
+                      <Text style={styles.paymentMethodTitle}>{t('booking.cash')}</Text>
                       <View style={styles.recommendedBadge}>
                         <Ionicons name="star" size={10} color="#FFD700" />
-                        <Text style={styles.recommendedText}>Recommandé</Text>
+                        <Text style={styles.recommendedText}>{t('booking.recommended')}</Text>
                       </View>
                     </View>
                     <Text style={styles.paymentMethodDescription}>

@@ -42,6 +42,7 @@ import AddHotelEstablishmentScreen from '../screens/AddHotelEstablishmentScreen'
 import ManageHotelRoomTypesScreen from '../screens/ManageHotelRoomTypesScreen';
 import MyHotelEstablishmentsScreen from '../screens/MyHotelEstablishmentsScreen';
 import HotelOwnerBookingsScreen from '../screens/HotelOwnerBookingsScreen';
+import HotelOwnerPayoutsScreen from '../screens/HotelOwnerPayoutsScreen';
 import MonthlyRentalApplyScreen from '../screens/MonthlyRentalApplyScreen';
 import HostOnboardingAssistantScreen from '../screens/HostOnboardingAssistantScreen';
 import MyHostApplicationsScreen from '../screens/MyHostApplicationsScreen';
@@ -558,6 +559,11 @@ const HotelOwnerTabNavigator = () => {
         name="HotelBookingsTab"
         component={HotelOwnerBookingsScreen}
         options={{ tabBarLabel: 'Réservations' }}
+      />
+      <HotelOwnerTab.Screen
+        name="HotelPayoutsTab"
+        component={HotelOwnerPayoutsScreen}
+        options={{ tabBarLabel: 'Paiements' }}
       />
       <HotelOwnerTab.Screen
         name="HotelMessagesTab"

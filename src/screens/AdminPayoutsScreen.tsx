@@ -114,12 +114,85 @@ interface VehiclePayout {
   };
 }
 
-type PayoutItem = (PropertyPayout & { type: 'property' }) | (VehiclePayout & { type: 'vehicle' });
+interface HotelPayout {
+  id: string;
+  booking_id: string;
+  host_id: string;
+  penalty_pending_total?: number;
+  total_amount: number;
+  commission_amount: number;
+  host_amount: number;
+  admin_payment_status: 'pending' | 'paid';
+  admin_paid_at: string | null;
+  scheduled_for: string;
+  created_at: string;
+  booking: {
+    id: string;
+    check_in_date: string;
+    check_out_date: string;
+    total_price: number;
+    status: string;
+    host_net_amount: number | null;
+    payment_method: string | null;
+    paid_at: string | null;
+    establishment: {
+      id: string;
+      title: string;
+      host_id: string;
+    };
+    guest_profile: {
+      first_name: string;
+      last_name: string;
+      email: string;
+      phone: string;
+    };
+    host_profile: {
+      first_name: string;
+      last_name: string;
+      email: string;
+      phone: string;
+    };
+  };
+}
+
+type PayoutItem =
+  | (PropertyPayout & { type: 'property' })
+  | (VehiclePayout & { type: 'vehicle' })
+  | (HotelPayout & { type: 'hotel' });
+
+function payoutTableName(type: PayoutItem['type']) {
+  if (type === 'property') return 'host_payouts';
+  if (type === 'hotel') return 'hotel_payouts';
+  return 'vehicle_payouts';
+}
+
+function payoutGrossAmount(p: PayoutItem): number {
+  return p.type === 'vehicle' ? p.owner_amount : p.host_amount;
+}
 
 function getNetHostAmountAfterPenalty(p: PayoutItem): number {
-  const gross = p.type === 'property' ? p.host_amount : p.owner_amount;
+  const gross = payoutGrossAmount(p);
   const pen = p.penalty_pending_total ?? 0;
   return Math.max(0, gross - pen);
+}
+
+function payoutTitle(p: PayoutItem): string {
+  if (p.type === 'property') return p.booking?.properties?.title || 'Résidence';
+  if (p.type === 'hotel') return p.booking?.establishment?.title || 'Hôtel';
+  return `${p.booking?.vehicles?.brand || ''} ${p.booking?.vehicles?.model || ''}`.trim() || 'Véhicule';
+}
+
+function payoutRecipientName(p: PayoutItem): string {
+  if (p.type === 'vehicle') {
+    return `${p.booking?.owner_profile?.first_name || ''} ${p.booking?.owner_profile?.last_name || ''}`.trim();
+  }
+  return `${p.booking?.host_profile?.first_name || ''} ${p.booking?.host_profile?.last_name || ''}`.trim();
+}
+
+function payoutTypeLabel(type: PayoutItem['type']): string {
+  if (type === 'property') return 'Résidence meublée';
+  if (type === 'hotel') return 'Hôtel';
+  return 'Location de véhicule';
 }
 
 const AdminPayoutsScreen: React.FC = () => {
@@ -129,7 +202,7 @@ const AdminPayoutsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'paid'>('all');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'property' | 'vehicle'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'property' | 'vehicle' | 'hotel'>('all');
   const [selectedPayout, setSelectedPayout] = useState<PayoutItem | null>(null);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
@@ -419,6 +492,76 @@ const AdminPayoutsScreen: React.FC = () => {
         }
       }
 
+      // Charger les payouts hôtels
+      if (typeFilter === 'all' || typeFilter === 'hotel') {
+        let hotelPayoutsQuery = supabase
+          .from('hotel_payouts')
+          .select(`
+            *,
+            booking:hotel_bookings(
+              id,
+              check_in_date,
+              check_out_date,
+              total_price,
+              status,
+              host_net_amount,
+              guest_id,
+              payment_method,
+              paid_at,
+              establishment:hotel_establishments(
+                id,
+                title,
+                host_id
+              )
+            )
+          `)
+          .order('scheduled_for', { ascending: false });
+
+        if (statusFilter === 'pending') {
+          hotelPayoutsQuery = hotelPayoutsQuery.eq('admin_payment_status', 'pending');
+        } else if (statusFilter === 'paid') {
+          hotelPayoutsQuery = hotelPayoutsQuery.eq('admin_payment_status', 'paid');
+        }
+
+        const { data: hotelPayouts, error: hotelError } = await hotelPayoutsQuery;
+
+        if (hotelError) {
+          console.error('Erreur chargement payouts hôtels:', hotelError);
+        } else if (hotelPayouts && hotelPayouts.length > 0) {
+          const enrichedHotelPayouts = await Promise.all(
+            hotelPayouts.map(async (payout: any) => {
+              const [guestRes, hostRes] = await Promise.all([
+                supabase
+                  .from('profiles')
+                  .select('user_id, first_name, last_name, email, phone')
+                  .eq('user_id', payout.booking?.guest_id)
+                  .maybeSingle(),
+                supabase
+                  .from('profiles')
+                  .select('user_id, first_name, last_name, email, phone')
+                  .eq('user_id', payout.host_id || payout.booking?.establishment?.host_id)
+                  .maybeSingle(),
+              ]);
+
+              return {
+                ...payout,
+                penalty_pending_total: 0,
+                booking: {
+                  ...payout.booking,
+                  guest_profile: guestRes.data,
+                  host_profile: hostRes.data,
+                },
+                type: 'hotel' as const,
+              };
+            })
+          );
+
+          enrichedHotelPayouts.forEach((payout) => {
+            allPayouts.push(payout);
+          });
+        }
+      }
+
       // Trier par date prévue (plus récent en premier)
       allPayouts.sort((a, b) => 
         new Date(b.scheduled_for).getTime() - new Date(a.scheduled_for).getTime()
@@ -510,7 +653,7 @@ const AdminPayoutsScreen: React.FC = () => {
     setProcessingPayment(true);
     try {
       const paymentReference = buildAdminPaymentReference();
-      const tableName = selectedPayout.type === 'property' ? 'host_payouts' : 'vehicle_payouts';
+      const tableName = payoutTableName(selectedPayout.type);
       const { error } = await supabase
         .from(tableName)
         .update({
@@ -544,17 +687,13 @@ const AdminPayoutsScreen: React.FC = () => {
 
     setProcessingPayment(true);
     try {
-      const title = payout.type === 'property' 
-        ? payout.booking.properties?.title 
-        : `${payout.booking.vehicles?.brand} ${payout.booking.vehicles?.model}`;
+      const title = payoutTitle(payout);
       
-      const dates = payout.type === 'property'
-        ? `${formatDate(payout.booking.check_in_date)} - ${formatDate(payout.booking.check_out_date)}`
-        : `${formatDate(payout.booking.start_date)} - ${formatDate(payout.booking.end_date)}`;
+      const dates = payout.type === 'vehicle'
+        ? `${formatDate(payout.booking.start_date)} - ${formatDate(payout.booking.end_date)}`
+        : `${formatDate(payout.booking.check_in_date)} - ${formatDate(payout.booking.check_out_date)}`;
 
-      const recipientName = payout.type === 'property'
-        ? `${payout.booking.host_profile?.first_name || ''} ${payout.booking.host_profile?.last_name || ''}`.trim()
-        : `${payout.booking.owner_profile?.first_name || ''} ${payout.booking.owner_profile?.last_name || ''}`.trim();
+      const recipientName = payoutRecipientName(payout);
 
       // Appeler la fonction send-email pour générer et envoyer le PDF
       const { error: emailError } = await supabase.functions.invoke('send-email', {
@@ -570,8 +709,8 @@ const AdminPayoutsScreen: React.FC = () => {
             recipientName: recipientName,
             totalAmount: payout.total_amount,
             commissionAmount: payout.commission_amount,
-            commissionRate: payout.commission_rate,
-            hostAmount: payout.type === 'property' ? payout.host_amount : payout.owner_amount,
+            commissionRate: (payout as any).commission_rate || 0,
+            hostAmount: payoutGrossAmount(payout),
             scheduledFor: payout.scheduled_for,
             paidAt: payout.admin_paid_at,
             paymentStatus: payout.admin_payment_status,
@@ -739,6 +878,20 @@ const AdminPayoutsScreen: React.FC = () => {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
+              style={[styles.filterButton, typeFilter === 'hotel' && styles.filterButtonActive]}
+              onPress={() => setTypeFilter('hotel')}
+            >
+              <Ionicons 
+                name="business-outline" 
+                size={16} 
+                color={typeFilter === 'hotel' ? '#fff' : '#666'} 
+                style={{ marginRight: 4 }}
+              />
+              <Text style={[styles.filterText, typeFilter === 'hotel' && styles.filterTextActive]}>
+                Hôtels
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.filterButton, typeFilter === 'vehicle' && styles.filterButtonActive]}
               onPress={() => setTypeFilter('vehicle')}
             >
@@ -798,15 +951,15 @@ const AdminPayoutsScreen: React.FC = () => {
           payouts.map((payout) => {
             const statusColor = getStatusColor(payout.admin_payment_status);
             const eligible = isEligibleForPayment(payout);
-            const title = payout.type === 'property' 
-              ? payout.booking.properties?.title 
-              : `${payout.booking.vehicles?.brand} ${payout.booking.vehicles?.model}`;
-            const recipientName = payout.type === 'property'
-              ? `${payout.booking.host_profile?.first_name || ''} ${payout.booking.host_profile?.last_name || ''}`.trim()
-              : `${payout.booking.owner_profile?.first_name || ''} ${payout.booking.owner_profile?.last_name || ''}`.trim();
-            const grossAmount = payout.type === 'property' ? payout.host_amount : payout.owner_amount;
+            const title = payoutTitle(payout);
+            const recipientName = payoutRecipientName(payout);
+            const grossAmount = payoutGrossAmount(payout);
             const amount = getNetHostAmountAfterPenalty(payout);
             const penaltyPart = payout.penalty_pending_total ?? 0;
+            const iconName =
+              payout.type === 'property' ? 'home-outline' : payout.type === 'hotel' ? 'business-outline' : 'car-outline';
+            const iconColor =
+              payout.type === 'property' ? '#3498db' : payout.type === 'hotel' ? '#7c3aed' : '#e67e22';
 
             return (
               <TouchableOpacity
@@ -817,16 +970,16 @@ const AdminPayoutsScreen: React.FC = () => {
                 <View style={styles.payoutHeader}>
                   <View style={styles.payoutTitleContainer}>
                     <Ionicons 
-                      name={payout.type === 'property' ? 'home-outline' : 'car-outline'} 
+                      name={iconName} 
                       size={20} 
-                      color={payout.type === 'property' ? '#3498db' : '#e67e22'} 
+                      color={iconColor} 
                     />
                     <View style={styles.payoutTitleText}>
                       <Text style={styles.payoutTitle} numberOfLines={1}>
                         {title}
                       </Text>
                       <Text style={styles.payoutType}>
-                        {payout.type === 'property' ? 'Résidence meublée' : 'Location de véhicule'}
+                        {payoutTypeLabel(payout.type)}
                       </Text>
                     </View>
                   </View>
@@ -848,9 +1001,9 @@ const AdminPayoutsScreen: React.FC = () => {
                   <View style={styles.detailRow}>
                     <Ionicons name="calendar-outline" size={16} color="#666" />
                     <Text style={styles.detailText}>
-                      {payout.type === 'property' 
-                        ? `${formatDate(payout.booking.check_in_date)} - ${formatDate(payout.booking.check_out_date)}`
-                        : `${formatDate(payout.booking.start_date)} - ${formatDate(payout.booking.end_date)}`
+                      {payout.type === 'vehicle' 
+                        ? `${formatDate(payout.booking.start_date)} - ${formatDate(payout.booking.end_date)}`
+                        : `${formatDate(payout.booking.check_in_date)} - ${formatDate(payout.booking.check_out_date)}`
                       }
                     </Text>
                   </View>
@@ -932,22 +1085,19 @@ const AdminPayoutsScreen: React.FC = () => {
                     <Text style={styles.infoLabel}>Type</Text>
                     <View style={styles.infoValueContainer}>
                       <Ionicons 
-                        name={selectedPayout.type === 'property' ? 'home-outline' : 'car-outline'} 
+                        name={selectedPayout.type === 'property' ? 'home-outline' : selectedPayout.type === 'hotel' ? 'business-outline' : 'car-outline'} 
                         size={16} 
-                        color={selectedPayout.type === 'property' ? '#3498db' : '#e67e22'} 
+                        color={selectedPayout.type === 'property' ? '#3498db' : selectedPayout.type === 'hotel' ? '#7c3aed' : '#e67e22'} 
                       />
                       <Text style={styles.infoValue}>
-                        {selectedPayout.type === 'property' ? 'Résidence meublée' : 'Location de véhicule'}
+                        {payoutTypeLabel(selectedPayout.type)}
                       </Text>
                     </View>
                   </View>
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Titre</Text>
                     <Text style={styles.infoValue}>
-                      {selectedPayout.type === 'property' 
-                        ? selectedPayout.booking.properties?.title 
-                        : `${selectedPayout.booking.vehicles?.brand} ${selectedPayout.booking.vehicles?.model}`
-                      }
+                      {payoutTitle(selectedPayout)}
                     </Text>
                   </View>
                   <View style={styles.infoRow}>
@@ -963,22 +1113,7 @@ const AdminPayoutsScreen: React.FC = () => {
                 {/* Dates */}
                 <View style={styles.modalSection}>
                   <Text style={styles.sectionTitle}>Dates</Text>
-                  {selectedPayout.type === 'property' ? (
-                    <>
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Arrivée</Text>
-                        <Text style={styles.infoValue}>
-                          {formatDate(selectedPayout.booking.check_in_date)}
-                        </Text>
-                      </View>
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Départ</Text>
-                        <Text style={styles.infoValue}>
-                          {formatDate(selectedPayout.booking.check_out_date)}
-                        </Text>
-                      </View>
-                    </>
-                  ) : (
+                  {selectedPayout.type === 'vehicle' ? (
                     <>
                       <View style={styles.infoRow}>
                         <Text style={styles.infoLabel}>Début</Text>
@@ -990,6 +1125,21 @@ const AdminPayoutsScreen: React.FC = () => {
                         <Text style={styles.infoLabel}>Fin</Text>
                         <Text style={styles.infoValue}>
                           {formatDate(selectedPayout.booking.end_date)}
+                        </Text>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Arrivée</Text>
+                        <Text style={styles.infoValue}>
+                          {formatDate(selectedPayout.booking.check_in_date)}
+                        </Text>
+                      </View>
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Départ</Text>
+                        <Text style={styles.infoValue}>
+                          {formatDate(selectedPayout.booking.check_out_date)}
                         </Text>
                       </View>
                     </>
@@ -1005,32 +1155,32 @@ const AdminPayoutsScreen: React.FC = () => {
                 {/* Client/Locataire */}
                 <View style={styles.modalSection}>
                   <Text style={styles.sectionTitle}>
-                    {selectedPayout.type === 'property' ? 'Voyageur' : 'Locataire'}
+                    {selectedPayout.type === 'vehicle' ? 'Locataire' : 'Voyageur'}
                   </Text>
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Nom</Text>
                     <Text style={styles.infoValue}>
-                      {selectedPayout.type === 'property'
-                        ? `${selectedPayout.booking.guest_profile?.first_name || ''} ${selectedPayout.booking.guest_profile?.last_name || ''}`.trim()
-                        : `${selectedPayout.booking.renter_profile?.first_name || ''} ${selectedPayout.booking.renter_profile?.last_name || ''}`.trim()
+                      {selectedPayout.type === 'vehicle'
+                        ? `${selectedPayout.booking.renter_profile?.first_name || ''} ${selectedPayout.booking.renter_profile?.last_name || ''}`.trim()
+                        : `${selectedPayout.booking.guest_profile?.first_name || ''} ${selectedPayout.booking.guest_profile?.last_name || ''}`.trim()
                       }
                     </Text>
                   </View>
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Email</Text>
                     <Text style={styles.infoValue}>
-                      {selectedPayout.type === 'property'
-                        ? selectedPayout.booking.guest_profile?.email || 'N/A'
-                        : selectedPayout.booking.renter_profile?.email || 'N/A'
+                      {selectedPayout.type === 'vehicle'
+                        ? selectedPayout.booking.renter_profile?.email || 'N/A'
+                        : selectedPayout.booking.guest_profile?.email || 'N/A'
                       }
                     </Text>
                   </View>
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Téléphone</Text>
                     <Text style={styles.infoValue}>
-                      {selectedPayout.type === 'property'
-                        ? selectedPayout.booking.guest_profile?.phone || 'N/A'
-                        : selectedPayout.booking.renter_profile?.phone || 'N/A'
+                      {selectedPayout.type === 'vehicle'
+                        ? selectedPayout.booking.renter_profile?.phone || 'N/A'
+                        : selectedPayout.booking.guest_profile?.phone || 'N/A'
                       }
                     </Text>
                   </View>
@@ -1039,32 +1189,29 @@ const AdminPayoutsScreen: React.FC = () => {
                 {/* Hôte/Propriétaire */}
                 <View style={styles.modalSection}>
                   <Text style={styles.sectionTitle}>
-                    {selectedPayout.type === 'property' ? 'Hôte' : 'Propriétaire'}
+                    {selectedPayout.type === 'property' ? 'Hôte' : selectedPayout.type === 'hotel' ? 'Hôtelier' : 'Propriétaire'}
                   </Text>
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Nom</Text>
                     <Text style={styles.infoValue}>
-                      {selectedPayout.type === 'property'
-                        ? `${selectedPayout.booking.host_profile?.first_name || ''} ${selectedPayout.booking.host_profile?.last_name || ''}`.trim()
-                        : `${selectedPayout.booking.owner_profile?.first_name || ''} ${selectedPayout.booking.owner_profile?.last_name || ''}`.trim()
-                      }
+                      {payoutRecipientName(selectedPayout)}
                     </Text>
                   </View>
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Email</Text>
                     <Text style={styles.infoValue}>
-                      {selectedPayout.type === 'property'
-                        ? selectedPayout.booking.host_profile?.email || 'N/A'
-                        : selectedPayout.booking.owner_profile?.email || 'N/A'
+                      {selectedPayout.type === 'vehicle'
+                        ? selectedPayout.booking.owner_profile?.email || 'N/A'
+                        : selectedPayout.booking.host_profile?.email || 'N/A'
                       }
                     </Text>
                   </View>
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Téléphone</Text>
                     <Text style={styles.infoValue}>
-                      {selectedPayout.type === 'property'
-                        ? selectedPayout.booking.host_profile?.phone || 'N/A'
-                        : selectedPayout.booking.owner_profile?.phone || 'N/A'
+                      {selectedPayout.type === 'vehicle'
+                        ? selectedPayout.booking.owner_profile?.phone || 'N/A'
+                        : selectedPayout.booking.host_profile?.phone || 'N/A'
                       }
                     </Text>
                   </View>
@@ -1072,7 +1219,7 @@ const AdminPayoutsScreen: React.FC = () => {
 
                 {/* Détails financiers - Paiement du client */}
                 <View style={styles.modalSection}>
-                  <Text style={styles.sectionTitle}>Paiement du {selectedPayout.type === 'property' ? 'voyageur' : 'locataire'}</Text>
+                  <Text style={styles.sectionTitle}>Paiement du {selectedPayout.type === 'vehicle' ? 'locataire' : 'voyageur'}</Text>
                   
                   {selectedPayout.type === 'property' ? (
                     <>
@@ -1154,6 +1301,40 @@ const AdminPayoutsScreen: React.FC = () => {
                         );
                       })()}
                     </>
+                  ) : selectedPayout.type === 'hotel' ? (
+                    <>
+                      {(() => {
+                        const checkIn = new Date(selectedPayout.booking.check_in_date);
+                        const checkOut = new Date(selectedPayout.booking.check_out_date);
+                        const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+                        const totalPaid = selectedPayout.booking.total_price || 0;
+
+                        return (
+                          <>
+                            <View style={styles.infoRow}>
+                              <Text style={styles.infoLabel}>Nombre de nuits</Text>
+                              <Text style={styles.infoValue}>{nights}</Text>
+                            </View>
+                            <View style={[styles.infoRow, styles.totalRow]}>
+                              <Text style={styles.infoLabelTotal}>Total payé</Text>
+                              <Text style={styles.infoValueTotal}>{formatPrice(totalPaid)}</Text>
+                            </View>
+                            {selectedPayout.booking.payment_method && (
+                              <View style={styles.infoRow}>
+                                <Text style={styles.infoLabel}>Méthode de paiement</Text>
+                                <Text style={styles.infoValue}>{selectedPayout.booking.payment_method}</Text>
+                              </View>
+                            )}
+                            {selectedPayout.booking.paid_at && (
+                              <View style={styles.infoRow}>
+                                <Text style={styles.infoLabel}>Date de paiement</Text>
+                                <Text style={styles.infoValue}>{formatDateTime(selectedPayout.booking.paid_at)}</Text>
+                              </View>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </>
                   ) : (
                     <>
                       {(() => {
@@ -1213,7 +1394,7 @@ const AdminPayoutsScreen: React.FC = () => {
                   
                   <View style={[styles.revenueDetailsModal, { backgroundColor: '#fef3c7', borderColor: '#f59e0b', borderWidth: 2 }]}>
                     <View style={styles.revenueRow}>
-                      <Text style={styles.revenueLabel}>Commission AkwaHome (avec TVA)</Text>
+                      <Text style={styles.revenueLabel}>Commission AkwaHome</Text>
                       <Text style={[styles.revenueAmount, { color: '#f59e0b', fontWeight: 'bold' }]}>
                         {formatPrice(selectedPayout.commission_amount)}
                       </Text>
@@ -1221,7 +1402,7 @@ const AdminPayoutsScreen: React.FC = () => {
                     <View style={styles.revenueRow}>
                       <Text style={styles.revenueLabel}>Taux de commission</Text>
                       <Text style={styles.revenueAmount}>
-                        {(selectedPayout.commission_rate * 100).toFixed(2)}% HT + 20% TVA = {(selectedPayout.commission_rate * 100 * 1.2).toFixed(2)}% TTC
+                        {(((selectedPayout as any).commission_rate || 0) * 100).toFixed(2)}%
                       </Text>
                     </View>
                     <View style={[styles.revenueRow, styles.revenueRowTotal]}>
@@ -1238,7 +1419,7 @@ const AdminPayoutsScreen: React.FC = () => {
                 {/* Détails financiers - Montant à verser */}
                 <View style={styles.modalSection}>
                   <Text style={styles.sectionTitle}>
-                    Montant à verser à {selectedPayout.type === 'property' ? "l'hôte" : 'le propriétaire'}
+                    Montant à verser à {selectedPayout.type === 'property' ? "l'hôte" : selectedPayout.type === 'hotel' ? "l'hôtelier" : 'le propriétaire'}
                   </Text>
                   
                   <View style={styles.revenueDetailsModal}>
@@ -1249,7 +1430,7 @@ const AdminPayoutsScreen: React.FC = () => {
                       </Text>
                     </View>
                     <View style={styles.revenueRow}>
-                      <Text style={styles.revenueLabel}>Commission AkwaHome (avec TVA)</Text>
+                      <Text style={styles.revenueLabel}>Commission AkwaHome</Text>
                       <Text style={styles.revenueAmount}>
                         {formatPrice(selectedPayout.commission_amount)}
                       </Text>
@@ -1257,7 +1438,7 @@ const AdminPayoutsScreen: React.FC = () => {
                     <View style={styles.revenueRow}>
                       <Text style={styles.revenueLabel}>Montant brut (hôte / propriétaire)</Text>
                       <Text style={styles.revenueAmount}>
-                        {formatPrice(selectedPayout.type === 'property' ? selectedPayout.host_amount : selectedPayout.owner_amount)}
+                        {formatPrice(payoutGrossAmount(selectedPayout))}
                       </Text>
                     </View>
                     {(selectedPayout.penalty_pending_total ?? 0) > 0 && (

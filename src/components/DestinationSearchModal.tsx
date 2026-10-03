@@ -22,6 +22,7 @@ import {
   resolvePreciseLocationFromDevice,
 } from '../lib/geolocation';
 import { loadRecentSearches, pushRecentSearch } from '../lib/recentSearches';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export interface DestinationSuggestion {
   id: string;
@@ -36,9 +37,15 @@ export interface DestinationSuggestion {
 
 const POPULAR_DESTINATIONS = ['Abidjan', 'Yamoussoukro', 'Grand-Bassam', 'San-Pédro', 'Bouaké'];
 
+type DestinationLabels = {
+  recentSearch: string;
+  popularDestination: string;
+};
+
 function buildDefaultSuggestionsFrom(
   recents: string[],
   filter = '',
+  labels: DestinationLabels,
 ): DestinationSuggestion[] {
   const term = filter.trim().toLowerCase();
   const items: DestinationSuggestion[] = [];
@@ -49,7 +56,7 @@ function buildDefaultSuggestionsFrom(
         id: `recent_${index}`,
         text: search,
         type: 'recent',
-        subtitle: 'Recherche récente',
+        subtitle: labels.recentSearch,
       });
     }
   });
@@ -61,7 +68,7 @@ function buildDefaultSuggestionsFrom(
           id: `popular_${index}`,
           text: city,
           type: 'popular',
-          subtitle: 'Destination populaire',
+          subtitle: labels.popularDestination,
         });
       }
     }
@@ -86,6 +93,11 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
   onSelect,
   embedded = false,
 }) => {
+  const { t } = useLanguage();
+  const destinationLabels: DestinationLabels = {
+    recentSearch: t('search.recentSearch'),
+    popularDestination: t('search.popularDestination'),
+  };
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<DestinationSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -118,14 +130,14 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
       if (cancelled) return;
       setRecentSearches(list);
       setQuery(initialQuery);
-      setResults(buildDefaultSuggestionsFrom(list, initialQuery));
+      setResults(buildDefaultSuggestionsFrom(list, initialQuery, destinationLabels));
     })();
-    const t = setTimeout(() => {
+    const focusTimer = setTimeout(() => {
       inputRef.current?.focus();
     }, Platform.OS === 'android' ? 350 : 100);
     return () => {
       cancelled = true;
-      clearTimeout(t);
+      clearTimeout(focusTimer);
     };
   }, [visible, initialQuery]);
 
@@ -144,7 +156,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
   }, [visible, embedded, onClose]);
 
   const buildDefaultSuggestions = (filter = ''): DestinationSuggestion[] =>
-    buildDefaultSuggestionsFrom(recentSearchesRef.current, filter);
+    buildDefaultSuggestionsFrom(recentSearchesRef.current, filter, destinationLabels);
 
   const searchDestinations = useCallback(async (searchQuery: string) => {
     const trimmed = searchQuery.trim();
@@ -164,7 +176,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
             id: `recent_${index}`,
             text: search,
             type: 'recent',
-            subtitle: 'Recherche récente',
+            subtitle: t('search.recentSearch'),
           });
         }
       });
@@ -181,7 +193,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
           id: `city_${city.id}`,
           text: city.name,
           type: 'city',
-          subtitle: 'Ville',
+          subtitle: t('search.city'),
           latitude: city.latitude ?? undefined,
           longitude: city.longitude ?? undefined,
         });
@@ -199,7 +211,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
           id: `commune_${commune.id}`,
           text: commune.name,
           type: 'commune',
-          subtitle: 'Commune',
+          subtitle: t('search.commune'),
           latitude: commune.latitude ?? undefined,
           longitude: commune.longitude ?? undefined,
         });
@@ -228,7 +240,9 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
             id: `neighborhood_${neighborhood.id}`,
             text: neighborhood.name,
             type: 'neighborhood',
-            subtitle: communeName ? `${communeName} • Quartier` : 'Quartier',
+            subtitle: communeName
+              ? t('search.neighborhoodWithCommune', { commune: communeName })
+              : t('search.neighborhood'),
             latitude: neighborhood.latitude ?? undefined,
             longitude: neighborhood.longitude ?? undefined,
           });
@@ -262,7 +276,9 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
             id: `osm_${hit.placeId}`,
             text: hit.shortName,
             type: hit.typeHint === 'neighborhood' ? 'neighborhood' : hit.typeHint,
-            subtitle: areaHint ? `Carte · ${areaHint}` : 'Sur la carte',
+            subtitle: areaHint
+              ? t('search.onMapWithArea', { area: areaHint })
+              : t('search.onMap'),
             latitude: hit.latitude,
             longitude: hit.longitude,
             fromMap: true,
@@ -277,7 +293,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const handleQueryChange = (text: string) => {
     setQuery(text);
@@ -308,7 +324,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
       const matched = result.matchedLocation;
       const label = matched?.name || result.addressLabel;
       if (!label?.trim()) {
-        Alert.alert('Localisation', 'Impossible de déterminer une destination près de vous.');
+        Alert.alert(t('search.location'), t('search.nearMeFailed'));
         return;
       }
       const type =
@@ -321,16 +337,16 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
         id: matched?.id ? `geo_${matched.id}` : `geo_${result.coords.latitude}_${result.coords.longitude}`,
         text: label.trim(),
         type,
-        subtitle: 'Autour de moi',
+        subtitle: t('search.nearMe'),
         latitude: result.coords.latitude,
         longitude: result.coords.longitude,
       });
     } catch (e) {
       Alert.alert(
-        'Localisation',
+        t('search.location'),
         e instanceof Error
           ? e.message
-          : 'Impossible d’obtenir votre position. Vérifiez les autorisations GPS.',
+          : t('search.gpsPermission'),
       );
     } finally {
       setGeoLoading(false);
@@ -389,10 +405,10 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
         enabled={Platform.OS === 'ios'}
       >
           <View style={styles.header}>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Fermer">
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel={t('common.close')}>
               <Ionicons name="close" size={24} color="#1f2937" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Choisir une destination</Text>
+            <Text style={styles.headerTitle}>{t('search.chooseDestination')}</Text>
             <View style={styles.closeBtn} />
           </View>
 
@@ -401,7 +417,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
             <TextInput
               ref={inputRef}
               style={styles.searchInput}
-              placeholder="Ville, commune ou quartier"
+              placeholder={t('search.cityPlaceholder')}
               placeholderTextColor="#9ca3af"
               value={query}
               onChangeText={handleQueryChange}
@@ -425,14 +441,14 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
             disabled={geoLoading || loading}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Autour de moi"
+            accessibilityLabel={t('search.nearMe')}
           >
             {geoLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <>
                 <Ionicons name="navigate" size={18} color="#fff" />
-                <Text style={styles.geoBtnText}>Autour de moi</Text>
+                <Text style={styles.geoBtnText}>{t('search.nearMe')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -440,12 +456,12 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
           {loading && (
             <View style={styles.loadingRow}>
               <ActivityIndicator size="small" color="#2E7D32" />
-              <Text style={styles.loadingText}>Recherche...</Text>
+              <Text style={styles.loadingText}>{t('search.searching')}</Text>
             </View>
           )}
 
           {!loading && query.trim().length < 2 && results.length > 0 && (
-            <Text style={styles.sectionLabel}>Suggestions</Text>
+            <Text style={styles.sectionLabel}>{t('search.suggestions')}</Text>
           )}
 
           <FlatList
@@ -462,7 +478,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
               showEmpty ? (
                 <View style={styles.emptyState}>
                   <Ionicons name="search-outline" size={48} color="#d1d5db" />
-                  <Text style={styles.emptyText}>Aucun résultat pour « {query} »</Text>
+                  <Text style={styles.emptyText}>{t('search.noResultsFor', { query })}</Text>
                 </View>
               ) : null
             }

@@ -57,10 +57,8 @@ function buildHotelDraftBody(
   const hostCommission = input.hostCommission ?? amounts.hostCommission;
   const hostNetAmount = input.hostNetAmount ?? amounts.hostNetAmount;
 
-  const amount =
-    input.paymentMethod === 'wave' && input.currency === 'EUR' && input.eurRate
-      ? Math.round(totalPrice * input.eurRate)
-      : Math.round(totalPrice);
+  // Wave est toujours en XOF ; les totaux hôtel sont déjà en FCFA.
+  const amount = Math.round(totalPrice);
 
   const body: Record<string, unknown> = {
     checkout_token: checkoutToken,

@@ -33,6 +33,7 @@ import { supabase } from '../services/supabase';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { loadRecentSearches, pushRecentSearch } from '../lib/recentSearches';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { HOTEL_COLORS, MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import { getPublicPropertyListVersion } from '../utils/publicPropertyListVersion';
 
@@ -49,6 +50,8 @@ type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
 const SearchScreen: React.FC = () => {
   const route = useRoute<SearchScreenRouteProp>();
   const navigation = useNavigation();
+  const { t, language } = useLanguage();
+  const dateLocale = language === 'en' ? 'en-GB' : 'fr-FR';
   const { monthlyRental, hotel: hotelEnabled, loading: flagsLoading } = useFeatureFlags();
 
   const routeInitialType = parseRouteStayType(
@@ -103,14 +106,17 @@ const SearchScreen: React.FC = () => {
     return (
       <View style={styles.searchListFooter}>
         <Text style={styles.searchListFooterText}>
-          Affichage de {sortedPropertiesVisible.length} sur {sortedProperties.length}
+          {t('search.showingCount', {
+            visible: String(sortedPropertiesVisible.length),
+            total: String(sortedProperties.length),
+          })}
         </Text>
         {hasMoreSearchListItems ? (
-          <Text style={styles.searchListFooterHint}>Faites défiler pour afficher plus</Text>
+          <Text style={styles.searchListFooterHint}>{t('search.scrollForMore')}</Text>
         ) : null}
       </View>
     );
-  }, [sortedProperties.length, sortedPropertiesVisible.length, hasMoreSearchListItems]);
+  }, [sortedProperties.length, sortedPropertiesVisible.length, hasMoreSearchListItems, t]);
 
   const { listings: monthlyListings, loading: monthlyLoading, fetchListings: fetchMonthlyListings } = useApprovedMonthlyRentalListings();
   const {
@@ -730,9 +736,9 @@ const SearchScreen: React.FC = () => {
   const handleSearchButtonPress = async (queryFromForm?: string) => {
     if (showStayTypeSwitch && !rentalType) {
       Alert.alert(
-        'Type requis',
-        'Choisissez un type d’hébergement : Résidence, Hôtel ou Bail longue durée.',
-        [{ text: 'OK' }]
+        t('search.typeRequired'),
+        t('search.typeRequiredDesc'),
+        [{ text: t('common.ok') }]
       );
       return;
     }
@@ -741,9 +747,9 @@ const SearchScreen: React.FC = () => {
 
     if (!query) {
       Alert.alert(
-        'Ville requise',
-        'Veuillez choisir une ville ou un quartier pour effectuer la recherche.',
-        [{ text: 'OK' }]
+        t('search.cityRequired'),
+        t('search.cityRequiredDesc'),
+        [{ text: t('common.ok') }]
       );
       return;
     }
@@ -853,7 +859,7 @@ const SearchScreen: React.FC = () => {
   const formatDateShort = (dateString?: string) => {
     if (!dateString) return '';
     const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
+    return date.toLocaleDateString(dateLocale, {
       day: 'numeric',
       month: 'short',
     });
@@ -866,23 +872,23 @@ const SearchScreen: React.FC = () => {
       const checkOutDate = new Date(checkOut);
       const checkInDay = checkInDate.getDate();
       const checkOutDay = checkOutDate.getDate();
-      const checkInMonth = checkInDate.toLocaleDateString('fr-FR', { month: 'short' });
-      const checkOutMonth = checkOutDate.toLocaleDateString('fr-FR', { month: 'short' });
+      const checkInMonth = checkInDate.toLocaleDateString(dateLocale, { month: 'short' });
+      const checkOutMonth = checkOutDate.toLocaleDateString(dateLocale, { month: 'short' });
       
       if (checkInMonth === checkOutMonth) {
         return `${checkInDay}-${checkOutDay} ${checkInMonth}`;
       }
       return `${formatDateShort(checkIn)} - ${formatDateShort(checkOut)}`;
     }
-    if (checkIn) return `À partir du ${formatDateShort(checkIn)}`;
+    if (checkIn) return t('search.fromDate').replace('{date}', formatDateShort(checkIn));
     return '';
   };
 
   const getGuestsText = () => {
     const total = adults + children + babies;
-    if (total === 0) return 'Ajouter des voyageurs';
-    if (total === 1) return '1 voyageur';
-    return `${total} voyageurs`;
+    if (total === 0) return t('search.addGuests');
+    if (total === 1) return t('search.guestCount_one');
+    return t('search.guestCount_other').replace('{count}', String(total));
   };
 
   const hasPropertyResults = rentalType === 'short_term' && sortedProperties.length > 0 && !loading && !error;
@@ -905,14 +911,14 @@ const SearchScreen: React.FC = () => {
           latitude: lat,
           longitude: lng,
           price: room.price_per_night,
-          priceSuffix: ' /nuit',
+          priceSuffix: ` ${t('search.perNight')}`,
           image: est.images?.[0] || room.images?.[0] || null,
           subtitle: room.name,
         });
       }
     }
     return Array.from(byEst.values());
-  }, [hotelRooms]);
+  }, [hotelRooms, t]);
 
   const monthlyMapMarkers = useMemo((): StayMapMarker[] => {
     return monthlyListings
@@ -929,11 +935,11 @@ const SearchScreen: React.FC = () => {
         latitude: Number(l.latitude),
         longitude: Number(l.longitude),
         price: l.monthly_rent_price,
-        priceSuffix: ' /mois',
+        priceSuffix: ` ${t('search.perMonth')}`,
         image: Array.isArray(l.images) ? l.images[0] : null,
         subtitle: l.location || null,
       }));
-  }, [monthlyListings]);
+  }, [monthlyListings, t]);
 
   const resultsLoading =
     rentalType === 'monthly'
@@ -965,19 +971,23 @@ const SearchScreen: React.FC = () => {
             <Ionicons name="search" size={18} color="#2E7D32" />
             <View style={styles.searchSummaryTexts}>
               <Text style={styles.searchSummaryTitle} numberOfLines={1}>
-                {currentSearchQuery || 'Destination'}
+                {currentSearchQuery || t('search.destination')}
               </Text>
               <Text style={styles.searchSummarySubtitle} numberOfLines={1}>
                 {rentalType === 'monthly'
-                  ? 'Bail longue durée'
+                  ? t('stay.monthly')
                   : rentalType === 'hotel'
-                    ? 'Hôtels'
-                    : `${getDatesText() || 'Dates flexibles'} · ${getGuestsText()}`}
+                    ? t('category.hotels')
+                    : `${getDatesText() || t('search.flexibleDates')} · ${getGuestsText()}`}
               </Text>
             </View>
             <Ionicons name="chevron-down" size={18} color="#6b7280" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.filterButton} onPress={() => setShowFilters(true)}>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setShowFilters(true)}
+            accessibilityLabel={t('search.filters')}
+          >
             <Ionicons name="options-outline" size={24} color="#333" />
             {getActiveFiltersCount() > 0 && (
               <View style={styles.filterBadge}>
@@ -997,7 +1007,7 @@ const SearchScreen: React.FC = () => {
           >
             <Ionicons name="close-circle" size={16} color="#e74c3c" />
             <Text style={styles.clearFiltersButtonText}>
-              Effacer la recherche ({getActiveFiltersCount()})
+              {t('search.clearSearch').replace('{count}', String(getActiveFiltersCount()))}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1007,17 +1017,17 @@ const SearchScreen: React.FC = () => {
       {hasSubmittedSearch && !showSearchForm && (resultsLoading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={resultsAccent} />
-          <Text style={styles.loadingText}>Recherche en cours...</Text>
+          <Text style={styles.loadingText}>{t('search.searching')}</Text>
         </View>
       ) : rentalType === 'short_term' && error ? (
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle" size={48} color="#dc3545" />
-          <Text style={styles.errorText}>Erreur: {error}</Text>
+          <Text style={styles.errorText}>{t('common.error')}: {error}</Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={() => fetchProperties({ ...filters, city: shortTermSearchQuery })}
           >
-            <Text style={styles.retryButtonText}>Réessayer</Text>
+            <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : rentalType === 'hotel' ? (
@@ -1026,13 +1036,13 @@ const SearchScreen: React.FC = () => {
             <Ionicons name="business-outline" size={64} color="#ccc" />
             <Text style={styles.noResultsTitle}>
               {hotelSearchQuery
-                ? `Aucune chambre à ${hotelSearchQuery}`
-                : 'Aucune chambre disponible'}
+                ? t('search.noRoomsAt').replace('{city}', hotelSearchQuery)
+                : t('search.noRooms')}
             </Text>
             <Text style={styles.noResultsSubtitle}>
               {checkIn && checkOut
-                ? 'Essayez d’autres dates, une autre ville ou ajustez les filtres.'
-                : 'Choisissez des dates pour voir les chambres disponibles, ou changez de ville.'}
+                ? t('search.tryOtherDates')
+                : t('search.chooseDatesHint')}
             </Text>
           </View>
         ) : isMapView ? (
@@ -1088,16 +1098,18 @@ const SearchScreen: React.FC = () => {
           <View style={styles.noResultsContainer}>
             <Ionicons name="business-outline" size={64} color="#ccc" />
             <Text style={styles.noResultsTitle}>
-              {monthlySearchQuery ? `Aucun bail longue durée à ${monthlySearchQuery}` : 'Aucun bail longue durée'}
+              {monthlySearchQuery
+                ? t('search.noMonthlyAt').replace('{city}', monthlySearchQuery)
+                : t('search.noMonthly')}
             </Text>
             <Text style={styles.noResultsSubtitle}>
-              Essayez une autre ville ou ajustez les filtres.
+              {t('search.tryOtherCity')}
             </Text>
             <TouchableOpacity
               style={styles.clearFiltersButton}
               onPress={() => { setFilters({ rentalType: 'monthly' }); setMonthlySearchQuery(''); fetchMonthlyListings?.({}); }}
             >
-              <Text style={styles.clearFiltersButtonText}>Effacer les filtres</Text>
+              <Text style={styles.clearFiltersButtonText}>{t('search.clearFilters')}</Text>
             </TouchableOpacity>
           </View>
         ) : isMapView ? (
@@ -1135,16 +1147,17 @@ const SearchScreen: React.FC = () => {
         <View style={styles.noResultsContainer}>
           <Ionicons name="search" size={64} color="#ccc" />
           <Text style={styles.noResultsTitle}>
-            {shortTermSearchQuery ? `Aucun hébergement trouvé à ${shortTermSearchQuery}` : 'Aucun résultat trouvé'}
+            {shortTermSearchQuery
+              ? t('search.noHousingAt').replace('{city}', shortTermSearchQuery)
+              : t('search.noResults')}
           </Text>
           <Text style={styles.noResultsSubtitle}>
-            {shortTermSearchQuery ? 'Essayez une autre ville, quartier ou ajustez vos filtres.' : 'Commencez par rechercher une ville ou un quartier.'}
+            {shortTermSearchQuery ? t('search.tryOtherLocation') : t('search.startByCity')}
           </Text>
           <View style={styles.suggestionsContainer}>
-            <Text style={styles.suggestionsTitle}>Villes et quartiers disponibles :</Text>
+            <Text style={styles.suggestionsTitle}>{t('search.availableCitiesTitle')}</Text>
             <Text style={styles.suggestionsText}>
-              Villes: Abidjan, Yamoussoukro, Grand-Bassam{'\n'}
-              Quartiers: Cocody, Deux Plateaux, Riviera, Marcory...
+              {t('search.availableCitiesList')}
             </Text>
           </View>
           <TouchableOpacity
@@ -1155,7 +1168,7 @@ const SearchScreen: React.FC = () => {
               fetchProperties({});
             }}
           >
-            <Text style={styles.clearFiltersButtonText}>Effacer les filtres</Text>
+            <Text style={styles.clearFiltersButtonText}>{t('search.clearFilters')}</Text>
           </TouchableOpacity>
         </View>
       ) : hasPropertyResults ? (
@@ -1251,7 +1264,7 @@ const SearchScreen: React.FC = () => {
         >
           <Ionicons name={isMapView ? 'list' : 'map'} size={20} color="#fff" />
           <Text style={isMapView ? styles.listButtonText : styles.mapButtonText}>
-            {isMapView ? 'Liste' : 'Carte'}
+            {isMapView ? t('search.list') : t('search.map')}
           </Text>
         </TouchableOpacity>
       )}

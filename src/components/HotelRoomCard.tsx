@@ -4,6 +4,7 @@ import type { HotelRoomSearchResult } from '../hooks/useApprovedHotelRooms';
 import { useCurrency } from '../hooks/useCurrency';
 import { useHotelFavorites } from '../hooks/useHotelFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
+import { useLanguage } from '../contexts/LanguageContext';
 import MediaThumb from './MediaThumb';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 import {
@@ -21,6 +22,7 @@ type Props = {
 /** Carte résultat recherche hôtel — centrée sur le type de chambre. */
 export default function HotelRoomCard({ room, onPress }: Props) {
   const { formatPrice } = useCurrency();
+  const { t } = useLanguage();
   const { requireAuthForFavorites } = useAuthRedirect();
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading, cacheVersion, refreshCache } =
     useHotelFavorites();
@@ -82,7 +84,7 @@ export default function HotelRoomCard({ room, onPress }: Props) {
           room.establishment.rating,
           room.establishment.review_count,
         )}
-        priceLabel={`${formatPrice(room.price_per_night)}/nuit`}
+        priceLabel={`${formatPrice(room.price_per_night)}${t('search.perNight')}`}
         onFavoritePress={handleFavoritePress}
         isFavorited={isFavorited}
         favoriteLoading={favoriteLoading}

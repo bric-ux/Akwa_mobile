@@ -25,6 +25,7 @@ type BookingRow = {
   check_out_date: string;
   guests_count: number;
   total_price: number;
+  host_net_amount: number | null;
   status: string;
   payment_method: string | null;
   payment_status: string | null;
@@ -90,7 +91,7 @@ export default function HotelOwnerBookingsScreen() {
         .select(
           `
           id, booking_code, check_in_date, check_out_date, guests_count,
-          total_price, status, payment_method, payment_status, message_to_host, establishment_id,
+          total_price, host_net_amount, status, payment_method, payment_status, message_to_host, establishment_id,
           hotel_booking_items ( hotel_room_types ( name ) )
         `,
         )
@@ -261,7 +262,17 @@ export default function HotelOwnerBookingsScreen() {
                   </View>
                 </View>
 
-                <Text style={styles.cardPrice}>{formatPrice(item.total_price)}</Text>
+                <Text style={styles.cardPrice}>
+                  {formatPrice(
+                    item.host_net_amount != null ? item.host_net_amount : item.total_price,
+                  )}
+                </Text>
+                {item.host_net_amount != null &&
+                item.host_net_amount !== item.total_price ? (
+                  <Text style={styles.cardNetHint}>
+                    Vous recevez · voyageur {formatPrice(item.total_price)}
+                  </Text>
+                ) : null}
 
                 {!!item.message_to_host && (
                   <Text style={styles.cardMsg} numberOfLines={2}>
@@ -366,6 +377,11 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
     color: HOTEL_COLORS.primary,
+  },
+  cardNetHint: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#64748b',
   },
   cardMsg: { marginTop: 8, fontSize: 13, color: '#64748b', fontStyle: 'italic' },
   actions: { flexDirection: 'row', gap: 8, marginTop: 12 },

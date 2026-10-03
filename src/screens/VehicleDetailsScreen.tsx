@@ -147,12 +147,12 @@ const VehicleDetailsScreen: React.FC = () => {
 
     if (!user) {
       Alert.alert(
-        'Connexion requise',
-        'Vous devez être connecté pour réserver un véhicule.',
+        t('auth.loginRequired'),
+        t('vehicleDetails.loginRequiredBook'),
         [
-          { text: 'Annuler', style: 'cancel' },
+          { text: t('common.cancel'), style: 'cancel' },
           {
-            text: 'Se connecter',
+            text: t('auth.signIn'),
             onPress: () =>
               (navigation as any).navigate('Auth', {
                 returnTo: 'VehicleBooking',
@@ -164,7 +164,7 @@ const VehicleDetailsScreen: React.FC = () => {
       return;
     }
     navigation.navigate('VehicleBooking' as never, { vehicleId: vehicle.id } as never);
-  }, [navigation, user, vehicle]);
+  }, [navigation, user, vehicle, t]);
 
   useEffect(() => {
     if (!galleryUrls || galleryUrls.length === 0) return;
@@ -252,7 +252,7 @@ const VehicleDetailsScreen: React.FC = () => {
               {(() => {
                 if (vehicle.title) return String(vehicle.title);
                 const parts = [vehicle.brand, vehicle.model].filter(Boolean);
-                return parts.length > 0 ? parts.join(' ') : 'Véhicule';
+                return parts.length > 0 ? parts.join(' ') : t('vehicleDetails.vehicle');
               })()}
             </Text>
           </View>
@@ -326,7 +326,7 @@ const VehicleDetailsScreen: React.FC = () => {
                   onPress={handleGalleryPrev}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel="Photo précédente"
+                  accessibilityLabel={t('vehicleDetails.prevPhoto')}
                   hitSlop={{ top: 12, bottom: 12, left: 8, right: 20 }}
                 >
                   <Ionicons name="chevron-back" size={28} color="#fff" />
@@ -336,7 +336,7 @@ const VehicleDetailsScreen: React.FC = () => {
                   onPress={handleGalleryNext}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel="Photo suivante"
+                  accessibilityLabel={t('vehicleDetails.nextPhoto')}
                   hitSlop={{ top: 12, bottom: 12, left: 20, right: 8 }}
                 >
                   <Ionicons name="chevron-forward" size={28} color="#fff" />
@@ -375,7 +375,7 @@ const VehicleDetailsScreen: React.FC = () => {
                 <Text style={styles.title}>
                   {(() => {
                     const parts = [vehicle.brand, vehicle.model, vehicle.year].filter(Boolean);
-                    return parts.length > 0 ? parts.join(' ') : 'Véhicule';
+                    return parts.length > 0 ? parts.join(' ') : t('vehicleDetails.vehicle');
                   })()}
                 </Text>
                 {vehicle.title ? (
@@ -388,15 +388,15 @@ const VehicleDetailsScreen: React.FC = () => {
             <View style={styles.priceCard}>
               <View style={styles.priceRow}>
                 <View>
-                  <Text style={styles.priceLabel}>Prix par jour</Text>
+                  <Text style={styles.priceLabel}>{t('vehicleDetails.pricePerDay')}</Text>
                   <View style={styles.priceValueRow}>
                     <Text style={styles.price}>{formatPrice(vehicle.price_per_day) || '0 FCFA'}</Text>
-                    <Text style={styles.priceUnit}>/jour</Text>
+                    <Text style={styles.priceUnit}>{t('vehicleDetails.perDay')}</Text>
                   </View>
                   {vehicle.hourly_rental_enabled && vehicle.price_per_hour && (
                     <View style={styles.priceValueRow}>
                       <Text style={[styles.price, styles.priceHourly]}>{formatPrice(vehicle.price_per_hour) || '0 FCFA'}</Text>
-                      <Text style={styles.priceUnit}>/heure</Text>
+                      <Text style={styles.priceUnit}>{t('vehicleDetails.perHour')}</Text>
                     </View>
                   )}
                 </View>
@@ -417,13 +417,13 @@ const VehicleDetailsScreen: React.FC = () => {
                   {vehicle.price_per_week && vehicle.price_per_week > 0 ? (
                     <View style={styles.altPriceItem}>
                       <Text style={styles.altPriceValue}>{formatPrice(vehicle.price_per_week) || '0 FCFA'}</Text>
-                      <Text style={styles.altPriceLabel}>/semaine</Text>
+                      <Text style={styles.altPriceLabel}>{t('vehicleDetails.perWeek')}</Text>
                     </View>
                   ) : null}
                   {vehicle.price_per_month && vehicle.price_per_month > 0 ? (
                     <View style={styles.altPriceItem}>
                       <Text style={styles.altPriceValue}>{formatPrice(vehicle.price_per_month) || '0 FCFA'}</Text>
-                      <Text style={styles.altPriceLabel}>/mois</Text>
+                      <Text style={styles.altPriceLabel}>{t('vehicleDetails.perMonth')}</Text>
                     </View>
                   ) : null}
                 </View>
@@ -433,7 +433,7 @@ const VehicleDetailsScreen: React.FC = () => {
               {vehicle.security_deposit && vehicle.security_deposit > 0 ? (
                 <View style={styles.depositRow}>
                   <Ionicons name="shield-checkmark-outline" size={16} color={VEHICLE_COLORS.primary} />
-                  <Text style={styles.depositLabel}>Caution:</Text>
+                  <Text style={styles.depositLabel}>{t('vehicleDetails.deposit')}:</Text>
                   <Text style={styles.depositValue}>{formatPrice(vehicle.security_deposit)}</Text>
                 </View>
               ) : null}
@@ -444,7 +444,7 @@ const VehicleDetailsScreen: React.FC = () => {
               {vehicle.location ? (
                 <View style={styles.metaItem}>
                   <Ionicons name="location" size={16} color={VEHICLE_COLORS.primary} />
-                  <Text style={styles.metaText}>{vehicle.location?.name || 'Localisation non spécifiée'}</Text>
+                  <Text style={styles.metaText}>{vehicle.location?.name || t('vehicleDetails.locationUnspecified')}</Text>
                 </View>
               ) : null}
             </View>
@@ -463,14 +463,14 @@ const VehicleDetailsScreen: React.FC = () => {
                     <Ionicons name="person-circle-outline" size={24} color="#2563eb" />
                   </View>
                   <View style={styles.ownerProfileButtonTextContainer}>
-                    <Text style={styles.ownerProfileButtonTitle}>Voir le profil du propriétaire</Text>
+                    <Text style={styles.ownerProfileButtonTitle}>{t('vehicleDetails.seeOwnerProfile')}</Text>
                     {vehicle.owner && (vehicle.owner.first_name || vehicle.owner.last_name) ? (
                       <Text style={styles.ownerProfileButtonSubtitle}>
                         {vehicle.owner.first_name || ''} {vehicle.owner.last_name || ''}
                       </Text>
                     ) : (
                       <Text style={styles.ownerProfileButtonSubtitle}>
-                        En savoir plus sur le propriétaire
+                        {t('vehicleDetails.learnMoreOwner')}
                       </Text>
                     )}
                   </View>
@@ -489,9 +489,13 @@ const VehicleDetailsScreen: React.FC = () => {
                     <Ionicons name="pricetag" size={20} color="#10b981" />
                   </View>
                   <View style={styles.discountContent}>
-                    <Text style={styles.discountTitle}>Réduction disponible</Text>
+                    <Text style={styles.discountTitle}>{t('vehicleDetails.discountAvailable')}</Text>
                     <Text style={styles.discountDescription}>
-                      {`${String(vehicle.discount_percentage || 0)}% de réduction à partir de ${String(vehicle.discount_min_days || 0)} jour${((vehicle.discount_min_days || 0) > 1) ? 's' : ''}`}
+                      {t('vehicleDetails.discountFromDays', {
+                        pct: String(vehicle.discount_percentage || 0),
+                        days: String(vehicle.discount_min_days || 0),
+                        plural: (vehicle.discount_min_days || 0) > 1 ? 's' : '',
+                      })}
                     </Text>
                   </View>
                 </View>
@@ -502,9 +506,13 @@ const VehicleDetailsScreen: React.FC = () => {
                     <Ionicons name="calendar" size={20} color="#3b82f6" />
                   </View>
                   <View style={styles.discountContent}>
-                    <Text style={styles.discountTitle}>Réduction longue durée</Text>
+                    <Text style={styles.discountTitle}>{t('vehicleDetails.longStayDiscount')}</Text>
                     <Text style={styles.discountDescription}>
-                      {`${String(vehicle.long_stay_discount_percentage || 0)}% de réduction à partir de ${String(vehicle.long_stay_discount_min_days || 0)} jour${((vehicle.long_stay_discount_min_days || 0) > 1) ? 's' : ''}`}
+                      {t('vehicleDetails.discountFromDays', {
+                        pct: String(vehicle.long_stay_discount_percentage || 0),
+                        days: String(vehicle.long_stay_discount_min_days || 0),
+                        plural: (vehicle.long_stay_discount_min_days || 0) > 1 ? 's' : '',
+                      })}
                     </Text>
                   </View>
                 </View>
@@ -515,15 +523,15 @@ const VehicleDetailsScreen: React.FC = () => {
           {/* Options spéciales - Design moderne */}
           {(((vehicle as any).with_driver === true) || ((vehicle as any).has_insurance === true) || ((vehicle as any).requires_license === true)) ? (
             <View style={styles.optionsSection}>
-              <Text style={styles.sectionTitle}>Options & Conditions</Text>
+              <Text style={styles.sectionTitle}>{t('vehicleDetails.optionsConditions')}</Text>
               <View style={styles.optionsGrid}>
                 {((vehicle as any).with_driver === true) ? (
                   <View style={styles.optionCard}>
                     <View style={[styles.optionIconContainer, { backgroundColor: '#dbeafe' }]}>
                       <Ionicons name="person" size={24} color="#3b82f6" />
                     </View>
-                    <Text style={styles.optionTitle}>Chauffeur</Text>
-                    <Text style={styles.optionDescription}>Disponible</Text>
+                    <Text style={styles.optionTitle}>{t('vehicleDetails.driver')}</Text>
+                    <Text style={styles.optionDescription}>{t('vehicleDetails.available')}</Text>
                   </View>
                 ) : null}
                 {((vehicle as any).has_insurance === true) ? (
@@ -531,7 +539,7 @@ const VehicleDetailsScreen: React.FC = () => {
                     <View style={[styles.optionIconContainer, { backgroundColor: '#d1fae5' }]}>
                       <Ionicons name="shield-checkmark" size={24} color="#10b981" />
                     </View>
-                    <Text style={styles.optionTitle}>Assuré</Text>
+                    <Text style={styles.optionTitle}>{t('vehicleDetails.insured')}</Text>
                     {(vehicle as any).insurance_details ? (
                       <Text style={styles.optionDescription} numberOfLines={2}>
                         {String((vehicle as any).insurance_details || '')}
@@ -545,11 +553,13 @@ const VehicleDetailsScreen: React.FC = () => {
                       <Ionicons name="document-text" size={24} color="#f59e0b" />
                     </View>
                     <View style={styles.optionContent}>
-                      <Text style={styles.optionTitle}>Permis requis</Text>
+                      <Text style={styles.optionTitle}>{t('vehicleDetails.licenseRequired')}</Text>
                       <Text style={styles.optionDescription}>
                         {((vehicle as any).min_license_years || 0) > 0 
-                          ? `Permis valide requis - ${String((vehicle as any).min_license_years || 0)} an(s) minimum`
-                          : 'Permis valide requis'}
+                          ? t('vehicleDetails.validLicenseMinYears', {
+                              years: String((vehicle as any).min_license_years || 0),
+                            })
+                          : t('vehicleDetails.validLicenseRequired')}
                       </Text>
                     </View>
                   </View>
@@ -560,13 +570,13 @@ const VehicleDetailsScreen: React.FC = () => {
 
           {/* Caractéristiques principales */}
           <View style={styles.featuresSection}>
-            <Text style={styles.sectionTitle}>Caractéristiques</Text>
+            <Text style={styles.sectionTitle}>{t('vehicleDetails.features')}</Text>
             <View style={styles.featuresContainer}>
               {/* Places */}
               <View style={styles.featureItem}>
                 <Ionicons name="people" size={20} color={VEHICLE_COLORS.primary} />
                 <View style={styles.featureTextContainer}>
-                  <Text style={styles.featureLabel}>Places</Text>
+                  <Text style={styles.featureLabel}>{t('vehicleDetails.seats')}</Text>
                   <Text style={styles.featureValue}>{String(vehicle.seats || 0)}</Text>
                 </View>
               </View>
@@ -576,9 +586,13 @@ const VehicleDetailsScreen: React.FC = () => {
                 <View style={styles.featureItem}>
                   <Ionicons name="settings" size={20} color={VEHICLE_COLORS.primary} />
                   <View style={styles.featureTextContainer}>
-                    <Text style={styles.featureLabel}>Transmission</Text>
+                    <Text style={styles.featureLabel}>{t('vehicleDetails.transmission')}</Text>
                     <Text style={styles.featureValue}>
-                      {vehicle.transmission === 'automatic' ? 'Automatique' : vehicle.transmission === 'manual' ? 'Manuelle' : String(vehicle.transmission || '')}
+                      {vehicle.transmission === 'automatic'
+                        ? t('vehicleDetails.automatic')
+                        : vehicle.transmission === 'manual'
+                          ? t('vehicleDetails.manual')
+                          : String(vehicle.transmission || '')}
                     </Text>
                   </View>
                 </View>
@@ -589,7 +603,7 @@ const VehicleDetailsScreen: React.FC = () => {
                 <View style={styles.featureItem}>
                   <Ionicons name="flash" size={20} color={VEHICLE_COLORS.primary} />
                   <View style={styles.featureTextContainer}>
-                    <Text style={styles.featureLabel}>Carburant</Text>
+                    <Text style={styles.featureLabel}>{t('vehicleDetails.fuel')}</Text>
                     <Text style={styles.featureValue}>{String(vehicle.fuel_type)}</Text>
                   </View>
                 </View>
@@ -600,7 +614,7 @@ const VehicleDetailsScreen: React.FC = () => {
                 <View style={styles.featureItem}>
                   <Ionicons name="calendar" size={20} color={VEHICLE_COLORS.primary} />
                   <View style={styles.featureTextContainer}>
-                    <Text style={styles.featureLabel}>Année</Text>
+                    <Text style={styles.featureLabel}>{t('vehicleDetails.year')}</Text>
                     <Text style={styles.featureValue}>{String(vehicle.year)}</Text>
                   </View>
                 </View>
@@ -611,9 +625,11 @@ const VehicleDetailsScreen: React.FC = () => {
                 <View style={styles.featureItem}>
                   <Ionicons name="speedometer" size={20} color={VEHICLE_COLORS.primary} />
                   <View style={styles.featureTextContainer}>
-                    <Text style={styles.featureLabel}>Kilométrage</Text>
+                    <Text style={styles.featureLabel}>{t('vehicleDetails.mileage')}</Text>
                     <Text style={styles.featureValue}>
-                      {String(vehicle.mileage.toLocaleString('fr-FR'))} km
+                      {t('vehicleDetails.mileageKm', {
+                        count: String(vehicle.mileage.toLocaleString('fr-FR')),
+                      })}
                     </Text>
                   </View>
                 </View>
@@ -624,7 +640,7 @@ const VehicleDetailsScreen: React.FC = () => {
           {/* Description */}
           {vehicle.description ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Description</Text>
+              <Text style={styles.sectionTitle}>{t('vehicleDetails.description')}</Text>
               <Text style={styles.description}>{sanitizePublicDescription(vehicle.description)}</Text>
             </View>
           ) : null}
@@ -632,7 +648,7 @@ const VehicleDetailsScreen: React.FC = () => {
           {/* Équipements */}
           {vehicle.features && vehicle.features.length > 0 ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Équipements</Text>
+              <Text style={styles.sectionTitle}>{t('vehicleDetails.amenities')}</Text>
               <View style={styles.featuresList}>
                 {vehicle.features.map((feature, index) => (
                   <View key={index} style={styles.featureTag}>
@@ -647,7 +663,7 @@ const VehicleDetailsScreen: React.FC = () => {
           {/* Règles */}
           {vehicle.rules && vehicle.rules.length > 0 ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Règles de location</Text>
+              <Text style={styles.sectionTitle}>{t('vehicleDetails.rentalRules')}</Text>
               <View style={styles.rulesList}>
                 {vehicle.rules.map((rule, index) => (
                   <View key={index} style={styles.ruleItem}>
@@ -661,11 +677,11 @@ const VehicleDetailsScreen: React.FC = () => {
 
           {/* Politique d'annulation */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Politique d'annulation</Text>
+            <Text style={styles.sectionTitle}>{t('vehicleDetails.cancellationPolicy')}</Text>
             <View style={styles.featureItem}>
               <Ionicons name="document-text-outline" size={20} color={VEHICLE_COLORS.primary} />
               <View style={styles.featureTextContainer}>
-                <Text style={styles.featureLabel}>Conditions en cas d'annulation</Text>
+                <Text style={styles.featureLabel}>{t('vehicleDetails.cancellationConditions')}</Text>
                 <Text style={styles.featureValue}>
                   {getCancellationPolicyText(vehicle.cancellation_policy ?? undefined, 'vehicle')}
                 </Text>
@@ -704,10 +720,10 @@ const VehicleDetailsScreen: React.FC = () => {
                 android_ripple={{ color: 'rgba(255,255,255,0.25)', borderless: false }}
                 hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                 accessibilityRole="button"
-                accessibilityLabel="Réserver"
+                accessibilityLabel={t('vehicleDetails.book')}
               >
                 <Text style={styles.bookButtonText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
-                  Réserver
+                  {t('vehicleDetails.book')}
                 </Text>
               </Pressable>
             </View>

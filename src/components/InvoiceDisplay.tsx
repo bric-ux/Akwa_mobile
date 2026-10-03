@@ -8,6 +8,7 @@ import { calculateHostNetAmount as calculateHostNetAmountCentralized } from '../
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useCurrency } from '../hooks/useCurrency';
+import { useLanguage } from '../contexts/LanguageContext';
 import akwaHomeLogo from '../../assets/icon.png';
 
 interface InvoiceDisplayProps {
@@ -128,13 +129,16 @@ const formatTime = (timeString?: string | null): string => {
   return timeString;
 };
 
-const getPaymentMethodLabel = (method?: string): string => {
-  if (!method) return 'Non spécifié';
+const getPaymentMethodLabel = (
+  method: string | undefined,
+  t: (key: string) => string
+): string => {
+  if (!method) return t('invoice.notSpecified');
   const methods: { [key: string]: string } = {
     mobile_money: 'Mobile Money',
-    bank_transfer: 'Virement bancaire',
-    cash: 'Espèces',
-    card: 'Carte bancaire',
+    bank_transfer: t('invoice.bankTransfer'),
+    cash: t('booking.cash'),
+    card: t('booking.card'),
     orange_money: 'Orange Money',
     mtn_money: 'MTN Money',
     moov_money: 'Moov Money',
@@ -142,8 +146,13 @@ const getPaymentMethodLabel = (method?: string): string => {
   return methods[method] || method;
 };
 
-const getServiceTypeLabel = (serviceType: ServiceType): string => {
-  return serviceType === 'property' ? 'Résidence meublée' : 'Location de véhicule';
+const getServiceTypeLabel = (
+  serviceType: ServiceType,
+  t: (key: string) => string
+): string => {
+  return serviceType === 'property'
+    ? t('invoice.furnishedResidence')
+    : t('invoice.vehicleRental');
 };
 
 export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
@@ -165,6 +174,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 }) => {
   const { user } = useAuth();
   const { currency, rates } = useCurrency();
+  const { t } = useLanguage();
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [travelerEmail, setTravelerEmail] = useState<string | undefined>(providedTravelerEmail);
   const [hostEmail, setHostEmail] = useState<string | undefined>(providedHostEmail);
@@ -369,7 +379,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     fetchApprovedModification();
   }, [booking?.id, serviceType]);
 
-  const effectivePaymentMethod = paymentMethod || booking.payment_method || 'Non spécifié';
+  const effectivePaymentMethod = paymentMethod || booking.payment_method || undefined;
   const checkIn = booking.check_in_date || booking.start_date || '';
   const checkOut = booking.check_out_date || booking.end_date || '';
   
@@ -982,9 +992,9 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   const getTitle = () => {
     switch (type) {
       case 'traveler':
-        return serviceType === 'vehicle' ? 'Justificatif locataire' : 'Justificatif voyageur';
-      case 'host': return 'Justificatif hôte';
-      case 'admin': return 'Facture interne Akwahome';
+        return serviceType === 'vehicle' ? t('invoice.renterProof') : t('invoice.travelerProof');
+      case 'host': return t('invoice.hostProof');
+      case 'admin': return t('invoice.adminInvoice');
     }
   };
 
@@ -1004,13 +1014,13 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
       {/* Type de service */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Type de service</Text>
-        <Text style={styles.sectionValue}>{getServiceTypeLabel(serviceType)}</Text>
+        <Text style={styles.sectionLabel}>{t('invoice.serviceType')}</Text>
+        <Text style={styles.sectionValue}>{getServiceTypeLabel(serviceType, t)}</Text>
       </View>
 
       {/* Détails: numéro de réservation (code AKWA) */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Numéro de réservation</Text>
+        <Text style={styles.sectionLabel}>{t('invoice.bookingNumber')}</Text>
         <Text style={styles.sectionValue} numberOfLines={2}>
           {(booking as any).vehicle_booking_code || (booking as any).booking_code || `AKWA-${(booking.id || '').toString().substring(0, 8).toUpperCase()}`}
         </Text>
@@ -1020,7 +1030,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       {propertyOrVehicleTitle && (
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>
-            {serviceType === 'property' ? 'Propriété' : 'Véhicule'}
+            {serviceType === 'property' ? t('invoice.property') : t('invoice.vehicle')}
           </Text>
           <Text style={styles.sectionValue}>{propertyOrVehicleTitle}</Text>
         </View>
@@ -1030,7 +1040,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       <View style={styles.datesRow}>
         <View style={styles.dateItem}>
           <Text style={styles.sectionLabel}>
-            {serviceType === 'property' ? 'Arrivée' : 'Début'}
+            {serviceType === 'property' ? t('booking.arrival') : t('invoice.start')}
           </Text>
           <Text style={styles.sectionValue}>
             {serviceType === 'vehicle' 
@@ -1043,7 +1053,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         </View>
         <View style={styles.dateItem}>
           <Text style={styles.sectionLabel}>
-            {serviceType === 'property' ? 'Départ' : 'Fin'}
+            {serviceType === 'property' ? t('booking.departure') : t('invoice.end')}
           </Text>
           <Text style={styles.sectionValue}>
             {serviceType === 'vehicle' 
@@ -1059,9 +1069,11 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       {/* Durée - uniquement pour les propriétés */}
       {serviceType === 'property' && (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Durée</Text>
+          <Text style={styles.sectionLabel}>{t('invoice.duration')}</Text>
           <Text style={styles.sectionValue}>
-            {String(nights)} {`nuit${nights > 1 ? 's' : ''}`}
+            {t(nights > 1 ? 'invoice.nights_other' : 'invoice.nights_one', {
+              count: String(nights),
+            })}
           </Text>
         </View>
       )}
@@ -1069,15 +1081,15 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       {/* Avec chauffeur (véhicules uniquement) */}
       {serviceType === 'vehicle' && (booking as any).vehicle?.with_driver && (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Service</Text>
-          <Text style={styles.sectionValue}>Location avec chauffeur</Text>
+          <Text style={styles.sectionLabel}>{t('invoice.service')}</Text>
+          <Text style={styles.sectionValue}>{t('invoice.withDriver')}</Text>
         </View>
       )}
 
       {/* Nombre de voyageurs (propriétés uniquement) */}
       {serviceType === 'property' && booking.guests_count && (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Voyageurs</Text>
+          <Text style={styles.sectionLabel}>{t('invoice.guests')}</Text>
           <Text style={styles.sectionValue}>{booking.guests_count}</Text>
         </View>
       )}
@@ -1087,12 +1099,12 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         <View style={styles.extensionSection}>
           <View style={styles.extensionHeader}>
             <Ionicons name="calendar-outline" size={20} color="#2563eb" />
-            <Text style={styles.extensionTitle}>Modification de séjour</Text>
+            <Text style={styles.extensionTitle}>{t('invoice.stayModification')}</Text>
           </View>
           
           <View style={styles.extensionContent}>
             <View style={styles.extensionRow}>
-              <Text style={styles.extensionLabel}>Dates originales:</Text>
+              <Text style={styles.extensionLabel}>{t('invoice.originalDates')}</Text>
               <Text style={styles.extensionValue}>
                 {serviceType === 'property'
                   ? `${formatDate(approvedModification.original_check_in)} - ${formatDate(approvedModification.original_check_out)}`
@@ -1102,7 +1114,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             </View>
             
             <View style={styles.extensionRow}>
-              <Text style={styles.extensionLabel}>Nouvelles dates:</Text>
+              <Text style={styles.extensionLabel}>{t('invoice.newDates')}</Text>
               <Text style={[styles.extensionValue, styles.extensionValueNew]}>
                 {serviceType === 'property'
                   ? `${formatDate(approvedModification.requested_check_in)} - ${formatDate(approvedModification.requested_check_out)}`
@@ -1113,7 +1125,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
             {serviceType === 'property' && approvedModification.original_guests_count !== approvedModification.requested_guests_count && (
               <View style={styles.extensionRow}>
-                <Text style={styles.extensionLabel}>Nombre de voyageurs:</Text>
+                <Text style={styles.extensionLabel}>{t('invoice.guestsCount')}</Text>
                 <Text style={styles.extensionValue}>
                   {String(approvedModification.original_guests_count || 0)} → {String(approvedModification.requested_guests_count || 0)}
                 </Text>
@@ -1122,20 +1134,20 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             
             {serviceType === 'vehicle' && (approvedModification.original_rental_days !== approvedModification.requested_rental_days || (approvedModification.original_rental_hours || 0) !== (approvedModification.requested_rental_hours || 0)) && (
               <View style={styles.extensionRow}>
-                <Text style={styles.extensionLabel}>Durée de location:</Text>
+                <Text style={styles.extensionLabel}>{t('invoice.rentalDuration')}</Text>
                 <Text style={styles.extensionValue}>
-                  {String(approvedModification.original_rental_days || 0)} jour{approvedModification.original_rental_days > 1 ? 's' : ''}
-                  {approvedModification.original_rental_hours && approvedModification.original_rental_hours > 0 && ` et ${approvedModification.original_rental_hours} heure${approvedModification.original_rental_hours > 1 ? 's' : ''}`}
+                  {String(approvedModification.original_rental_days || 0)} {approvedModification.original_rental_days > 1 ? t('invoice.days') : t('invoice.day')}
+                  {approvedModification.original_rental_hours && approvedModification.original_rental_hours > 0 && ` ${t('vehicleBooking.and').trim()} ${approvedModification.original_rental_hours} ${approvedModification.original_rental_hours > 1 ? t('invoice.hours') : t('invoice.hour')}`}
                   {' → '}
-                  {String(approvedModification.requested_rental_days || 0)} jour{approvedModification.requested_rental_days > 1 ? 's' : ''}
-                  {approvedModification.requested_rental_hours && approvedModification.requested_rental_hours > 0 && ` et ${approvedModification.requested_rental_hours} heure${approvedModification.requested_rental_hours > 1 ? 's' : ''}`}
+                  {String(approvedModification.requested_rental_days || 0)} {approvedModification.requested_rental_days > 1 ? t('invoice.days') : t('invoice.day')}
+                  {approvedModification.requested_rental_hours && approvedModification.requested_rental_hours > 0 && ` ${t('vehicleBooking.and').trim()} ${approvedModification.requested_rental_hours} ${approvedModification.requested_rental_hours > 1 ? t('invoice.hours') : t('invoice.hour')}`}
                 </Text>
               </View>
             )}
 
             {approvedModification.requested_total_price > approvedModification.original_total_price && (
               <View style={styles.extensionRow}>
-                <Text style={styles.extensionLabel}>Surplus payé:</Text>
+                <Text style={styles.extensionLabel}>{t('invoice.surplusPaid')}</Text>
                 <Text style={[styles.extensionValue, styles.extensionValueAmount]}>
                   {formatPriceFCFA(approvedModification.requested_total_price - approvedModification.original_total_price)}
                 </Text>
@@ -1151,13 +1163,13 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           <View style={styles.datesRow}>
             {booking.properties?.check_in_time && (
               <View style={styles.dateItem}>
-                <Text style={styles.sectionLabel}>Heure d'arrivée</Text>
+                <Text style={styles.sectionLabel}>{t('invoice.checkInTime')}</Text>
                 <Text style={styles.sectionValue}>{formatTime(booking.properties.check_in_time)}</Text>
               </View>
             )}
             {booking.properties?.check_out_time && (
               <View style={styles.dateItem}>
-                <Text style={styles.sectionLabel}>Heure de départ</Text>
+                <Text style={styles.sectionLabel}>{t('invoice.checkOutTime')}</Text>
                 <Text style={styles.sectionValue}>{formatTime(booking.properties.check_out_time)}</Text>
               </View>
             )}
@@ -1169,7 +1181,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         <View style={styles.rulesSection}>
           <View style={styles.rulesHeader}>
             <Ionicons name="document-text-outline" size={18} color="#2563eb" />
-            <Text style={styles.rulesTitle}>Règles de location</Text>
+            <Text style={styles.rulesTitle}>{t('invoice.rentalRules')}</Text>
           </View>
           {booking.vehicle.rules.map((rule, index) => (
             <Text key={index} style={styles.rulesText}>
@@ -1184,12 +1196,18 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       {/* === FACTURE VOYAGEUR === */}
       {type === 'traveler' && (
         <View style={styles.financialSection}>
-          <Text style={styles.financialTitle}>Détails du paiement</Text>
+          <Text style={styles.financialTitle}>{t('invoice.paymentDetails')}</Text>
           
           {/* Prix des jours */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
-              {String(nights)} {serviceType === 'property' ? 'nuit' : 'jour'}{nights > 1 ? 's' : ''} × {formatPriceFCFA(effectivePricePerUnit)}/{serviceType === 'property' ? 'nuit' : 'jour'}
+              {String(nights)}{' '}
+              {serviceType === 'property'
+                ? (nights > 1 ? t('invoice.nights') : t('invoice.night'))
+                : (nights > 1 ? t('invoice.days') : t('invoice.day'))}
+              {' × '}
+              {formatPriceFCFA(effectivePricePerUnit)}
+              {serviceType === 'property' ? t('invoice.perNight') : t('invoice.perDay')}
             </Text>
             <Text style={styles.financialValue}>{formatPriceFCFA(daysPrice)}</Text>
           </View>
@@ -1198,7 +1216,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {serviceType === 'vehicle' && rentalHours > 0 && hoursPrice > 0 && hourlyRate > 0 && (
             <View style={styles.financialRow}>
               <Text style={styles.financialLabel}>
-                {rentalHours} heure{rentalHours > 1 ? 's' : ''} × {formatPriceFCFA(hourlyRate)}/h
+                {rentalHours} {rentalHours > 1 ? t('invoice.hours') : t('invoice.hour')} × {formatPriceFCFA(hourlyRate)}/h
               </Text>
               <Text style={styles.financialValue}>{formatPriceFCFA(hoursPrice)}</Text>
             </View>
@@ -1207,7 +1225,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Surplus chauffeur pour les véhicules */}
           {serviceType === 'vehicle' && driverFee > 0 && (
             <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>Surplus chauffeur</Text>
+              <Text style={styles.financialLabel}>{t('invoice.driverSurcharge')}</Text>
               <Text style={styles.financialValue}>{formatPriceFCFA(driverFee)}</Text>
             </View>
           )}
@@ -1215,7 +1233,10 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Total avant réduction */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
-              Prix initial{serviceType === 'property' ? ` (${String(nights)} ${nights > 1 ? 'nuits' : 'nuit'})` : ''}
+              {t('invoice.initialPrice')}
+              {serviceType === 'property'
+                ? ` (${String(nights)} ${nights > 1 ? t('invoice.nights') : t('invoice.night')})`
+                : ''}
             </Text>
             <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
           </View>
@@ -1224,13 +1245,13 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {actualDiscountAmount > 0 && (
             <>
               <View style={styles.financialRow}>
-                <Text style={[styles.financialLabel, styles.discountText]}>Réduction appliquée</Text>
+                <Text style={[styles.financialLabel, styles.discountText]}>{t('invoice.discountApplied')}</Text>
                 <Text style={[styles.financialValue, styles.discountText]}>
                   -{formatPriceFCFA(actualDiscountAmount)}
                 </Text>
               </View>
               <View style={styles.financialRow}>
-                <Text style={styles.financialLabel}>Prix après réduction</Text>
+                <Text style={styles.financialLabel}>{t('invoice.priceAfterDiscount')}</Text>
                 <Text style={styles.financialValue}>{formatPriceFCFA(priceAfterDiscount)}</Text>
               </View>
             </>
@@ -1239,7 +1260,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Frais de ménage */}
           {effectiveCleaningFee > 0 && (
             <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>Frais de ménage</Text>
+              <Text style={styles.financialLabel}>{t('invoice.cleaningFee')}</Text>
               <Text style={styles.financialValue}>{formatPriceFCFA(effectiveCleaningFee)}</Text>
             </View>
           )}
@@ -1247,14 +1268,14 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Taxe de séjour - toujours afficher si taxesPerNight > 0 */}
           {(effectiveTaxes > 0 || (serviceType === 'property' && taxesPerNight > 0 && nights > 0)) && (
             <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>Taxe de séjour</Text>
+              <Text style={styles.financialLabel}>{t('invoice.touristTax')}</Text>
               <Text style={styles.financialValue}>{formatPriceFCFA(effectiveTaxes > 0 ? effectiveTaxes : taxesPerNight * nights)}</Text>
             </View>
           )}
 
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
-              Frais de service Akwahome
+              {t('invoice.serviceFee')}
             </Text>
             <Text style={styles.financialValue}>{formatPriceFCFA(effectiveServiceFee)}</Text>
           </View>
@@ -1263,17 +1284,19 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
           {/* Total */}
           <View style={styles.financialRow}>
-            <Text style={styles.totalLabel}>Total {booking.payment_plan === 'split' ? 'de la réservation' : 'payé'}</Text>
+            <Text style={styles.totalLabel}>
+              {booking.payment_plan === 'split' ? t('invoice.totalBooking') : t('invoice.totalPaid')}
+            </Text>
             <Text style={styles.totalValue}>{formatPriceFCFA(totalPaidByTraveler)}</Text>
           </View>
           {booking.payment_plan === 'split' && (
             <>
               <View style={styles.financialRow}>
-                <Text style={styles.financialLabel}>Payé à la réservation</Text>
+                <Text style={styles.financialLabel}>{t('invoice.paidAtBooking')}</Text>
                 <Text style={styles.financialValue}>{formatPriceFCFA(splitFirstPayment)}</Text>
               </View>
               <View style={styles.financialRow}>
-                <Text style={styles.financialLabel}>Restant à l'arrivée</Text>
+                <Text style={styles.financialLabel}>{t('invoice.remainingOnArrival')}</Text>
                 <Text style={styles.financialValue}>{formatPriceFCFA(splitRemaining)}</Text>
               </View>
             </>
@@ -1283,9 +1306,9 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {serviceType === 'vehicle' && securityDeposit > 0 && (
             <View style={styles.financialRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.financialLabel}>Caution</Text>
+                <Text style={styles.financialLabel}>{t('invoice.deposit')}</Text>
                 <Text style={[styles.financialLabel, { fontSize: 12, color: '#666', marginTop: 4 }]}>
-                  À payer en espèces lors de la récupération du véhicule
+                  {t('invoice.depositCashNote')}
                 </Text>
               </View>
               <Text style={styles.financialValue}>{formatPriceFCFA(securityDeposit)}</Text>
@@ -1294,8 +1317,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
           {/* Mode de paiement */}
           <View style={styles.financialRow}>
-            <Text style={styles.financialLabel}>Mode de paiement</Text>
-            <Text style={styles.financialValue}>{getPaymentMethodLabel(effectivePaymentMethod)}</Text>
+            <Text style={styles.financialLabel}>{t('invoice.paymentMode')}</Text>
+            <Text style={styles.financialValue}>{getPaymentMethodLabel(effectivePaymentMethod, t)}</Text>
           </View>
 
           {/* Contact hôte */}
@@ -1303,7 +1326,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             <View style={styles.contactSection}>
               <View style={styles.contactHeader}>
                 <Ionicons name="call-outline" size={16} color="#333" />
-                <Text style={styles.contactTitle}>Contact de l'hôte</Text>
+                <Text style={styles.contactTitle}>{t('invoice.hostContact')}</Text>
               </View>
               <Text style={styles.contactName}>{hostName}</Text>
               <Text style={styles.contactPhone}>{hostPhone}</Text>
@@ -1519,7 +1542,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Mode de paiement */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>Mode de paiement</Text>
-            <Text style={styles.financialValue}>{getPaymentMethodLabel(effectivePaymentMethod)}</Text>
+            <Text style={styles.financialValue}>{getPaymentMethodLabel(effectivePaymentMethod, t)}</Text>
           </View>
 
           {/* Contact voyageur */}
@@ -1653,7 +1676,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Mode de paiement */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>Mode de paiement</Text>
-            <Text style={styles.financialValue}>{getPaymentMethodLabel(effectivePaymentMethod)}</Text>
+            <Text style={styles.financialValue}>{getPaymentMethodLabel(effectivePaymentMethod, t)}</Text>
           </View>
         </View>
       )}
@@ -1700,7 +1723,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           resizeMode="contain"
         />
         <Text style={styles.footerBrandText}>
-          AkwaHome - Votre plateforme de réservation en Côte d'Ivoire
+          AkwaHome - Résidences, hôtels, bail longue durée et véhicules en Côte d'Ivoire
         </Text>
         <Text style={styles.footerNcc}>NCC:2507662T</Text>
       </View>

@@ -36,6 +36,7 @@ import { getVehicleCoverUrl, isVideoUrl } from '../utils/media';
 import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
 import { supabase } from '../services/supabase';
 import { HOTEL_COLORS } from '../constants/colors';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type HotelBookingListItem = {
   id: string;
@@ -55,6 +56,7 @@ const MyBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const isInTabNavigator = route.name === 'BookingsTab';
   const { currency, rates, formatPrice } = useCurrency();
   const { getUserBookings, cancelBooking, loading: propertiesLoading, error } = useBookings();
@@ -168,8 +170,8 @@ const MyBookingsScreen: React.FC = () => {
             status: b.status,
             payment_method: b.payment_method,
             payment_status: b.payment_status || 'unpaid',
-            hotel_title: b.hotel_establishments?.title || 'Hôtel',
-            room_name: b.hotel_booking_items?.[0]?.hotel_room_types?.name || 'Chambre',
+            hotel_title: b.hotel_establishments?.title || t('bookings.hotelFallback'),
+            room_name: b.hotel_booking_items?.[0]?.hotel_room_types?.name || t('bookings.roomFallback'),
           })),
         );
       }
@@ -269,17 +271,17 @@ const MyBookingsScreen: React.FC = () => {
     checkOutDate.setHours(0, 0, 0, 0);
 
     if (booking.status === 'completed') {
-      Alert.alert('Impossible d\'annuler', 'Cette réservation est terminée et ne peut plus être annulée.');
+      Alert.alert(t('bookings.cannotCancel'), t('bookings.cannotCancelCompleted'));
       return;
     }
 
     if (booking.status === 'cancelled') {
-      Alert.alert('Réservation annulée', 'Cette réservation est déjà annulée.');
+      Alert.alert(t('bookings.alreadyCancelledTitle'), t('bookings.alreadyCancelledDesc'));
       return;
     }
 
     if (checkOutDate < today) {
-      Alert.alert('Impossible d\'annuler', 'Cette réservation concerne des dates passées et ne peut plus être annulée.');
+      Alert.alert(t('bookings.cannotCancel'), t('bookings.cannotCancelPast'));
       return;
     }
 
@@ -300,7 +302,7 @@ const MyBookingsScreen: React.FC = () => {
   const handleModifyBooking = async (booking: Booking) => {
     // Vérifier si la réservation peut être modifiée
     if (booking.status === 'completed' || booking.status === 'cancelled') {
-      Alert.alert('Impossible de modifier', 'Cette réservation ne peut plus être modifiée.');
+      Alert.alert(t('bookings.cannotModify'), t('bookings.cannotModifyDesc'));
       return;
     }
 
@@ -312,7 +314,7 @@ const MyBookingsScreen: React.FC = () => {
     
     // Ne peut pas modifier si le checkout est passé (réservation terminée)
     if (checkout < today) {
-      Alert.alert('Impossible de modifier', 'Cette réservation est terminée et ne peut plus être modifiée.');
+      Alert.alert(t('bookings.cannotModify'), t('bookings.cannotModifyCompleted'));
       return;
     }
 
@@ -324,9 +326,9 @@ const MyBookingsScreen: React.FC = () => {
       const pendingRequest = await getBookingPendingRequest(booking.id);
       if (pendingRequest) {
         Alert.alert(
-          'Demande en cours',
-          'Vous avez déjà une demande de modification en attente. Veuillez attendre la réponse de l\'hôte ou annuler la demande existante.',
-          [{ text: 'OK' }]
+          t('bookings.requestInProgress'),
+          t('bookings.requestInProgressHost'),
+          [{ text: t('common.ok') }]
         );
         return;
       }
@@ -353,8 +355,8 @@ const MyBookingsScreen: React.FC = () => {
       const pendingRequest = await getVehicleBookingPendingRequest(booking.id);
       if (pendingRequest) {
         Alert.alert(
-          'Demande en cours',
-          'Vous avez déjà une demande de modification en attente. Veuillez attendre la réponse du propriétaire ou annuler la demande existante.'
+          t('bookings.requestInProgress'),
+          t('bookings.requestInProgressOwner')
         );
         return;
       }
@@ -369,19 +371,19 @@ const MyBookingsScreen: React.FC = () => {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'all':
-        return 'Toutes';
+        return t('bookings.all');
       case 'pending':
-        return 'En attente';
+        return t('bookings.pending');
       case 'confirmed':
-        return 'Confirmées';
+        return t('bookings.confirmedPlural');
       case 'completed':
-        return 'Terminées';
+        return t('bookings.completedPlural');
       case 'cancelled':
-        return 'Annulées';
+        return t('bookings.cancelledPlural');
       case 'in_progress':
-        return 'En cours';
+        return t('bookings.inProgress');
       default:
-        return 'Inconnu';
+        return t('bookings.unknown');
     }
   };
 
@@ -527,13 +529,13 @@ const MyBookingsScreen: React.FC = () => {
                 { color: unpaid ? '#92400e' : '#166534' },
               ]}
             >
-              {unpaid ? 'Espèces à l’arrivée' : 'Payé'}
+              {unpaid ? t('bookings.cashOnArrival') : t('bookings.paid')}
             </Text>
           </View>
         </View>
         <View style={styles.hotelFooter}>
           <Text style={styles.hotelPrice}>{formatPrice(item.total_price)}</Text>
-          <Text style={styles.hotelLink}>Facture →</Text>
+          <Text style={styles.hotelLink}>{t('bookings.invoice')}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -544,7 +546,7 @@ const MyBookingsScreen: React.FC = () => {
     const vehicleCoverUri = vehicle ? getVehicleCoverUrl(vehicle) : '';
     const status = getVehicleBookingStatus(booking);
     const statusLabel = status === 'pending' && (booking as any).payment_method === 'card'
-      ? 'En attente d\'acceptation'
+      ? t('bookings.awaitingAcceptance')
       : getStatusText(status);
     const statusColor = status === 'pending' ? '#f59e0b' : status === 'confirmed' ? '#10b981' : status === 'in_progress' ? '#3b82f6' : status === 'completed' ? '#6366f1' : '#ef4444';
     
@@ -610,10 +612,10 @@ const MyBookingsScreen: React.FC = () => {
             )}
             <View style={styles.vehicleDetails}>
               <Text style={styles.vehicleTitle} numberOfLines={2}>
-                {vehicle?.title || `${vehicle?.brand || ''} ${vehicle?.model || ''}`.trim() || 'Véhicule'}
+                {vehicle?.title || `${vehicle?.brand || ''} ${vehicle?.model || ''}`.trim() || t('bookings.vehicleFallback')}
               </Text>
               <Text style={styles.vehicleLocation}>
-                📍 {vehicle?.location?.name || 'Localisation inconnue'}
+                📍 {vehicle?.location?.name || t('bookings.locationUnknown')}
               </Text>
               <View style={styles.dateContainer}>
                 <Text style={styles.dateText}>
@@ -634,9 +636,9 @@ const MyBookingsScreen: React.FC = () => {
           <View style={styles.modificationRequestBanner}>
             <Ionicons name="time-outline" size={18} color="#f39c12" />
             <View style={styles.modificationRequestContent}>
-              <Text style={styles.modificationRequestTitle}>Demande en attente</Text>
+              <Text style={styles.modificationRequestTitle}>{t('bookings.pendingRequest')}</Text>
               <Text style={styles.modificationRequestDates}>
-                En attente de réponse du propriétaire
+                {t('bookings.awaitingOwnerResponse')}
               </Text>
             </View>
           </View>
@@ -652,7 +654,7 @@ const MyBookingsScreen: React.FC = () => {
 
         {booking.message_to_owner && (
           <View style={styles.messageContainer}>
-            <Text style={styles.messageLabel}>Message au propriétaire :</Text>
+            <Text style={styles.messageLabel}>{t('bookings.messageToOwner')}</Text>
             <Text style={styles.messageText}>{booking.message_to_owner}</Text>
           </View>
         )}
@@ -663,7 +665,7 @@ const MyBookingsScreen: React.FC = () => {
             onPress={handleViewDetails}
           >
             <Ionicons name="receipt-outline" size={16} color="#2E7D32" />
-            <Text style={styles.actionButtonText}>Voir détails</Text>
+            <Text style={styles.actionButtonText}>{t('bookings.viewDetailsShort')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}
@@ -674,7 +676,7 @@ const MyBookingsScreen: React.FC = () => {
             }}
           >
             <Ionicons name="eye-outline" size={16} color="#2E7D32" />
-            <Text style={styles.actionButtonText}>Voir véhicule</Text>
+            <Text style={styles.actionButtonText}>{t('bookings.viewVehicle')}</Text>
           </TouchableOpacity>
 
           {/* Bouton Contacter le propriétaire */}
@@ -727,7 +729,7 @@ const MyBookingsScreen: React.FC = () => {
                 >
                   <Ionicons name="close-outline" size={16} color="#e74c3c" />
                   <Text style={[styles.actionButtonText, styles.cancelButtonText]}>
-                    Annuler
+                    {t('bookings.cancel')}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -742,10 +744,10 @@ const MyBookingsScreen: React.FC = () => {
     const hasAnyBookings = totalCount > 0;
     const emptyMessage =
       activeTab === 'properties'
-        ? 'Aucune réservation de résidence meublée'
+        ? t('bookings.noPropertyBookings')
         : activeTab === 'hotels'
-          ? 'Aucune réservation hôtel'
-          : 'Aucune réservation de véhicule';
+          ? t('bookings.noHotelBookings')
+          : t('bookings.noVehicleBookings');
     
     return (
       <View style={styles.emptyContainer}>
@@ -754,9 +756,9 @@ const MyBookingsScreen: React.FC = () => {
         <Text style={styles.emptySubtitle}>
           {selectedFilter === 'all' 
             ? hasAnyBookings 
-              ? `Aucune réservation ${getStatusText(selectedFilter).toLowerCase()}`
-              : 'Vous n\'avez pas encore de réservations'
-            : `Aucune réservation ${getStatusText(selectedFilter).toLowerCase()}`
+              ? t('bookings.noBookingsInFilter', { status: getStatusText(selectedFilter).toLowerCase() })
+              : t('bookings.noBookingsDesc')
+            : t('bookings.noBookingsInFilter', { status: getStatusText(selectedFilter).toLowerCase() })
           }
         </Text>
         {!hasAnyBookings && (
@@ -774,10 +776,10 @@ const MyBookingsScreen: React.FC = () => {
           >
             <Text style={styles.exploreButtonText}>
               {activeTab === 'vehicles'
-                ? 'Découvrir des véhicules'
+                ? t('bookings.discoverVehicles')
                 : activeTab === 'hotels'
-                  ? 'Explorer les hôtels'
-                  : 'Explorer les propriétés'}
+                  ? t('bookings.exploreHotels')
+                  : t('bookings.exploreProperties')}
             </Text>
           </TouchableOpacity>
         )}
@@ -817,7 +819,7 @@ const MyBookingsScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <View style={styles.placeholder} />
-        <Text style={styles.headerTitle}>Mes réservations</Text>
+        <Text style={styles.headerTitle}>{t('bookings.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -828,7 +830,7 @@ const MyBookingsScreen: React.FC = () => {
           onPress={() => setActiveTab('properties')}
         >
           <Text style={[styles.tabText, activeTab === 'properties' && styles.tabTextActive]}>
-            Résidences ({bookings.length})
+            {t('bookings.properties')} ({bookings.length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -836,7 +838,7 @@ const MyBookingsScreen: React.FC = () => {
           onPress={() => setActiveTab('vehicles')}
         >
           <Text style={[styles.tabText, activeTab === 'vehicles' && styles.tabTextActive]}>
-            Véhicules ({vehicleBookings.length})
+            {t('bookings.vehicles')} ({vehicleBookings.length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -844,7 +846,7 @@ const MyBookingsScreen: React.FC = () => {
           onPress={() => setActiveTab('hotels')}
         >
           <Text style={[styles.tabText, activeTab === 'hotels' && styles.tabTextActive]}>
-            Hôtels ({hotelBookings.length})
+            {t('bookings.hotels')} ({hotelBookings.length})
           </Text>
         </TouchableOpacity>
       </View>
@@ -853,12 +855,12 @@ const MyBookingsScreen: React.FC = () => {
       <View style={styles.filtersContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.filtersContent}>
-            {renderFilterButton('all', 'Toutes')}
-            {renderFilterButton('in_progress', 'En cours')}
-            {renderFilterButton('pending', 'En attente')}
-            {renderFilterButton('confirmed', 'Confirmées')}
-            {renderFilterButton('completed', 'Terminées')}
-            {renderFilterButton('cancelled', 'Annulées')}
+            {renderFilterButton('all', t('bookings.all'))}
+            {renderFilterButton('in_progress', t('bookings.inProgress'))}
+            {renderFilterButton('pending', t('bookings.pending'))}
+            {renderFilterButton('confirmed', t('bookings.confirmedPlural'))}
+            {renderFilterButton('completed', t('bookings.completedPlural'))}
+            {renderFilterButton('cancelled', t('bookings.cancelledPlural'))}
           </View>
         </ScrollView>
       </View>
@@ -867,7 +869,7 @@ const MyBookingsScreen: React.FC = () => {
       {loading && !refreshing ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
-          <Text style={styles.loadingText}>Chargement des réservations...</Text>
+          <Text style={styles.loadingText}>{t('bookings.loadingBookings')}</Text>
         </View>
       ) : (
         <FlatList
@@ -926,7 +928,7 @@ const MyBookingsScreen: React.FC = () => {
             status: selectedBookingForCancellation.status,
             payment_method: selectedBookingForCancellation.payment_method,
             properties: {
-              title: selectedBookingForCancellation.properties?.title || 'Propriété',
+              title: selectedBookingForCancellation.properties?.title || t('bookings.propertyFallback'),
               price_per_night: selectedBookingForCancellation.properties?.price_per_night || 0,
               cancellation_policy: selectedBookingForCancellation.properties?.cancellation_policy || null,
             },
@@ -994,7 +996,7 @@ const MyBookingsScreen: React.FC = () => {
           }}
           vehicleId={selectedVehicleBookingForReview.vehicle.id}
           bookingId={selectedVehicleBookingForReview.id}
-          vehicleTitle={selectedVehicleBookingForReview.vehicle.title || `${selectedVehicleBookingForReview.vehicle.brand || ''} ${selectedVehicleBookingForReview.vehicle.model || ''}`.trim() || 'Véhicule'}
+          vehicleTitle={selectedVehicleBookingForReview.vehicle.title || `${selectedVehicleBookingForReview.vehicle.brand || ''} ${selectedVehicleBookingForReview.vehicle.model || ''}`.trim() || t('bookings.vehicleFallback')}
           onReviewSubmitted={() => {
             loadBookings();
             setVehicleReviewModalVisible(false);

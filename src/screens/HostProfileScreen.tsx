@@ -23,6 +23,7 @@ import ContactHostButton from '../components/ContactHostButton';
 import ContactOwnerButton from '../components/ContactOwnerButton';
 import { supabase } from '../services/supabase';
 import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
+import { useLanguage } from '../contexts/LanguageContext';
 import type { RootStackParamList, Property, Vehicle } from '../types';
 
 type HostProfileRouteProp = RouteProp<RootStackParamList, 'HostProfile'>;
@@ -31,6 +32,7 @@ type HostProfileNavigationProp = StackNavigationProp<RootStackParamList, 'HostPr
 const HostProfileScreen: React.FC = () => {
   const navigation = useNavigation<HostProfileNavigationProp>();
   const route = useRoute<HostProfileRouteProp>();
+  const { t } = useLanguage();
   const {
     hostId,
     propertyOnly,
@@ -76,9 +78,9 @@ const HostProfileScreen: React.FC = () => {
   const hasAnyStat = hasListings || hasReviews || hasRating;
 
   const accent = isVehicleContext ? VEHICLE_COLORS : HOST_COLORS;
-  const roleLabel = isVehicleContext ? 'propriétaire' : 'hôte';
-  const contactTitle = isVehicleContext ? "Contacter le propriétaire" : "Contacter l'hôte";
-  const screenTitle = isVehicleContext ? 'Profil du propriétaire' : "Profil de l'hôte";
+  const roleLabel = isVehicleContext ? t('hostProfile.owner') : t('hostProfile.host');
+  const contactTitle = isVehicleContext ? t('hostProfile.contactOwner') : t('hostProfile.contactHost');
+  const screenTitle = isVehicleContext ? t('hostProfile.ownerTitle') : t('hostProfile.hostTitle');
   const hostDisplayName =
     `${hostProfile?.first_name || ''} ${hostProfile?.last_name || ''}`.trim() || roleLabel;
 
@@ -102,12 +104,12 @@ const HostProfileScreen: React.FC = () => {
     if (!v || !hostId) return null;
     return {
       id: v.id,
-      title: v.title ?? 'Véhicule',
+      title: v.title ?? t('hostProfile.vehicles'),
       owner_id: hostId,
       price_per_day: v.price_per_day ?? 0,
       images: v.images ?? [],
     } as Vehicle;
-  }, [ownerVehicles, hostId]);
+  }, [ownerVehicles, hostId, t]);
 
   const handleBack = useCallback(() => {
     handleHostProfileBack(navigation, { returnFromInternal });
@@ -181,7 +183,9 @@ const HostProfileScreen: React.FC = () => {
 
   const handleShareProfile = useCallback(() => {
     if (!hostId || !hostProfile) return;
-    const name = `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Hôte';
+    const name =
+      `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() ||
+      (isVehicleContext ? t('hostProfile.owner') : t('hostProfile.host'));
     shareProfileLink({
       url: getOwnerPublicWebUrl(hostId, {
         type: isVehicleContext ? 'vehicle' : 'host',
@@ -190,14 +194,14 @@ const HostProfileScreen: React.FC = () => {
       name,
       type: isVehicleContext ? 'vehicle' : 'host',
     });
-  }, [hostId, hostProfile, isVehicleContext]);
+  }, [hostId, hostProfile, isVehicleContext, t]);
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
-          <Text style={styles.loadingText}>Chargement du profil...</Text>
+          <Text style={styles.loadingText}>{t('hostProfile.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -208,15 +212,15 @@ const HostProfileScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
           <Ionicons name="person-outline" size={64} color="#ccc" />
-          <Text style={styles.errorTitle}>Profil non disponible</Text>
+          <Text style={styles.errorTitle}>{t('hostProfile.unavailable')}</Text>
           <Text style={styles.errorMessage}>
-            {error || 'Impossible de charger le profil de l\'hôte'}
+            {error || t('hostProfile.loadError')}
           </Text>
           <TouchableOpacity
             style={styles.backButton}
             onPress={handleBack}
           >
-            <Text style={styles.backButtonText}>Retour</Text>
+            <Text style={styles.backButtonText}>{t('common.back')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -275,11 +279,13 @@ const HostProfileScreen: React.FC = () => {
               color={accent.primary}
             />
             <Text style={[styles.rolePillText, { color: accent.primary }]}>
-              {isVehicleContext ? 'Propriétaire sur AkwaHome' : 'Hôte sur AkwaHome'}
+              {isVehicleContext ? t('hostProfile.ownerOnAkwaHome') : t('hostProfile.hostOnAkwaHome')}
             </Text>
           </View>
           {hostProfile.created_at ? (
-            <Text style={styles.memberSince}>Membre depuis {formatDate(hostProfile.created_at)}</Text>
+            <Text style={styles.memberSince}>
+              {t('hostProfile.memberSince', { date: formatDate(hostProfile.created_at) })}
+            </Text>
           ) : null}
           {(hostProfile.city || hostProfile.country) ? (
             <View style={styles.locationRow}>
@@ -293,14 +299,14 @@ const HostProfileScreen: React.FC = () => {
 
         {hostProfile.bio ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>À propos</Text>
+            <Text style={styles.cardTitle}>{t('hostProfile.about')}</Text>
             <Text style={styles.bioText}>{hostProfile.bio}</Text>
           </View>
         ) : null}
 
         {hasAnyStat ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Statistiques</Text>
+            <Text style={styles.cardTitle}>{t('hostProfile.stats')}</Text>
             <View style={[styles.statsContainer, { borderColor: accent.light, backgroundColor: accent.light }]}>
               {hasListings ? (
                 <TouchableOpacity
@@ -311,13 +317,13 @@ const HostProfileScreen: React.FC = () => {
                   <Text style={[styles.statNumber, { color: accent.primary }]}>
                     {vehiclesLoading ? '…' : listingsCount}
                   </Text>
-                  <Text style={styles.statLabel} numberOfLines={1}>Annonces</Text>
+                  <Text style={styles.statLabel} numberOfLines={1}>{t('hostProfile.listings')}</Text>
                   <View style={[styles.listingsCta, { borderColor: accent.primary }]}>
                     <Text
                       style={[styles.listingsCtaText, { color: accent.primary }]}
                       numberOfLines={1}
                     >
-                      Voir la liste
+                      {t('hostProfile.seeList')}
                     </Text>
                     <Ionicons name="chevron-forward" size={10} color={accent.primary} />
                   </View>
@@ -327,14 +333,14 @@ const HostProfileScreen: React.FC = () => {
                 <View style={styles.statItem}>
                   <Ionicons name="chatbubbles-outline" size={20} color={accent.primary} style={{ marginBottom: 4 }} />
                   <Text style={[styles.statNumber, { color: accent.primary }]}>{hostProfile.total_reviews}</Text>
-                  <Text style={styles.statLabel}>Avis</Text>
+                  <Text style={styles.statLabel}>{t('hostProfile.reviews')}</Text>
                 </View>
               ) : null}
               {hasRating ? (
                 <View style={styles.statItem}>
                   <Ionicons name="star" size={20} color="#f59e0b" style={{ marginBottom: 4 }} />
                   <Text style={[styles.statNumber, { color: accent.primary }]}>{hostProfile.average_rating}</Text>
-                  <Text style={styles.statLabel}>Note / 5</Text>
+                  <Text style={styles.statLabel}>{t('hostProfile.ratingOutOf5')}</Text>
                 </View>
               ) : null}
             </View>
@@ -354,7 +360,7 @@ const HostProfileScreen: React.FC = () => {
               <>
                 {properties.length > 0 ? (
                   <View style={{ marginBottom: 16 }}>
-                    <Text style={styles.cardTitle}>Résidences meublées</Text>
+                    <Text style={styles.cardTitle}>{t('hostProfile.furnishedResidences')}</Text>
                     <PublicHostPropertiesList
                       properties={properties}
                       onSelect={(propertyId) =>
@@ -366,7 +372,7 @@ const HostProfileScreen: React.FC = () => {
 
                 {ownerVehicles.length > 0 ? (
                   <View style={{ marginBottom: 16 }}>
-                    <Text style={styles.cardTitle}>Véhicules</Text>
+                    <Text style={styles.cardTitle}>{t('hostProfile.vehicles')}</Text>
                     <PublicOwnerVehiclesList
                       vehicles={ownerVehicles}
                       onSelect={(vehicleId) =>
@@ -378,7 +384,7 @@ const HostProfileScreen: React.FC = () => {
 
                 {monthlyListings.length > 0 ? (
                   <View style={{ marginBottom: 16 }}>
-                    <Text style={styles.cardTitle}>Bail longue durée</Text>
+                    <Text style={styles.cardTitle}>{t('hostProfile.monthly')}</Text>
                     {monthlyListings.map((listing) => (
                       <TouchableOpacity
                         key={listing.id}
@@ -403,7 +409,7 @@ const HostProfileScreen: React.FC = () => {
                             {listing.title}
                           </Text>
                           <Text style={styles.extraListingMeta} numberOfLines={1}>
-                            {listing.location || 'Bail longue durée'}
+                            {listing.location || t('hostProfile.monthly')}
                           </Text>
                         </View>
                         <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
@@ -414,7 +420,7 @@ const HostProfileScreen: React.FC = () => {
 
                 {hotels.length > 0 ? (
                   <View>
-                    <Text style={styles.cardTitle}>Établissements hôteliers</Text>
+                    <Text style={styles.cardTitle}>{t('hostProfile.hotels')}</Text>
                     {hotels.map((hotel) => (
                       <TouchableOpacity
                         key={hotel.id}
@@ -439,7 +445,7 @@ const HostProfileScreen: React.FC = () => {
                             {hotel.title}
                           </Text>
                           <Text style={styles.extraListingMeta} numberOfLines={1}>
-                            {hotel.address || 'Hôtel'}
+                            {hotel.address || t('hostProfile.hotel')}
                             {hotel.star_rating ? ` · ${hotel.star_rating}★` : ''}
                           </Text>
                         </View>
@@ -455,11 +461,13 @@ const HostProfileScreen: React.FC = () => {
 
         {reviews.length > 0 ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Avis reçus ({reviews.length})</Text>
+            <Text style={styles.cardTitle}>
+              {t('hostProfile.reviewsReceived', { count: String(reviews.length) })}
+            </Text>
             {reviewsLoading ? (
               <View style={styles.loadingReviewsContainer}>
                 <ActivityIndicator size="small" color="#2E7D32" />
-                <Text style={styles.loadingReviewsText}>Chargement des avis...</Text>
+                <Text style={styles.loadingReviewsText}>{t('hostProfile.loadingReviews')}</Text>
               </View>
             ) : (
               <View style={styles.reviewsContainer}>
@@ -473,7 +481,7 @@ const HostProfileScreen: React.FC = () => {
                         </Text>
                       </View>
                       <View>
-                        <Text style={styles.reviewerName}>{review.reviewer_name || 'Anonyme'}</Text>
+                        <Text style={styles.reviewerName}>{review.reviewer_name || t('hostProfile.anonymous')}</Text>
                         <Text style={styles.reviewDate}>
                           {formatDate(review.created_at)}
                         </Text>
@@ -494,13 +502,15 @@ const HostProfileScreen: React.FC = () => {
                     <Text style={styles.reviewComment}>{review.comment}</Text>
                   ) : null}
                   <Text style={[styles.propertyTitle, { color: accent.primary }]}>
-                    Propriété: {review.property_title || 'Propriété'}
+                    {t('hostProfile.propertyLabel', {
+                      title: review.property_title || t('reviews.property'),
+                    })}
                   </Text>
                 </View>
               ))}
               {reviews.length > 3 ? (
                 <Text style={styles.moreReviews}>
-                  +{reviews.length - 3} autres avis...
+                  {t('hostProfile.moreReviews', { count: String(reviews.length - 3) })}
                 </Text>
               ) : null}
               </View>
@@ -511,7 +521,7 @@ const HostProfileScreen: React.FC = () => {
         <View style={[styles.card, styles.contactCard, { borderColor: accent.light }]}>
           <Text style={styles.cardTitle}>{contactTitle}</Text>
           <Text style={styles.contactHint}>
-            Une question avant de réserver ? Envoyez un message à {hostProfile.first_name || roleLabel}.
+            {t('hostProfile.contactHint', { name: hostProfile.first_name || roleLabel })}
           </Text>
 
           {isVehicleContext && contactVehicle ? (
@@ -540,7 +550,7 @@ const HostProfileScreen: React.FC = () => {
                 onPress={() => Linking.openURL(`mailto:${hostProfile.email}`)}
               >
                 <Ionicons name="mail-outline" size={18} color={accent.primary} />
-                <Text style={styles.contactActionText}>E-mail</Text>
+                <Text style={styles.contactActionText}>{t('hostProfile.email')}</Text>
               </TouchableOpacity>
             ) : null}
             {hostProfile.phone ? (
@@ -549,7 +559,7 @@ const HostProfileScreen: React.FC = () => {
                 onPress={() => Linking.openURL(`tel:${hostProfile.phone}`)}
               >
                 <Ionicons name="call-outline" size={18} color={accent.primary} />
-                <Text style={styles.contactActionText}>Téléphone</Text>
+                <Text style={styles.contactActionText}>{t('hostProfile.phone')}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -559,13 +569,17 @@ const HostProfileScreen: React.FC = () => {
           <Ionicons name={isVehicleContext ? 'car-outline' : 'home-outline'} size={28} color={accent.primary} />
           <Text style={styles.welcomeTitle}>
             {isVehicleContext
-              ? `Location avec ${hostProfile.first_name || 'ce propriétaire'}`
-              : `Bienvenue chez ${hostProfile.first_name || 'votre hôte'} !`}
+              ? t('hostProfile.rentWith', {
+                  name: hostProfile.first_name || t('hostProfile.thisOwner'),
+                })
+              : t('hostProfile.welcomeAt', {
+                  name: hostProfile.first_name || t('hostProfile.yourHost'),
+                })}
           </Text>
           <Text style={styles.welcomeMessage}>
             {isVehicleContext
-              ? 'Un propriétaire réactif pour vous accompagner tout au long de votre location.'
-              : 'Votre hôte est là pour vous accueillir et vous faire passer un séjour inoubliable.'}
+              ? t('hostProfile.ownerWelcomeMsg')
+              : t('hostProfile.hostWelcomeMsg')}
           </Text>
         </View>
       </ScrollView>

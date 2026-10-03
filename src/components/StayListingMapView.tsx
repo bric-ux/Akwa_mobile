@@ -10,6 +10,7 @@ import {
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useCurrency } from '../hooks/useCurrency';
+import { useLanguage } from '../contexts/LanguageContext';
 import { TRAVELER_COLORS } from '../constants/colors';
 
 export type StayMapMarker = {
@@ -39,6 +40,7 @@ const StayListingMapView: React.FC<Props> = ({
   searchCenter,
 }) => {
   const { formatPrice, currency, currencySymbol, convert } = useCurrency();
+  const { t } = useLanguage();
   const webViewRef = useRef<WebView>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -195,7 +197,7 @@ const StayListingMapView: React.FC<Props> = ({
               onPress={() => onMarkerPress(selected.id)}
               activeOpacity={0.85}
             >
-              <Text style={styles.cardBtnText}>Voir les détails</Text>
+              <Text style={styles.cardBtnText}>{t('search.seeDetails')}</Text>
             </TouchableOpacity>
           </View>
         </View>

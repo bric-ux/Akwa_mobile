@@ -196,7 +196,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
             typeLabel: getPropertyTypeLabel(property.property_type),
           })}
           location={locationLabel || undefined}
-          priceLabel={`${formatPrice(effectiveNightPrice)}/nuit`}
+          priceLabel={`${formatPrice(effectiveNightPrice)}${t('search.perNight')}`}
           promoPercent={
             property.discount_enabled && property.discount_percentage
               ? property.discount_percentage
@@ -299,7 +299,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
             <View style={styles.listPriceBlock}>
               <Text style={styles.listPrice}>
                 {formatPrice(effectiveNightPrice)}
-                <Text style={styles.listPriceUnit}>/{t('common.perNight')}</Text>
+                <Text style={styles.listPriceUnit}>{t('search.perNight')}</Text>
               </Text>
               {metaBits.length > 0 ? (
                 <Text style={styles.listMetaBits} numberOfLines={1}>
@@ -325,7 +325,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
             {renderImageCarousel(CAROUSEL_HEIGHT)}
             <View style={styles.priceOverlay} pointerEvents="none">
               <Text style={styles.priceText}>
-                {formatPrice(effectiveNightPrice)}/{t('common.perNight')}
+                {formatPrice(effectiveNightPrice)}{t('search.perNight')}
               </Text>
               {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
                 <Text style={styles.discountOverlay}>

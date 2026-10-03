@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -17,21 +17,23 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { TRAVELER_COLORS } from '../constants/colors';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const ACCENT = TRAVELER_COLORS.primary;
 
-const DISPUTE_TYPES = [
-  { value: 'booking', label: 'Problème de réservation' },
-  { value: 'payment', label: 'Paiement ou remboursement' },
-  { value: 'property_condition', label: 'État du logement / véhicule' },
-  { value: 'behavior', label: 'Comportement (hôte ou voyageur)' },
-  { value: 'communication', label: 'Communication / informations' },
-  { value: 'other', label: 'Autre' },
-];
+const DISPUTE_TYPE_KEYS = [
+  { value: 'booking', labelKey: 'dispute.type.booking' },
+  { value: 'payment', labelKey: 'dispute.type.payment' },
+  { value: 'property_condition', labelKey: 'dispute.type.property' },
+  { value: 'behavior', labelKey: 'dispute.type.behavior' },
+  { value: 'communication', labelKey: 'dispute.type.communication' },
+  { value: 'other', labelKey: 'dispute.type.other' },
+] as const;
 
 const DeclareDisputeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [disputeType, setDisputeType] = useState<string>('');
   const [bookingReference, setBookingReference] = useState('');
   const [subject, setSubject] = useState('');
@@ -39,28 +41,33 @@ const DeclareDisputeScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
+  const disputeTypes = useMemo(
+    () => DISPUTE_TYPE_KEYS.map((item) => ({ value: item.value, label: t(item.labelKey) })),
+    [t],
+  );
+
   const handleSubmit = async () => {
     if (!disputeType) {
-      Alert.alert('Champ requis', 'Veuillez sélectionner un type de litige.');
+      Alert.alert(t('dispute.fieldRequired'), t('dispute.typeRequired'));
       return;
     }
     if (!bookingReference.trim()) {
       Alert.alert(
-        'Champ requis',
-        'Indiquez la référence de la réservation concernée (numéro, logement ou véhicule).',
+        t('dispute.fieldRequired'),
+        t('dispute.refRequired'),
       );
       return;
     }
     if (!subject.trim()) {
-      Alert.alert('Champ requis', 'Veuillez indiquer un sujet.');
+      Alert.alert(t('dispute.fieldRequired'), t('dispute.subjectRequired'));
       return;
     }
     if (!description.trim()) {
-      Alert.alert('Champ requis', 'Veuillez décrire votre litige.');
+      Alert.alert(t('dispute.fieldRequired'), t('dispute.descRequired'));
       return;
     }
     if (!user?.email) {
-      Alert.alert('Erreur', 'Vous devez être connecté.');
+      Alert.alert(t('common.error'), t('dispute.mustLogin'));
       return;
     }
 
@@ -75,7 +82,7 @@ const DeclareDisputeScreen: React.FC = () => {
       const userName =
         [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || user.email;
       const disputeTypeLabel =
-        DISPUTE_TYPES.find((t) => t.value === disputeType)?.label || disputeType;
+        disputeTypes.find((item) => item.value === disputeType)?.label || disputeType;
 
       const { error } = await supabase.functions.invoke('send-email', {
         body: {
@@ -96,7 +103,7 @@ const DeclareDisputeScreen: React.FC = () => {
       if (error) throw error;
       setSent(true);
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'envoyer le message.");
+      Alert.alert(t('common.error'), e instanceof Error ? e.message : t('dispute.sendError'));
     } finally {
       setLoading(false);
     }
@@ -109,20 +116,23 @@ const DeclareDisputeScreen: React.FC = () => {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#1f2937" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Déclarer un litige</Text>
+          <Text style={styles.headerTitle}>{t('account.declareDispute')}</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.successBox}>
           <View style={styles.successIconWrap}>
             <Ionicons name="checkmark-circle" size={56} color="#059669" />
           </View>
-          <Text style={styles.successTitle}>Déclaration transmise</Text>
+          <Text style={styles.successTitle}>{t('dispute.successTitle')}</Text>
           <Text style={styles.successText}>
-            Notre équipe support vous répondra sous 48 h
-            {user?.email ? ` à ${user.email}` : ''}.
+            {t('dispute.successText', {
+              emailSuffix: user?.email
+                ? t('dispute.successEmailSuffix', { email: user.email })
+                : '',
+            })}
           </Text>
           <TouchableOpacity style={styles.successButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.successButtonText}>Retour</Text>
+            <Text style={styles.successButtonText}>{t('common.back')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -135,7 +145,7 @@ const DeclareDisputeScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1f2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Déclarer un litige</Text>
+        <Text style={styles.headerTitle}>{t('account.declareDispute')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -154,25 +164,25 @@ const DeclareDisputeScreen: React.FC = () => {
             <View style={styles.heroIconWrap}>
               <Ionicons name="document-text-outline" size={22} color={ACCENT} />
             </View>
-            <Text style={styles.heroTitle}>Support AkwaHome</Text>
+            <Text style={styles.heroTitle}>{t('dispute.heroTitle')}</Text>
             <Text style={styles.heroSubtitle}>
-              Décrivez la situation. Notre équipe examine chaque déclaration et vous répond sous 48 h.
+              {t('dispute.heroSubtitle')}
             </Text>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>Type de litige *</Text>
+            <Text style={styles.label}>{t('dispute.typeLabel')}</Text>
             <View style={styles.chipWrap}>
-              {DISPUTE_TYPES.map((t) => {
-                const selected = disputeType === t.value;
+              {disputeTypes.map((item) => {
+                const selected = disputeType === item.value;
                 return (
                   <TouchableOpacity
-                    key={t.value}
+                    key={item.value}
                     style={[styles.chip, selected && styles.chipSelected]}
-                    onPress={() => setDisputeType(t.value)}
+                    onPress={() => setDisputeType(item.value)}
                   >
                     <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-                      {t.label}
+                      {item.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -181,10 +191,10 @@ const DeclareDisputeScreen: React.FC = () => {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>Référence de réservation *</Text>
+            <Text style={styles.label}>{t('dispute.refLabel')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Numéro de réservation, logement ou véhicule"
+              placeholder={t('dispute.refPlaceholder')}
               placeholderTextColor="#9ca3af"
               value={bookingReference}
               onChangeText={setBookingReference}
@@ -192,10 +202,10 @@ const DeclareDisputeScreen: React.FC = () => {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>Sujet *</Text>
+            <Text style={styles.label}>{t('dispute.subjectLabel')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Résumé en quelques mots"
+              placeholder={t('dispute.subjectPlaceholder')}
               placeholderTextColor="#9ca3af"
               value={subject}
               onChangeText={setSubject}
@@ -203,10 +213,10 @@ const DeclareDisputeScreen: React.FC = () => {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>Description *</Text>
+            <Text style={styles.label}>{t('dispute.descLabel')}</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Faits, dates, et ce que vous attendez de notre intervention…"
+              placeholder={t('dispute.descPlaceholder')}
               placeholderTextColor="#9ca3af"
               value={description}
               onChangeText={setDescription}
@@ -226,14 +236,17 @@ const DeclareDisputeScreen: React.FC = () => {
             ) : (
               <>
                 <Ionicons name="send" size={18} color="#fff" />
-                <Text style={styles.submitButtonText}>Envoyer</Text>
+                <Text style={styles.submitButtonText}>{t('dispute.send')}</Text>
               </>
             )}
           </TouchableOpacity>
 
           <Text style={styles.footerNote}>
-            Réponse sous 48 h
-            {user?.email ? ` à l’adresse ${user.email}` : ''}.
+            {t('dispute.footerNote', {
+              emailSuffix: user?.email
+                ? t('dispute.footerEmailSuffix', { email: user.email })
+                : '',
+            })}
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -27,15 +27,7 @@ import {
   markMonthlyCandidatureAlertsSeen,
   parseMonthlyCandidatureAlertsSeen,
 } from '../utils/monthlyCandidatureAlerts';
-
-const STATUS_LABEL: Record<string, string> = {
-  sent: 'Dossier envoyé',
-  viewed: 'Vu par le propriétaire',
-  accepted: 'Accepté — visite à organiser',
-  rejected: 'Refusé',
-  visit_authorized: 'Visite autorisée',
-  docs_requested: 'Documents demandés',
-};
+import { useLanguage } from '../contexts/LanguageContext';
 
 const STATUS_COLOR: Record<string, string> = {
   sent: '#2563eb',
@@ -51,11 +43,25 @@ type Row = MonthlyRentalCandidature & { listing_title?: string; listing_location
 export default function MyMonthlyRentalCandidaturesScreen() {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const { getByTenantId, appendDocuments, loading } = useMonthlyRentalCandidatures();
   const [rows, setRows] = useState<Row[]>([]);
   const [alertIds, setAlertIds] = useState<Set<string>>(() => new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const dateLocale = language === 'en' ? 'en-US' : 'fr-FR';
+
+  const statusLabel = (status: string) => {
+    const map: Record<string, string> = {
+      sent: t('monthly.statusSent'),
+      viewed: t('monthly.statusViewedShort'),
+      accepted: t('monthly.statusAcceptedShort'),
+      rejected: t('monthly.statusRejectedShort'),
+      visit_authorized: t('monthly.statusVisitAuthorized'),
+      docs_requested: t('monthly.statusDocsRequested'),
+    };
+    return map[status] || status;
+  };
 
   const load = useCallback(async () => {
     const data = await getByTenantId();
@@ -111,10 +117,10 @@ export default function MyMonthlyRentalCandidaturesScreen() {
         { type: docType, url: urlData.publicUrl, name: asset.name || docType },
       ]);
       if (!result.success) throw new Error(result.error);
-      Alert.alert('Document envoyé');
+      Alert.alert(t('monthly.docSent'));
       await load();
     } catch (e) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Envoi impossible');
+      Alert.alert(t('common.error'), e instanceof Error ? e.message : t('monthly.uploadFailed'));
     } finally {
       setUploadingId(null);
     }
@@ -139,12 +145,12 @@ export default function MyMonthlyRentalCandidaturesScreen() {
           <View style={styles.cardTitleRow}>
             {showAlert ? <View style={styles.alertDot} /> : null}
             <Text style={styles.cardTitle} numberOfLines={2}>
-              {item.listing_title || 'Logement'}
+              {item.listing_title || t('monthly.housingFallback')}
             </Text>
           </View>
           <View style={[styles.badge, { backgroundColor: `${STATUS_COLOR[item.status] || '#6b7280'}18` }]}>
             <Text style={[styles.badgeText, { color: STATUS_COLOR[item.status] || '#6b7280' }]}>
-              {STATUS_LABEL[item.status] || item.status}
+              {statusLabel(item.status)}
             </Text>
           </View>
         </View>
@@ -154,23 +160,19 @@ export default function MyMonthlyRentalCandidaturesScreen() {
           </Text>
         ) : null}
         <Text style={styles.meta}>
-          Envoyé le {new Date(item.created_at).toLocaleDateString('fr-FR')}
+          {t('monthly.sentOn', { date: new Date(item.created_at).toLocaleDateString(dateLocale) })}
           {item.desired_move_in_date
-            ? ` · Entrée souhaitée ${new Date(item.desired_move_in_date).toLocaleDateString('fr-FR')}`
+            ? ` · ${t('monthly.desiredEntry', { date: new Date(item.desired_move_in_date).toLocaleDateString(dateLocale) })}`
             : ''}
         </Text>
         {item.status === 'accepted' ? (
-          <Text style={styles.hintSuccess}>
-            Le propriétaire a accepté votre dossier. Organisez la visite via la messagerie.
-          </Text>
+          <Text style={styles.hintSuccess}>{t('monthly.acceptedVisitHint')}</Text>
         ) : null}
         {item.status === 'visit_authorized' ? (
-          <Text style={styles.hintSuccess}>
-            Visite autorisée — contactez le propriétaire pour convenir d&apos;un créneau.
-          </Text>
+          <Text style={styles.hintSuccess}>{t('monthly.visitAuthorizedHint')}</Text>
         ) : null}
         {item.status === 'rejected' ? (
-          <Text style={styles.hintMuted}>Vous pouvez consulter d&apos;autres annonces sur AkwaHome.</Text>
+          <Text style={styles.hintMuted}>{t('monthly.rejectedBrowseHint')}</Text>
         ) : null}
 
         {Array.isArray(item.application_documents) && item.application_documents.length > 0 ? (
@@ -187,10 +189,8 @@ export default function MyMonthlyRentalCandidaturesScreen() {
 
         {showUpload ? (
           <View style={styles.uploadBox}>
-            <Text style={styles.uploadTitle}>Documents complémentaires à fournir</Text>
-            <Text style={styles.uploadHint}>
-              Le propriétaire a demandé des pièces supplémentaires.
-            </Text>
+            <Text style={styles.uploadTitle}>{t('monthly.extraDocsTitle')}</Text>
+            <Text style={styles.uploadHint}>{t('monthly.extraDocsHint')}</Text>
             {(missing.length > 0 ? missing : requested).map((docType) => (
               <TouchableOpacity
                 key={docType}
@@ -217,7 +217,7 @@ export default function MyMonthlyRentalCandidaturesScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#0f172a" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mes candidatures</Text>
+        <Text style={styles.headerTitle}>{t('monthly.myApplications')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -235,16 +235,13 @@ export default function MyMonthlyRentalCandidaturesScreen() {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="document-text-outline" size={56} color="#cbd5e1" />
-              <Text style={styles.emptyTitle}>Aucune candidature</Text>
-              <Text style={styles.emptyText}>
-                Postulez depuis une annonce en bail longue durée pour suivre l&apos;avancement de votre
-                dossier ici.
-              </Text>
+              <Text style={styles.emptyTitle}>{t('monthly.noApplications')}</Text>
+              <Text style={styles.emptyText}>{t('monthly.noApplicationsDesc')}</Text>
               <TouchableOpacity
                 style={styles.cta}
                 onPress={() => navigation.navigate('Search', { initialRentalType: 'monthly' })}
               >
-                <Text style={styles.ctaText}>Rechercher un logement</Text>
+                <Text style={styles.ctaText}>{t('monthly.searchHousing')}</Text>
               </TouchableOpacity>
             </View>
           }

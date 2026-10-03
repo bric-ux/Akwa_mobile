@@ -418,6 +418,7 @@ export type MonthlyRentalTabParamList = {
 export type HotelOwnerTabParamList = {
   HotelEstablishmentsTab: undefined;
   HotelBookingsTab: undefined;
+  HotelPayoutsTab: undefined;
   HotelMessagesTab: undefined;
   HotelProfileTab: undefined;
 };
