@@ -4,9 +4,9 @@ import { Vehicle } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { useVehicleFavorites } from '../hooks/useVehicleFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
-import MediaThumb from './MediaThumb';
+import CardImageStrip from './CardImageStrip';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
-import { getVehicleCoverUrl, getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
+import { getVehicleCoverUrl, getVehicleGalleryUrls } from '../utils/media';
 import { formatCardLocationLabel } from '../utils/locationLabel';
 import {
   formatExploreShelfHeadline,
@@ -84,6 +84,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
     <View style={[styles.outer, variant === 'list' && styles.listOuter]}>
       <ExploreShelfPhotoCard
         onPress={() => onPress(vehicle)}
+        imageHandlesPress
         imageAspect="list"
         imageHeight={IMAGE_HEIGHT}
         title={formatExploreShelfHeadline({
@@ -97,15 +98,11 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
         isFavorited={isFavorited}
         favoriteLoading={favoriteLoading}
         image={
-          <MediaThumb
-            uri={coverUri}
-            style={{ width: '100%', height: IMAGE_HEIGHT }}
-            resizeMode="cover"
-            contentPosition="center"
-            fitWholeImage
-            isVideo={isVideoUrl(coverUri)}
-            priority="low"
-            recyclingKey={`${vehicle.id}-list-cover`}
+          <CardImageStrip
+            urls={vehicleImages.length > 0 ? vehicleImages : [coverUri]}
+            height={IMAGE_HEIGHT}
+            onPress={() => onPress(vehicle)}
+            recyclingKey={`${vehicle.id}-list`}
           />
         }
       />

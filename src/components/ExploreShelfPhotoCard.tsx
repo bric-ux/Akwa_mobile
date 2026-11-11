@@ -31,6 +31,8 @@ type ExploreShelfPhotoCardProps = {
   /** Accueil carrousel portrait ; liste recherche (prix sur l’image). */
   imageAspect?: 'shelf' | 'list';
   image: React.ReactNode;
+  /** La photo gère le défilement et l’ouverture. Le texte reste cliquable. */
+  imageHandlesPress?: boolean;
   onFavoritePress?: (e: { stopPropagation: () => void }) => void;
   isFavorited?: boolean;
   favoriteLoading?: boolean;
@@ -50,6 +52,7 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
   imageHeight = EXPLORE_SHELF_IMAGE_HEIGHT,
   imageAspect = 'shelf',
   image,
+  imageHandlesPress = false,
   onFavoritePress,
   isFavorited = false,
   favoriteLoading = false,
@@ -62,12 +65,7 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
     typeof promoMinNights === 'number' &&
     promoMinNights > 0;
 
-  return (
-  <TouchableOpacity
-    style={[styles.shell, style]}
-    onPress={onPress}
-    activeOpacity={0.92}
-  >
+  const frame = (
     <View
       style={[
         styles.frameWrap,
@@ -76,7 +74,13 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
       ]}
     >
       <View style={[styles.frame, { height: imageHeight }]}>
-        {image}
+        {imageHandlesPress ? (
+          image
+        ) : (
+          <Pressable style={{ flex: 1 }} onPress={onPress}>
+            {image}
+          </Pressable>
+        )}
 
         {!isList && hasStructuredPromo ? (
           <View style={styles.promoBadge} pointerEvents="none">
@@ -131,8 +135,10 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
         ) : null}
       </View>
     </View>
+  );
 
-    <View style={styles.meta} pointerEvents="none">
+  const meta = (
+    <View style={styles.meta}>
       <View style={styles.titleRow}>
         <Text
           style={[styles.metaTitle, isList && styles.metaTitleList]}
@@ -166,7 +172,28 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
         </Text>
       ) : null}
     </View>
-  </TouchableOpacity>
+  );
+
+  if (imageHandlesPress) {
+    return (
+      <View style={[styles.shell, style]}>
+        {frame}
+        <TouchableOpacity onPress={onPress} activeOpacity={0.92}>
+          {meta}
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      style={[styles.shell, style]}
+      onPress={onPress}
+      activeOpacity={0.92}
+    >
+      {frame}
+      {meta}
+    </TouchableOpacity>
   );
 };
 

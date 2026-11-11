@@ -19,6 +19,7 @@ import { getPriceForDate } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import MediaThumb from './MediaThumb';
+import CardImageStrip from './CardImageStrip';
 import { getPropertyCoverUrl, getPropertyGalleryUrls, isVideoUrl } from '../utils/media';
 import { getPropertyCardLocationLabel } from '../utils/locationLabel';
 import { getPropertyTypeLabel } from '../utils/propertyTypeLabel';
@@ -128,28 +129,6 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
         ? displayPrice
         : property.price_per_night;
 
-  /**
-   * Liste (Explorer, recherche) : une seule image — pas de ScrollView horizontal dans la ligne,
-   * sinon le défilement vertical du FlatList se bloque / saccade.
-   */
-  const renderListCoverImage = (height: number) => {
-    const uri = coverUri || galleryUrls[0];
-    return (
-      <View style={[styles.listImageContainer, { height }]}>
-        <MediaThumb
-          uri={uri}
-          style={{ width: '100%', height }}
-          resizeMode="cover"
-          contentPosition="center"
-          fitWholeImage
-          isVideo={isVideoUrl(uri)}
-          priority="low"
-          recyclingKey={`${property.id}-list-cover`}
-        />
-      </View>
-    );
-  };
-
   const renderImageCarousel = (height: number) => (
     <View style={[styles.imageContainer, { height }]} onLayout={onStripLayout}>
       {galleryUrls.length > 1 ? (
@@ -252,39 +231,44 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
 
     return (
       <View style={styles.listCardOuter}>
+        <View style={[styles.listImageWrap, { height: LIST_CARD_IMAGE_HEIGHT }]}>
+          <CardImageStrip
+            urls={galleryUrls.filter(Boolean)}
+            height={LIST_CARD_IMAGE_HEIGHT}
+            onPress={handlePropertyPress}
+            recyclingKey={`${property.id}-list`}
+          />
+
+          <Pressable
+            style={styles.listFavoriteButton}
+            onPress={handleFavoritePress}
+            disabled={favoriteLoading}
+            hitSlop={8}
+          >
+            <Ionicons
+              name={isFavorited ? 'heart' : 'heart-outline'}
+              size={18}
+              color={isFavorited ? '#e74c3c' : '#1f2937'}
+            />
+          </Pressable>
+
+          {hasPromo ? (
+            <View style={styles.listPromoBadge}>
+              <Text style={styles.listPromoText}>
+                −{property.discount_percentage}% dès {property.discount_min_nights} nuits
+              </Text>
+            </View>
+          ) : null}
+
+          {hasReviews ? (
+            <View style={styles.listRatingBadge}>
+              <Ionicons name="star" size={12} color="#f59e0b" />
+              <Text style={styles.listRatingText}>{ratingValue.toFixed(1)}</Text>
+            </View>
+          ) : null}
+        </View>
+
         <TouchableOpacity onPress={handlePropertyPress} activeOpacity={0.9}>
-          <View style={[styles.listImageWrap, { height: LIST_CARD_IMAGE_HEIGHT }]}>
-            {renderListCoverImage(LIST_CARD_IMAGE_HEIGHT)}
-
-            <Pressable
-              style={styles.listFavoriteButton}
-              onPress={handleFavoritePress}
-              disabled={favoriteLoading}
-              hitSlop={8}
-            >
-              <Ionicons
-                name={isFavorited ? 'heart' : 'heart-outline'}
-                size={18}
-                color={isFavorited ? '#e74c3c' : '#1f2937'}
-              />
-            </Pressable>
-
-            {hasPromo ? (
-              <View style={styles.listPromoBadge}>
-                <Text style={styles.listPromoText}>
-                  −{property.discount_percentage}% dès {property.discount_min_nights} nuits
-                </Text>
-              </View>
-            ) : null}
-
-            {hasReviews ? (
-              <View style={styles.listRatingBadge}>
-                <Ionicons name="star" size={12} color="#f59e0b" />
-                <Text style={styles.listRatingText}>{ratingValue.toFixed(1)}</Text>
-              </View>
-            ) : null}
-          </View>
-
           <View style={styles.listMeta}>
             {locationLabel ? (
               <View style={styles.listLocationRow}>

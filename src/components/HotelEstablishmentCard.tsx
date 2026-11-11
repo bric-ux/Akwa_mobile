@@ -4,6 +4,7 @@ import type { HotelEstablishmentPublic } from '../hooks/useApprovedHotelEstablis
 import { useHotelFavorites } from '../hooks/useHotelFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import MediaThumb from './MediaThumb';
+import CardImageStrip from './CardImageStrip';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import {
@@ -56,10 +57,10 @@ export default function HotelEstablishmentCard({
   };
   const typeLabel = typeMap[establishment.establishment_type] || t('hotelEstablishment.typeHotel');
 
-  const imageUri =
+  const images =
     Array.isArray(establishment.images) && establishment.images.length > 0
-      ? establishment.images[0]
-      : 'https://via.placeholder.com/300x200';
+      ? establishment.images.filter(Boolean)
+      : ['https://via.placeholder.com/300x200'];
 
   const location =
     establishment.address?.trim() ||
@@ -87,7 +88,7 @@ export default function HotelEstablishmentCard({
           favoriteLoading={favoriteLoading}
           image={
             <MediaThumb
-              uri={imageUri}
+              uri={images[0]}
               style={{ width: '100%', height: EXPLORE_SHELF_IMAGE_HEIGHT }}
               resizeMode="cover"
               contentPosition="center"
@@ -105,6 +106,7 @@ export default function HotelEstablishmentCard({
     <View style={styles.listOuter}>
       <ExploreShelfPhotoCard
         onPress={() => onPress(establishment)}
+        imageHandlesPress
         imageAspect="list"
         imageHeight={LIST_CARD_IMAGE_HEIGHT}
         title={formatListCardTitle({
@@ -118,14 +120,11 @@ export default function HotelEstablishmentCard({
         isFavorited={isFavorited}
         favoriteLoading={favoriteLoading}
         image={
-          <MediaThumb
-            uri={imageUri}
-            style={{ width: '100%', height: LIST_CARD_IMAGE_HEIGHT }}
-            resizeMode="cover"
-            contentPosition="center"
-            fitWholeImage
-            priority="high"
-            recyclingKey={`${establishment.id}-list-cover`}
+          <CardImageStrip
+            urls={images}
+            height={LIST_CARD_IMAGE_HEIGHT}
+            onPress={() => onPress(establishment)}
+            recyclingKey={`${establishment.id}-list`}
           />
         }
       />
