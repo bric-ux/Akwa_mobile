@@ -4,6 +4,7 @@ import {
   mergeNearbyHotelEstablishments,
   resolveHotelSearchCenter,
 } from '../lib/hotelSearchProximity';
+import { sortByPlaceMatch } from '../lib/placeMatchRank';
 
 export type HotelEstablishmentPublic = {
   id: string;
@@ -152,6 +153,7 @@ export const useApprovedHotelEstablishments = () => {
           );
         }
 
+        result = sortByPlaceMatch(result, city);
         setEstablishments(result);
         return result;
       } catch (e) {

@@ -810,6 +810,12 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     });
   }
 
+  const hostFeeBase = serviceType === 'vehicle' ? priceAfterDiscountWithDriver : priceAfterDiscount;
+  const hostFeePercentShown =
+    hostFeeBase > 0 && hostCommission > 0
+      ? Math.round((hostCommission / hostFeeBase) * 100)
+      : commissionRates.hostFeePercent;
+
   // Fonction pour envoyer la facture par email
   const handleDownloadPDF = async () => {
     try {
@@ -1279,12 +1285,14 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             </View>
           )}
 
-          <View style={styles.financialRow}>
-            <Text style={styles.financialLabel}>
-              {t('invoice.serviceFee')}
-            </Text>
-            <Text style={styles.financialValue}>{formatPriceFCFA(effectiveServiceFee)}</Text>
-          </View>
+          {effectiveServiceFee > 0 && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>
+                {t('invoice.serviceFee')}
+              </Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveServiceFee)}</Text>
+            </View>
+          )}
 
           <View style={styles.separator} />
 
@@ -1516,7 +1524,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
-              Commission Akwahome ({commissionRates.hostFeePercent}%)
+              Commission Akwahome ({hostFeePercentShown}%)
             </Text>
             <Text style={[styles.financialValue, styles.commissionText]}>
               -{formatPriceFCFA(hostCommission)}
@@ -1627,16 +1635,18 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           <View style={styles.commissionBox}>
             <Text style={styles.commissionBoxTitle}>Commissions Akwahome</Text>
 
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>Frais de service voyageur</Text>
-              <Text style={[styles.financialValue, styles.commissionValue]}>
-                +{formatPriceFCFA(effectiveServiceFee)}
-              </Text>
-            </View>
+            {effectiveServiceFee > 0 && (
+              <View style={styles.financialRow}>
+                <Text style={styles.financialLabel}>Frais de service voyageur</Text>
+                <Text style={[styles.financialValue, styles.commissionValue]}>
+                  +{formatPriceFCFA(effectiveServiceFee)}
+                </Text>
+              </View>
+            )}
 
             <View style={styles.financialRow}>
               <Text style={styles.financialLabel}>
-                Commission hôte ({commissionRates.hostFeePercent}%)
+                Commission hôte ({hostFeePercentShown}%)
               </Text>
               <Text style={[styles.financialValue, styles.commissionValue]}>
                 +{formatPriceFCFA(hostCommission)}

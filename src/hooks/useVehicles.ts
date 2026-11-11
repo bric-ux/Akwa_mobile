@@ -8,6 +8,7 @@ import { resolveLocationIdsForSearchTerm } from '../lib/resolveSearchLocations';
 import { isWithinRadius } from '../utils/distance';
 import { notifyAdminsModerationPush } from '../services/notifyAdminsModerationPush';
 import { vehicleFeatureCode, VEHICLE_FEATURE_CATALOG } from '../catalog/vehicleFeatureCatalog';
+import { sortByPlaceMatch } from '../lib/placeMatchRank';
 
 function vehicleHasFeature(stored: string[] | null | undefined, selected: string): boolean {
   if (!stored?.length) return false;
@@ -349,6 +350,8 @@ export const useVehicles = () => {
           );
         }
       }
+
+      availableVehicles = sortByPlaceMatch(availableVehicles, filters?.locationName);
 
       if (queryError) {
         throw queryError;

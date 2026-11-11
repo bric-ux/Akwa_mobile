@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import type { MonthlyRentalListing } from '../types';
 import { resolveLocationIdsForSearchTerm } from '../lib/resolveSearchLocations';
 import { calculateDistance } from '../utils/distance';
+import { sortByPlaceMatch } from '../lib/placeMatchRank';
 
 export interface ApprovedMonthlyFilters {
   city?: string;
@@ -260,6 +261,8 @@ export const useApprovedMonthlyRentalListings = () => {
             primaryCount: result.length,
           });
         }
+
+        result = sortByPlaceMatch(result, city);
 
         debugMonthlyLog('RÉSULTAT FINAL', {
           count: result.length,

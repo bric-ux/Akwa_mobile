@@ -487,7 +487,7 @@ export const useVehicleBookings = () => {
             withDriver: bookingData.useDriver === true,
             driverFee,
             securityDeposit: vehicle.security_deposit ?? 0,
-            commissionRates: { travelerFeePercent: commissionRates.travelerFeePercent, hostFeePercent: 2 },
+            commissionRates: { travelerFeePercent: commissionRates.travelerFeePercent, hostFeePercent: commissionRates.hostFeePercent },
             paymentCurrency: bookingData.paymentCurrency || currency || 'XOF',
             paymentRate: bookingData.paymentRate ?? null,
             calculatedAt: new Date().toISOString(),
@@ -621,7 +621,7 @@ export const useVehicleBookings = () => {
             securityDeposit: vehicle.security_deposit ?? 0,
             commissionRates: {
               travelerFeePercent: commissionRates.travelerFeePercent,
-              hostFeePercent: 2
+              hostFeePercent: commissionRates.hostFeePercent
             },
             paymentCurrency: bookingData.paymentCurrency || currency || 'XOF',
             paymentRate: bookingData.paymentRate || (bookingData.paymentCurrency === 'EUR' ? rates.EUR : bookingData.paymentCurrency === 'USD' ? rates.USD : null),

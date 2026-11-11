@@ -26,6 +26,7 @@ import { calculateDistance, isWithinRadius } from '../utils/distance';
 import { log, logError, logWarn } from '../utils/logger';
 import { getPricesForDateBatch } from '../utils/priceCalculator';
 import { resolveLocationIdsForSearchTerm } from '../lib/resolveSearchLocations';
+import { sortByPlaceMatch } from '../lib/placeMatchRank';
 
 const AMENITY_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -176,6 +177,7 @@ const PROPERTY_SEARCH_LIST_SELECT = `
   location_id,
   latitude,
   longitude,
+  address,
   address_details,
   location_label,
   price_per_night,
@@ -1187,6 +1189,8 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         }
         filteredData = availableProperties;
       }
+
+      filteredData = sortByPlaceMatch(filteredData, searchTerm);
 
       let amenityLookup = amenitiesCacheRef.current;
       if (amenityLookup.size === 0) {

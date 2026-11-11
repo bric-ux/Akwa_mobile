@@ -406,7 +406,7 @@ export async function updateVehicleBookingCalculationDetails(
         securityDeposit: vehicleData.security_deposit ?? 0,
         commissionRates: {
           travelerFeePercent: vehicleRates.travelerFeePercent,
-          hostFeePercent: 2
+          hostFeePercent: vehicleRates.hostFeePercent
         },
         calculatedAt: new Date().toISOString()
       },

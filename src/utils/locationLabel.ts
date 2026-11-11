@@ -195,11 +195,45 @@ export function formatCardLocationLabel(
   return '';
 }
 
+function isGenericPlaceName(value: string): boolean {
+  const n = normalizePart(value);
+  if (!n) return true;
+  if (isKnownCommunePart(value)) return true;
+  return (
+    n === 'abidjan' ||
+    n === 'bouake' ||
+    n === 'yamoussoukro' ||
+    n === 'san pedro' ||
+    n === 'san-pedro' ||
+    n === 'grand bassam' ||
+    n === 'grand-bassam' ||
+    n === 'bassam' ||
+    n === 'assinie'
+  );
+}
+
+/** Rue, lot, immeuble : on ne les affiche pas à la place du quartier. */
+function looksLikeStreetAddress(value: string): boolean {
+  return /^(rue|avenue|av\.?|boulevard|bd\.?|route|rt\.?|lot|ilot|îlot|cite|cité|immeuble)\b/i.test(
+    value.trim(),
+  );
+}
+
+/** Premier segment = lieu nommé (Saint Viateur), pas la commune seule. */
+function specificPlaceLabel(raw: string): string {
+  const cleaned = sanitizeHierarchyLabel(raw);
+  const first = cleaned.split(',')[0]?.trim() || '';
+  if (!first || isGenericPlaceName(first) || looksLikeStreetAddress(first)) return '';
+  return cleaned;
+}
+
 export function getPropertyCardLocationLabel(property: {
   location?: string | LocationNode | null;
   locations?: LocationNode | null;
   /** Libellé précis hors catalogue (ex. quartier OSM non présent en DB) */
   location_label?: string | null;
+  /** Lieu saisi à la candidature (Saint Viateur, Restaurant Bar Marie…). */
+  address?: string | null;
   address_details?: string | null;
 }): string {
   const label = property.location_label?.trim() || '';
@@ -213,9 +247,12 @@ export function getPropertyCardLocationLabel(property: {
     catalog = formatCardLocationLabel(property.location);
   }
 
-  // Libellé précis présent : ne jamais fusionner une commune catalogue
-  // potentiellement fausse (ex. Koumassi alors que le pin est Cocody).
-  // On n’ajoute que la ville si elle manque.
+  const precise = specificPlaceLabel(label) || specificPlaceLabel(property.address?.trim() || '');
+  if (precise) {
+    return mergeLocationLabelParts(precise, catalog) || precise;
+  }
+
+  // Libellé présent mais sans lieu plus fin : ne pas coller une commune catalogue fausse.
   if (label) {
     const cleaned = sanitizeHierarchyLabel(label);
     const parts = cleaned.split(',').map((p) => p.trim()).filter(Boolean);

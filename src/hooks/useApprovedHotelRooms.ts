@@ -4,6 +4,7 @@ import {
   mergeNearbyHotelEstablishments,
   resolveHotelSearchCenter,
 } from '../lib/hotelSearchProximity';
+import { placeMatchRank, sortByPlaceMatch } from '../lib/placeMatchRank';
 
 export type HotelRoomSearchResult = {
   id: string;
@@ -175,6 +176,8 @@ export const useApprovedHotelRooms = () => {
           );
         }
 
+        establishments = sortByPlaceMatch(establishments, city);
+
         if (!establishments?.length) {
           setRooms([]);
           return [];
@@ -256,6 +259,20 @@ export const useApprovedHotelRooms = () => {
               longitude: est.longitude != null ? Number(est.longitude) : null,
             },
           });
+        }
+
+        if (city) {
+          mapped.sort(
+            (a, b) =>
+              placeMatchRank(
+                { title: a.establishment.title, address: a.establishment.address },
+                city,
+              ) -
+              placeMatchRank(
+                { title: b.establishment.title, address: b.establishment.address },
+                city,
+              ),
+          );
         }
 
         setRooms(mapped);
