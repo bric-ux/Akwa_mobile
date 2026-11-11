@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect, useRoute, CommonActions } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useUserProfile, clearProfileCache } from '../hooks/useUserProfile';
+import { useOnboardingStaff } from '../hooks/useOnboardingStaff';
 import { useAuth } from '../services/AuthContext';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
@@ -41,6 +42,7 @@ const ProfileScreen: React.FC = () => {
   const { t, language, setLanguage } = useLanguage();
   const { monthlyRental, hotel: hotelEnabled, loading: flagsLoading } = useFeatureFlags();
   const { profile, loading, error, refreshProfile } = useUserProfile();
+  const { isStaff } = useOnboardingStaff();
   const { verificationStatus, isVerified } = useIdentityVerification();
   const { isEmailVerified, generateVerificationCode, checkEmailVerificationStatus } = useEmailVerification();
   const { getApplications } = useHostApplications();
@@ -550,8 +552,7 @@ const ProfileScreen: React.FC = () => {
   // Ajouter les éléments communs
   menuItems = [...menuItems, ...commonMenuItems];
 
-  // Ajouter l'option Administration seulement si l'utilisateur est admin
-  if (profile?.role === 'admin') {
+  if (isStaff) {
     menuItems.push({
       id: 'admin',
       title: t('account.admin'),

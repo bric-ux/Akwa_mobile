@@ -22,7 +22,7 @@ export type AdminTargetUser = {
 };
 
 type Props = {
-  assetKind: 'property' | 'vehicle';
+  assetKind: 'property' | 'vehicle' | 'hotel' | 'monthly';
   targetUser: AdminTargetUser | null;
   enabled: boolean;
   onEnabledChange: (v: boolean) => void;
@@ -40,7 +40,14 @@ const AdminCreateForUserPanel: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const kindLabel = assetKind === 'vehicle' ? 'véhicule' : 'résidence';
+  const kind =
+    assetKind === 'vehicle'
+      ? { create: 'ce véhicule', blocked: 'le véhicule' }
+      : assetKind === 'hotel'
+        ? { create: 'cet hôtel', blocked: "l'hôtel" }
+        : assetKind === 'monthly'
+          ? { create: 'ce bail', blocked: 'le bail' }
+          : { create: 'cette résidence', blocked: 'la résidence' };
 
   const verify = async () => {
     setError(null);
@@ -84,13 +91,19 @@ const AdminCreateForUserPanel: React.FC<Props> = ({
 
   return (
     <View style={styles.container}>
+      <View style={styles.infoBox}>
+        <Ionicons name="information-circle" size={18} color="#1d4ed8" />
+        <Text style={styles.infoText}>
+          Cochez le mode administrateur pour ajouter ce bien au compte d’un autre utilisateur.
+        </Text>
+      </View>
       <View style={styles.headerRow}>
         <View style={styles.headerText}>
           <Ionicons name="shield-checkmark" size={20} color="#2c3e50" />
           <View style={styles.headerLabels}>
             <Text style={styles.title}>Mode administrateur</Text>
             <Text style={styles.subtitle}>
-              Créer cette {kindLabel} pour le compte d'un autre utilisateur.
+              Créer {kind.create} pour le compte d'un autre utilisateur.
             </Text>
           </View>
         </View>
@@ -170,7 +183,7 @@ const AdminCreateForUserPanel: React.FC<Props> = ({
             </View>
           ) : (
             <Text style={styles.hint}>
-              Tant que l'utilisateur n'est pas vérifié, vous ne pouvez pas créer la {kindLabel}.
+              Tant que l'utilisateur n'est pas vérifié, vous ne pouvez pas créer {kind.blocked}.
             </Text>
           )}
         </View>
@@ -188,6 +201,23 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
     backgroundColor: '#f9fafb',
     padding: 14,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+  },
+  infoText: {
+    flex: 1,
+    color: '#1e3a8a',
+    fontSize: 13,
+    lineHeight: 18,
   },
   headerRow: {
     flexDirection: 'row',

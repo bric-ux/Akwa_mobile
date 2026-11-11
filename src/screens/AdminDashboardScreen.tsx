@@ -16,16 +16,27 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAdmin, DashboardStats } from '../hooks/useAdmin';
 import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { useOnboardingStaff } from '../hooks/useOnboardingStaff';
 import AdminNotificationBell from '../components/AdminNotificationBell';
 import AdminBookingBreakdownSection from '../components/admin/AdminBookingBreakdownSection';
 import type { BookingBreakdown } from '../components/admin/AdminBookingBreakdownSection';
 import { fetchAdminBookingBreakdown } from '../lib/adminBookingBreakdown';
 import { supabase } from '../services/supabase';
 
+const SEMI_ADMIN_ROUTES = new Set([
+  'AdminApplications',
+  'AdminIdentityDocuments',
+  'AdminVehicles',
+  'AdminHotels',
+  'AdminMonthlyRental',
+  'AddListingChoice',
+]);
+
 type ActionItem = {
   title: string;
   description?: string;
   icon: keyof typeof Ionicons.glyphMap;
+  route?: string;
   onPress: () => void;
 };
 
@@ -43,6 +54,7 @@ const AdminDashboardScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
   const { profile } = useUserProfile();
+  const { isStaff, isFullAdmin, isSemiAdmin, loading: staffLoading } = useOnboardingStaff();
   const { getDashboardStats } = useAdmin();
   const getDashboardStatsRef = useRef(getDashboardStats);
   getDashboardStatsRef.current = getDashboardStats;
@@ -54,6 +66,7 @@ const AdminDashboardScreen: React.FC = () => {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
+    create: false,
     residences: true,
     vehicles: true,
     hotels: true,
@@ -67,6 +80,11 @@ const AdminDashboardScreen: React.FC = () => {
 
   const loadStats = useCallback(async () => {
     try {
+      if (!isFullAdmin) {
+        setStats(null);
+        setBookingBreakdown(null);
+        return;
+      }
       const [dash, breakdown] = await Promise.all([
         getDashboardStatsRef.current('all'),
         fetchAdminBookingBreakdown(),
@@ -78,12 +96,12 @@ const AdminDashboardScreen: React.FC = () => {
     } finally {
       setLoadingStats(false);
     }
-  }, []);
+  }, [isFullAdmin]);
 
   useFocusEffect(
     useCallback(() => {
-      if (user && profile?.role === 'admin') void loadStats();
-    }, [user, profile?.role, loadStats]),
+      if (user && isStaff && !staffLoading) void loadStats();
+    }, [user, isStaff, staffLoading, loadStats]),
   );
 
   const toggleSection = (id: string) => {
@@ -180,7 +198,17 @@ const AdminDashboardScreen: React.FC = () => {
     );
   }
 
-  if (profile?.role !== 'admin') {
+  if (staffLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#c2410c" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!isStaff) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
@@ -195,7 +223,24 @@ const AdminDashboardScreen: React.FC = () => {
     );
   }
 
-  const sections: AdminSection[] = [
+  const allSections: AdminSection[] = [
+    {
+      id: 'create',
+      title: 'Créer un bien pour un utilisateur',
+      subtitle: 'Choisir le type, puis cocher le mode admin',
+      icon: 'person-add-outline',
+      accent: '#0f766e',
+      accentSoft: '#f0fdfa',
+      items: [
+        {
+          title: 'Choisir le type de bien',
+          description: 'Résidence, bail longue durée, hôtel ou véhicule',
+          icon: 'add-circle-outline',
+          route: 'AddListingChoice',
+          onPress: () => navigation.navigate('AddListingChoice'),
+        },
+      ],
+    },
     {
       id: 'residences',
       title: 'Résidences meublées',
@@ -208,30 +253,35 @@ const AdminDashboardScreen: React.FC = () => {
           title: 'Candidatures d’hôtes',
           description: 'Valider les nouvelles demandes',
           icon: 'person-add-outline',
+          route: 'AdminApplications',
           onPress: () => navigation.navigate('AdminApplications'),
         },
         {
           title: 'Propriétés',
           description: 'Masquer, afficher, supprimer',
           icon: 'business-outline',
+          route: 'AdminProperties',
           onPress: () => navigation.navigate('AdminProperties'),
         },
         {
           title: 'Avis voyageurs',
           description: 'Approuver ou rejeter',
           icon: 'star-outline',
+          route: 'AdminReviews',
           onPress: () => navigation.navigate('AdminReviews'),
         },
         {
           title: 'Recherche réservation',
           description: 'Par numéro akwa-xxx',
           icon: 'search-outline',
+          route: 'AdminBookingManagement',
           onPress: () => navigation.navigate('AdminBookingManagement'),
         },
         {
           title: 'Pénalités d’annulation',
           description: 'Suivi des pénalités',
           icon: 'alert-circle-outline',
+          route: 'AdminPenalties',
           onPress: () => navigation.navigate('AdminPenalties'),
         },
       ],
@@ -248,6 +298,7 @@ const AdminDashboardScreen: React.FC = () => {
           title: 'Validation des véhicules',
           description: 'Approuver ou rejeter les demandes',
           icon: 'car-sport-outline',
+          route: 'AdminVehicles',
           onPress: () => navigation.navigate('AdminVehicles'),
         },
       ],
@@ -264,6 +315,7 @@ const AdminDashboardScreen: React.FC = () => {
           title: 'Modération hôtels',
           description: 'Approuver ou refuser les soumissions',
           icon: 'checkmark-circle-outline',
+          route: 'AdminHotels',
           onPress: () => navigation.navigate('AdminHotels'),
         },
       ],
@@ -280,6 +332,7 @@ const AdminDashboardScreen: React.FC = () => {
           title: 'Modération des annonces',
           description: 'Approuver ou refuser avant affichage',
           icon: 'document-text-outline',
+          route: 'AdminMonthlyRental',
           onPress: () => navigation.navigate('AdminMonthlyRental'),
         },
       ],
@@ -296,18 +349,21 @@ const AdminDashboardScreen: React.FC = () => {
           title: 'Comptes & rôles',
           description: 'Gérer les utilisateurs',
           icon: 'people-outline',
+          route: 'AdminUsers',
           onPress: () => navigation.navigate('AdminUsers'),
         },
         {
           title: 'Documents d’identité',
           description: 'Vérification KYC',
           icon: 'shield-checkmark-outline',
+          route: 'AdminIdentityDocuments',
           onPress: () => navigation.navigate('AdminIdentityDocuments'),
         },
         {
           title: 'Partager les vitrines',
           description: 'SMS / email lien profil public',
           icon: 'share-social-outline',
+          route: 'AdminProfileShare',
           onPress: () => navigation.navigate('AdminProfileShare'),
         },
       ],
@@ -355,7 +411,7 @@ const AdminDashboardScreen: React.FC = () => {
     {
       id: 'notifications',
       title: 'Notifications',
-      subtitle: 'Push, centre de notifications',
+      subtitle: 'Push, commissions, centre de notifications',
       icon: 'notifications-outline',
       accent: '#b45309',
       accentSoft: '#fffbeb',
@@ -365,6 +421,12 @@ const AdminDashboardScreen: React.FC = () => {
           description: 'Envoyer un message push',
           icon: 'phone-portrait-outline',
           onPress: () => navigation.navigate('AdminPushNotifications'),
+        },
+        {
+          title: 'Nouvelles commissions',
+          description: 'E-mail et push aux hôtes et propriétaires',
+          icon: 'megaphone-outline',
+          onPress: () => navigation.navigate('AdminCommissionNotice'),
         },
         {
           title: 'Centre de notifications',
@@ -432,6 +494,17 @@ const AdminDashboardScreen: React.FC = () => {
     },
   ];
 
+  const sections: AdminSection[] = isFullAdmin
+    ? allSections
+    : allSections
+        .map((section) => ({
+          ...section,
+          items: section.items.filter(
+            (item) => item.route != null && SEMI_ADMIN_ROUTES.has(item.route),
+          ),
+        }))
+        .filter((section) => section.items.length > 0);
+
   const kpi = [
     {
       label: 'Utilisateurs',
@@ -478,9 +551,17 @@ const AdminDashboardScreen: React.FC = () => {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Administration</Text>
-          <Text style={styles.headerSub}>Pilotage de la plateforme</Text>
+          <Text style={styles.headerSub}>
+            {isSemiAdmin
+              ? 'Semi-admin — création, candidatures & identité'
+              : 'Pilotage de la plateforme'}
+          </Text>
         </View>
-        <TouchableOpacity style={styles.headerBtn} onPress={loadStats} disabled={loadingStats}>
+        <TouchableOpacity
+          style={styles.headerBtn}
+          onPress={loadStats}
+          disabled={loadingStats || !isFullAdmin}
+        >
           {loadingStats ? (
             <ActivityIndicator size="small" color="#0f172a" />
           ) : (
@@ -494,39 +575,43 @@ const AdminDashboardScreen: React.FC = () => {
         contentContainerStyle={styles.contentInner}
         showsVerticalScrollIndicator={false}
       >
-        <AdminNotificationBell />
+        {isFullAdmin ? <AdminNotificationBell /> : null}
 
-        <Text style={styles.kicker}>Aperçu</Text>
-        <View style={styles.kpiGrid}>
-          {kpi.map((item) => (
-            <View key={item.label} style={styles.kpiCard}>
-              <View style={[styles.kpiIcon, { backgroundColor: item.soft }]}>
-                <Ionicons name={item.icon} size={18} color={item.color} />
-              </View>
-              {loadingStats && !stats ? (
-                <ActivityIndicator size="small" color={item.color} style={{ marginTop: 8 }} />
-              ) : (
-                <Text style={styles.kpiValue}>{item.value ?? 0}</Text>
-              )}
-              <Text style={styles.kpiLabel}>{item.label}</Text>
+        {isFullAdmin ? (
+          <>
+            <Text style={styles.kicker}>Aperçu</Text>
+            <View style={styles.kpiGrid}>
+              {kpi.map((item) => (
+                <View key={item.label} style={styles.kpiCard}>
+                  <View style={[styles.kpiIcon, { backgroundColor: item.soft }]}>
+                    <Ionicons name={item.icon} size={18} color={item.color} />
+                  </View>
+                  {loadingStats && !stats ? (
+                    <ActivityIndicator size="small" color={item.color} style={{ marginTop: 8 }} />
+                  ) : (
+                    <Text style={styles.kpiValue}>{item.value ?? 0}</Text>
+                  )}
+                  <Text style={styles.kpiLabel}>{item.label}</Text>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
 
-        <TouchableOpacity
-          style={styles.statsShortcut}
-          onPress={() => navigation.navigate('AdminStats')}
-          activeOpacity={0.8}
-        >
-          <View style={styles.statsShortcutIcon}>
-            <Ionicons name="analytics-outline" size={20} color="#0f766e" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.statsShortcutTitle}>Statistiques</Text>
-            <Text style={styles.statsShortcutDesc}>Suivre l’activité de la plateforme</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.statsShortcut}
+              onPress={() => navigation.navigate('AdminStats')}
+              activeOpacity={0.8}
+            >
+              <View style={styles.statsShortcutIcon}>
+                <Ionicons name="analytics-outline" size={20} color="#0f766e" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.statsShortcutTitle}>Statistiques</Text>
+                <Text style={styles.statsShortcutDesc}>Suivre l’activité de la plateforme</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+            </TouchableOpacity>
+          </>
+        ) : null}
 
         {(stats?.monthlyVisitRequestsPending ?? 0) > 0 ||
         (stats?.pendingApplications ?? 0) > 0 ? (
@@ -616,14 +701,18 @@ const AdminDashboardScreen: React.FC = () => {
           );
         })}
 
-        <Text style={styles.kicker}>Réservations</Text>
-        {loadingStats && !stats ? (
-          <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-            <ActivityIndicator size="small" color="#64748b" />
-          </View>
-        ) : (
-          <AdminBookingBreakdownSection breakdown={bookingBreakdown} />
-        )}
+        {isFullAdmin ? (
+          <>
+            <Text style={styles.kicker}>Réservations</Text>
+            {loadingStats && !stats ? (
+              <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#64748b" />
+              </View>
+            ) : (
+              <AdminBookingBreakdownSection breakdown={bookingBreakdown} />
+            )}
+          </>
+        ) : null}
 
         <View style={{ height: 32 }} />
       </ScrollView>

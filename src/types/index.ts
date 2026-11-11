@@ -331,6 +331,7 @@ export type RootStackParamList = {
   AdminNotifications: undefined;
   AdminProfileShare: undefined;
   AdminPushNotifications: undefined;
+  AdminCommissionNotice: undefined;
   AdminReviews: undefined;
   AdminVehicles: undefined;
   AdminPenalties: undefined;

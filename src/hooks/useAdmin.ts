@@ -644,6 +644,7 @@ export const useAdmin = () => {
     setError(null);
 
     try {
+      // Seul un admin full peut écrire profiles.role = admin (trigger prevent_role_self_update)
       const { error } = await supabase
         .from('profiles')
         .update({ role })
@@ -655,6 +656,56 @@ export const useAdmin = () => {
         return { success: false };
       }
 
+      // Synchroniser user_roles (source de vérité RLS)
+      if (role === 'admin') {
+        const { error: roleErr } = await supabase.from('user_roles').upsert(
+          { user_id: userId, role: 'admin' as any, created_by: user.id },
+          { onConflict: 'user_id,role' },
+        );
+        if (roleErr) {
+          console.error('Error syncing user_roles admin:', roleErr);
+          setError('Profil mis à jour mais sync user_roles échouée');
+          return { success: false };
+        }
+      } else {
+        const { error: roleErr } = await supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', userId)
+          .eq('role', 'admin');
+        if (roleErr) {
+          console.error('Error removing user_roles admin:', roleErr);
+        }
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      setError('Une erreur inattendue est survenue');
+      return { success: false };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Attribuer / retirer le rôle semi-admin (admin full uniquement, RPC). */
+  const setSemiAdminRole = async (userId: string, enabled: boolean) => {
+    if (!user) {
+      setError('Vous devez être connecté');
+      return { success: false };
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const { error } = await supabase.rpc('set_semi_admin_role' as any, {
+        target_user_id: userId,
+        enabled,
+      });
+      if (error) {
+        console.error('Error set_semi_admin_role:', error);
+        setError(error.message || 'Erreur lors de la mise à jour semi-admin');
+        return { success: false };
+      }
       return { success: true };
     } catch (err) {
       console.error('Unexpected error:', err);
@@ -1295,6 +1346,7 @@ export const useAdmin = () => {
     deleteProperty,
     getAllUsers,
     updateUserRole,
+    setSemiAdminRole,
     getIdentityDocument,
     getDashboardStats,
     getMonthlyRentalListings,

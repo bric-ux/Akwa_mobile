@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAdmin, MonthlyRentalListingWithOwner } from '../hooks/useAdmin';
 import { useAuth } from '../services/AuthContext';
-import { useUserProfile } from '../hooks/useUserProfile';
+import { useOnboardingStaff } from '../hooks/useOnboardingStaff';
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Brouillon',
@@ -44,7 +44,7 @@ const { height: WINDOW_HEIGHT } = Dimensions.get('window');
 const AdminMonthlyRentalScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { profile } = useUserProfile();
+  const { isStaff, isFullAdmin, loading: staffLoading } = useOnboardingStaff();
   const {
     getMonthlyRentalListings,
     updateMonthlyRentalListingStatus,
@@ -71,10 +71,10 @@ const AdminMonthlyRentalScreen: React.FC = () => {
 
   useFocusEffect(
     React.useCallback(() => {
-      if (user && profile?.role === 'admin') {
+      if (user && isStaff) {
         loadListings();
       }
-    }, [user, profile])
+    }, [user, isStaff])
   );
 
   const handleRefresh = async () => {
@@ -128,6 +128,13 @@ const AdminMonthlyRentalScreen: React.FC = () => {
 
   const handleDelete = () => {
     if (!selected) return;
+    if (!isFullAdmin && selected.status === 'approved') {
+      Alert.alert(
+        'Action impossible',
+        'Cette annonce a déjà été acceptée. Seul un administrateur peut la modifier.',
+      );
+      return;
+    }
     Alert.alert(
       'Supprimer l\'annonce',
       `Supprimer définitivement "${selected.title}" ? Cette action est irréversible.`,
@@ -155,6 +162,13 @@ const AdminMonthlyRentalScreen: React.FC = () => {
 
   const handleToggleHidden = async () => {
     if (!selected || selected.status !== 'approved') return;
+    if (!isFullAdmin) {
+      Alert.alert(
+        'Action impossible',
+        'Cette annonce a déjà été acceptée. Seul un administrateur peut la modifier.',
+      );
+      return;
+    }
     const nextHidden = !selected.hidden_by_admin;
     setActionLoading(true);
     const result = await setMonthlyRentalListingHidden(selected.id, nextHidden);
@@ -237,7 +251,17 @@ const AdminMonthlyRentalScreen: React.FC = () => {
     );
   }
 
-  if (profile?.role !== 'admin') {
+  if (staffLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#e74c3c" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!isStaff) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.center}>
@@ -408,7 +432,7 @@ const AdminMonthlyRentalScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
             )}
-            {selected?.status === 'approved' ? (
+            {selected?.status === 'approved' && isFullAdmin ? (
               <TouchableOpacity
                 style={styles.hideLink}
                 onPress={() => void handleToggleHidden()}
@@ -426,12 +450,17 @@ const AdminMonthlyRentalScreen: React.FC = () => {
                 </Text>
               </TouchableOpacity>
             ) : null}
-            {selected && (
+            {selected && (isFullAdmin || selected.status !== 'approved') ? (
               <TouchableOpacity style={styles.deleteLink} onPress={handleDelete} disabled={actionLoading}>
                 <Ionicons name="trash-outline" size={18} color="#e74c3c" />
                 <Text style={styles.deleteLinkText}>Supprimer l'annonce</Text>
               </TouchableOpacity>
-            )}
+            ) : null}
+            {!isFullAdmin && selected?.status === 'approved' ? (
+              <Text style={{ color: '#666', fontSize: 14, lineHeight: 20, marginTop: 12, textAlign: 'center' }}>
+                Cette annonce a déjà été acceptée. Seul un administrateur peut la modifier.
+              </Text>
+            ) : null}
           </View>
         </KeyboardAvoidingView>
       </Modal>

@@ -31,12 +31,17 @@ import {
 import { MONTHLY_FURNITURE_OPTIONS } from '../constants/monthlyFurniture';
 import { MONTHLY_FURNISHED_OPTIONS } from '../constants/monthlyFurnished';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useOnboardingStaff } from '../hooks/useOnboardingStaff';
+import AdminCreateForUserPanel, { AdminTargetUser } from '../components/admin/AdminCreateForUserPanel';
 
 const AddMonthlyRentalListingScreen: React.FC = () => {
   const navigation = useNavigation();
   const { t } = useLanguage();
   const { user } = useAuth();
+  const { isStaff } = useOnboardingStaff();
   const { createListing, submitForApproval, loading } = useMonthlyRentalListings(user?.id);
+  const [adminCreateForEnabled, setAdminCreateForEnabled] = useState(false);
+  const [adminTargetUser, setAdminTargetUser] = useState<AdminTargetUser | null>(null);
   const PROPERTY_TYPES = [
     { value: 'apartment', label: t('monthlyHost.typeApartment') },
     { value: 'house', label: t('monthlyHost.typeHouse') },
@@ -225,11 +230,22 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
   };
 
   const handleSaveDraft = async () => {
+    if (adminCreateForEnabled && !adminTargetUser) {
+      Alert.alert('Mode administrateur', 'Vérifiez le compte du propriétaire avant d’enregistrer.');
+      return;
+    }
     const input = await buildListingInput(false);
     if (!input) return;
-    const result = await createListing(input);
+    const ownerId = adminCreateForEnabled ? adminTargetUser?.user_id : undefined;
+    const result = await createListing(input, { ownerId });
     if (!result.success || !result.id) {
       Alert.alert(t('common.error'), result.error || t('monthlyHost.draftError'));
+      return;
+    }
+    if (ownerId && adminTargetUser) {
+      Alert.alert('Brouillon créé', `Brouillon créé pour ${adminTargetUser.full_name}.`, [
+        { text: t('common.ok'), onPress: () => navigation.goBack() },
+      ]);
       return;
     }
     Alert.alert(t('monthlyHost.draftSaved'), t('monthlyHost.draftSavedDesc'));
@@ -237,28 +253,45 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
   };
 
   const handleSubmit = async () => {
+    if (adminCreateForEnabled && !adminTargetUser) {
+      Alert.alert('Mode administrateur', 'Vérifiez le compte du propriétaire avant d’envoyer.');
+      return;
+    }
     const input = await buildListingInput(true);
     if (!input) return;
+    const ownerId = adminCreateForEnabled ? adminTargetUser?.user_id : undefined;
 
-    const result = await createListing(input);
+    const result = await createListing(input, { ownerId });
 
     if (!result.success || !result.id) {
       Alert.alert(t('common.error'), result.error || t('monthlyHost.createError'));
       return;
     }
 
-    const submit = await submitForApproval(result.id);
+    const submit = await submitForApproval(result.id, undefined, ownerId);
     if (!submit.success) {
       Alert.alert(
         t('monthlyHost.draftSaved'),
         submit.error || t('monthlyHost.draftSavedSubmitFailed'),
-        [
-          {
-            text: t('monthlyHost.seeMyListings'),
-            onPress: goMonthlySpace,
-          },
-          { text: t('common.ok') },
-        ],
+        ownerId
+          ? [{ text: t('common.ok'), onPress: () => navigation.goBack() }]
+          : [
+              {
+                text: t('monthlyHost.seeMyListings'),
+                onPress: goMonthlySpace,
+              },
+              { text: t('common.ok') },
+            ],
+      );
+      return;
+    }
+
+    if (ownerId && adminTargetUser) {
+      Alert.alert(
+        t('common.success'),
+        `Annonce envoyée pour ${adminTargetUser.full_name}.`,
+        [{ text: t('common.ok'), onPress: () => navigation.goBack() }],
+        { cancelable: false },
       );
       return;
     }
@@ -295,6 +328,15 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
+          {isStaff ? (
+            <AdminCreateForUserPanel
+              assetKind="monthly"
+              enabled={adminCreateForEnabled}
+              onEnabledChange={setAdminCreateForEnabled}
+              targetUser={adminTargetUser}
+              onTargetUserChange={setAdminTargetUser}
+            />
+          ) : null}
           <View style={styles.block}>
             <Text style={styles.label}>{t('monthlyHost.labelTitle')}</Text>
             <TextInput

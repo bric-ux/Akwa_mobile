@@ -422,6 +422,12 @@ const MessagingScreen: React.FC = () => {
   };
 
   const getOtherUserName = (conversation: Conversation) => {
+    if (
+      isAdminSupportConversation(conversation) &&
+      user?.id === conversation.guest_id
+    ) {
+      return AKWAHOME_SUPPORT_TITLE;
+    }
     if (user?.id === conversation.guest_id) {
       if (!conversation.host_profile) return t('messaging.host');
       const firstName = String(conversation.host_profile.first_name ?? '').trim();

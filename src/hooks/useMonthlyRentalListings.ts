@@ -80,9 +80,14 @@ export const useMonthlyRentalListings = (hostId: string | undefined) => {
   }, [hostId, user?.id]);
 
   const createListing = useCallback(
-    async (input: MonthlyRentalListingInput): Promise<{ success: boolean; id?: string; error?: string }> => {
-      const uid = hostId || user?.id;
-      if (!uid) return { success: false, error: 'Non connecté' };
+    async (
+      input: MonthlyRentalListingInput,
+      options?: { ownerId?: string },
+    ): Promise<{ success: boolean; id?: string; error?: string }> => {
+      const actorId = user?.id;
+      const uid = options?.ownerId || hostId || actorId;
+      if (!uid || !actorId) return { success: false, error: 'Non connecté' };
+      const forOther = Boolean(options?.ownerId && options.ownerId !== actorId);
 
       setLoading(true);
       setError(null);
@@ -91,6 +96,7 @@ export const useMonthlyRentalListings = (hostId: string | undefined) => {
           .from('monthly_rental_listings')
           .insert({
             owner_id: uid,
+            ...(forOther ? { created_by_admin_id: actorId } : {}),
             title: input.title,
             description: input.description || null,
             location: input.location,
@@ -170,8 +176,8 @@ export const useMonthlyRentalListings = (hostId: string | undefined) => {
   );
 
   const submitForApproval = useCallback(
-    async (listingId: string, _hasPaid?: boolean): Promise<{ success: boolean; error?: string }> => {
-      const uid = hostId || user?.id;
+    async (listingId: string, _hasPaid?: boolean, ownerId?: string): Promise<{ success: boolean; error?: string }> => {
+      const uid = ownerId || hostId || user?.id;
       if (!uid) return { success: false, error: 'Non connecté' };
       setLoading(true);
       setError(null);

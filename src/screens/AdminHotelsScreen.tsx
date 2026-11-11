@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAdmin, HotelEstablishmentWithOwner } from '../hooks/useAdmin';
 import { useAuth } from '../services/AuthContext';
-import { useUserProfile } from '../hooks/useUserProfile';
+import { useOnboardingStaff } from '../hooks/useOnboardingStaff';
 import { HOTEL_COLORS } from '../constants/colors';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -40,7 +40,7 @@ const STATUS_COLORS: Record<string, string> = {
 const AdminHotelsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { profile } = useUserProfile();
+  const { isStaff, isFullAdmin, loading: staffLoading } = useOnboardingStaff();
   const { getHotelEstablishments, updateHotelEstablishmentStatus, deleteHotelEstablishment, loading } =
     useAdmin();
 
@@ -61,8 +61,8 @@ const AdminHotelsScreen: React.FC = () => {
 
   useFocusEffect(
     React.useCallback(() => {
-      if (user && profile?.role === 'admin') void load();
-    }, [user, profile]),
+      if (user && isStaff) void load();
+    }, [user, isStaff]),
   );
 
   const filtered = rows.filter((l) => (filterStatus === 'all' ? true : l.status === filterStatus));
@@ -73,8 +73,29 @@ const AdminHotelsScreen: React.FC = () => {
     return [p.first_name, p.last_name].filter(Boolean).join(' ') || p.email || '—';
   };
 
+  if (!isStaff && !staffLoading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }} edges={['top']}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Ionicons name="shield-outline" size={56} color="#ccc" />
+          <Text style={{ marginTop: 12, fontSize: 18, fontWeight: '600' }}>Accès réservé</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
+            <Text style={{ color: '#e74c3c', fontWeight: '600' }}>Retour</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const decide = async (status: 'active' | 'rejected') => {
     if (!selected) return;
+    if (!isFullAdmin && selected.status === 'active') {
+      Alert.alert(
+        'Action impossible',
+        'Cet hôtel a déjà été accepté. Seul un administrateur peut le modifier.',
+      );
+      return;
+    }
     setActionLoading(true);
     const result = await updateHotelEstablishmentStatus(
       selected.id,
@@ -99,6 +120,13 @@ const AdminHotelsScreen: React.FC = () => {
 
   const handleDelete = () => {
     if (!selected) return;
+    if (!isFullAdmin && selected.status === 'active') {
+      Alert.alert(
+        'Action impossible',
+        'Cet hôtel a déjà été accepté. Seul un administrateur peut le modifier.',
+      );
+      return;
+    }
     Alert.alert(
       'Supprimer l’hôtel',
       `Supprimer définitivement « ${selected.title} » ? Cette action est irréversible.`,
@@ -225,7 +253,8 @@ const AdminHotelsScreen: React.FC = () => {
                 )}
               </TouchableOpacity>
             )}
-            {(selected?.status === 'pending' || selected?.status === 'active') && (
+            {(selected?.status === 'pending' || selected?.status === 'active') &&
+            (isFullAdmin || selected?.status !== 'active') && (
               <TouchableOpacity
                 style={styles.rejectBtn}
                 disabled={actionLoading}
@@ -234,6 +263,7 @@ const AdminHotelsScreen: React.FC = () => {
                 <Text style={styles.rejectText}>Refuser</Text>
               </TouchableOpacity>
             )}
+            {(isFullAdmin || selected?.status !== 'active') && (
             <TouchableOpacity
               style={styles.deleteBtn}
               disabled={actionLoading}
@@ -241,6 +271,12 @@ const AdminHotelsScreen: React.FC = () => {
             >
               <Text style={styles.deleteText}>Supprimer définitivement</Text>
             </TouchableOpacity>
+            )}
+            {!isFullAdmin && selected?.status === 'active' ? (
+              <Text style={{ color: '#666', fontSize: 14, lineHeight: 20, marginTop: 8 }}>
+                Cet hôtel a déjà été accepté. Seul un administrateur peut le modifier.
+              </Text>
+            ) : null}
             <TouchableOpacity style={styles.closeBtn} onPress={() => setSelected(null)}>
               <Text style={styles.closeText}>Fermer</Text>
             </TouchableOpacity>

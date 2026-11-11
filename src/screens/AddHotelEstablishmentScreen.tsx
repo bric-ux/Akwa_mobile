@@ -27,6 +27,8 @@ import PropertyLocationPicker, {
 } from '../components/PropertyLocationPicker';
 import CitySearchInputModal from '../components/CitySearchInputModal';
 import { isLocationUuid } from '../lib/geolocation';
+import AdminCreateForUserPanel, { AdminTargetUser } from '../components/admin/AdminCreateForUserPanel';
+import { useOnboardingStaff } from '../hooks/useOnboardingStaff';
 import {
   HOTEL_AMENITY_OPTIONS,
   HOTEL_CANCELLATION_OPTIONS,
@@ -91,6 +93,9 @@ export default function AddHotelEstablishmentScreen() {
   const isEdit = !!establishmentId;
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { isStaff } = useOnboardingStaff();
+  const [adminCreateForEnabled, setAdminCreateForEnabled] = useState(false);
+  const [adminTargetUser, setAdminTargetUser] = useState<AdminTargetUser | null>(null);
 
   const establishmentTypes = [
     { value: 'hotel', label: t('hotelEstablishment.typeHotel') },
@@ -313,6 +318,12 @@ export default function AddHotelEstablishmentScreen() {
       Alert.alert(t('hotelEstablishment.fieldRequired'), t('hotelEstablishment.nameRequired'));
       return;
     }
+    const forOther = !isEdit && adminCreateForEnabled && !!adminTargetUser;
+    if (!isEdit && adminCreateForEnabled && !adminTargetUser) {
+      Alert.alert('Compte requis', 'Vérifiez le compte de l’hôtelier avant d’enregistrer.');
+      return;
+    }
+    const hostId = forOther && adminTargetUser ? adminTargetUser.user_id : user.id;
     if (!asDraft) {
       const incomplete = draftRooms.some((r) => {
         const price = parseInt(r.price_per_night, 10);
@@ -413,7 +424,8 @@ export default function AddHotelEstablishmentScreen() {
       const { data: created, error } = await supabase
         .from('hotel_establishments')
         .insert({
-          host_id: user.id,
+          host_id: hostId,
+          ...(forOther ? { created_by_admin_id: user.id } : {}),
           title: title.trim(),
           establishment_type: establishmentType,
           address: addressValue,
@@ -437,6 +449,11 @@ export default function AddHotelEstablishmentScreen() {
       }
 
       if (asDraft) {
+        if (forOther && adminTargetUser) {
+          Alert.alert('Brouillon créé', `Le brouillon a été créé pour ${adminTargetUser.full_name}.`);
+          navigation.goBack();
+          return;
+        }
         Alert.alert(t('hotelEstablishment.draftSavedTitle'), t('hotelEstablishment.draftSavedDesc'));
         goHotelSpace();
         return;
@@ -450,7 +467,7 @@ export default function AddHotelEstablishmentScreen() {
           updated_at: new Date().toISOString(),
         })
         .eq('id', created.id)
-        .eq('host_id', user.id);
+        .eq('host_id', hostId);
 
       if (submitErr) {
         Alert.alert(
@@ -462,14 +479,25 @@ export default function AddHotelEstablishmentScreen() {
         return;
       }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('first_name, last_name')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      const hostName =
-        [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || t('hotelEstablishment.hotelierFallback');
+      const hostName = forOther && adminTargetUser
+        ? adminTargetUser.full_name
+        : await (async () => {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('first_name, last_name')
+              .eq('user_id', user.id)
+              .maybeSingle();
+            return (
+              [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') ||
+              t('hotelEstablishment.hotelierFallback')
+            );
+          })();
       notifyHotelEstablishmentSubmitted(created.id, title.trim(), hostName).catch(() => {});
+      if (forOther && adminTargetUser) {
+        Alert.alert('Hôtel créé', `L’établissement a été créé pour ${adminTargetUser.full_name}.`);
+        navigation.goBack();
+        return;
+      }
       Alert.alert(t('hotelEstablishment.submittedTitle'), t('hotelEstablishment.submitted'));
       goHotelSpace();
     } catch (e) {
@@ -581,6 +609,15 @@ export default function AddHotelEstablishmentScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
+          {isStaff && !isEdit ? (
+            <AdminCreateForUserPanel
+              assetKind="hotel"
+              enabled={adminCreateForEnabled}
+              onEnabledChange={setAdminCreateForEnabled}
+              targetUser={adminTargetUser}
+              onTargetUserChange={setAdminTargetUser}
+            />
+          ) : null}
           <Text style={styles.eyebrow}>{t('hotelEstablishment.eyebrow')}</Text>
           <Text style={styles.title}>
             {isEdit

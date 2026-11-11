@@ -124,7 +124,7 @@ const AddVehicleScreen: React.FC = () => {
         if (!cancelled) setIsAdmin(false);
         return;
       }
-      const { data } = await supabase.rpc('is_admin');
+      const { data } = await supabase.rpc('is_onboarding_staff' as any);
       if (!cancelled) setIsAdmin(data === true);
     })();
     return () => {

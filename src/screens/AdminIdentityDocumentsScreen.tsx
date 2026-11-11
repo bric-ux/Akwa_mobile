@@ -20,7 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect, useRoute, type RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../types';
 import { useAuth } from '../services/AuthContext';
-import { useUserProfile } from '../hooks/useUserProfile';
+import { useOnboardingStaff } from '../hooks/useOnboardingStaff';
 import { supabase } from '../services/supabase';
 
 interface IdentityDocument {
@@ -46,7 +46,7 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'AdminIdentityDocuments'>>();
   const { user } = useAuth();
-  const { profile } = useUserProfile();
+  const { isStaff, loading: staffLoading } = useOnboardingStaff();
   const deepLinkHandled = useRef(false);
   
   const [documents, setDocuments] = useState<IdentityDocument[]>([]);
@@ -77,27 +77,29 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
 
       if (docsError) throw docsError;
 
-      // Charger les profils des utilisateurs
-      const userIds = [...new Set(docs.map(doc => doc.user_id))];
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, first_name, last_name, email, phone, created_at')
-        .in('user_id', userIds);
-
-      if (profilesError) throw profilesError;
-
-      // Créer un mapping des profils
+      const safeDocs = docs ?? [];
+      const userIds = [...new Set(safeDocs.map(doc => doc.user_id))];
       const userMap: Record<string, UserProfile> = {};
-      profiles.forEach(profile => {
-        userMap[profile.user_id] = profile;
-      });
 
-      setDocuments(docs);
+      if (userIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('user_id, first_name, last_name, email, phone, created_at')
+          .in('user_id', userIds);
+
+        if (profilesError) throw profilesError;
+
+        (profiles ?? []).forEach(profile => {
+          userMap[profile.user_id] = profile;
+        });
+      }
+
+      setDocuments(safeDocs);
       setUsers(userMap);
 
       const targetDocumentId = route.params?.documentId?.trim();
       if (targetDocumentId && !deepLinkHandled.current) {
-        const targetDoc = docs.find((d) => d.id === targetDocumentId);
+        const targetDoc = safeDocs.find((d) => d.id === targetDocumentId);
         if (targetDoc) {
           deepLinkHandled.current = true;
           setStatusFilter('pending');
@@ -115,10 +117,10 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
   // Charger les documents quand l'écran devient actif
   useFocusEffect(
     React.useCallback(() => {
-      if (user && profile?.role === 'admin') {
+      if (user && isStaff) {
         loadDocuments();
       }
-    }, [user, profile, loadDocuments])
+    }, [user, isStaff, loadDocuments])
   );
 
   const handleRefresh = async () => {
@@ -338,8 +340,18 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
     );
   }
 
+  if (staffLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#e74c3c" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   // Vérifier que l'utilisateur est admin
-  if (profile?.role !== 'admin') {
+  if (!isStaff) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.centerContainer}>

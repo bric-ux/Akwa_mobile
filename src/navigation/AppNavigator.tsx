@@ -57,6 +57,7 @@ import AdminStatsScreen from '../screens/AdminStatsScreen';
 import AdminUsersScreen from '../screens/AdminUsersScreen';
 import AdminProfileShareScreen from '../screens/AdminProfileShareScreen';
 import AdminPushNotificationScreen from '../screens/AdminPushNotificationScreen';
+import AdminCommissionNoticeScreen from '../screens/AdminCommissionNoticeScreen';
 import AdminIdentityDocumentsScreen from '../screens/AdminIdentityDocumentsScreen';
 import AdminNotificationsScreen from '../screens/AdminNotificationsScreen';
 import PdfViewerScreen from '../screens/PdfViewerScreen';
@@ -1163,6 +1164,14 @@ const AppNavigator = () => {
               component={AdminPushNotificationScreen}
               options={{
                 title: 'Notifications push',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="AdminCommissionNotice"
+              component={AdminCommissionNoticeScreen}
+              options={{
+                title: 'Nouvelles commissions',
                 headerShown: false,
               }}
             />

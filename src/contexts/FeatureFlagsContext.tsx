@@ -90,6 +90,12 @@ async function fetchFlagsFromDb(): Promise<FeatureFlagsState> {
 async function resolveIsAdmin(userId: string | undefined): Promise<boolean> {
   if (!userId) return false;
   try {
+    const { data: staff, error } = await supabase.rpc('is_onboarding_staff');
+    if (!error && staff === true) return true;
+  } catch {
+    // RPC absente tant que la migration semi-admin n'est pas appliquée.
+  }
+  try {
     const { data } = await supabase
       .from('profiles')
       .select('role')

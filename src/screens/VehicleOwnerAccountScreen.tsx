@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUserProfile, clearProfileCache } from '../hooks/useUserProfile';
+import { useOnboardingStaff } from '../hooks/useOnboardingStaff';
 import { useAuth } from '../services/AuthContext';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
@@ -27,6 +28,7 @@ const VehicleOwnerAccountScreen: React.FC = () => {
   const { t, language, setLanguage } = useLanguage();
   const { user, signOut } = useAuth();
   const { profile, loading, error, refreshProfile } = useUserProfile();
+  const { isStaff } = useOnboardingStaff();
   const { verificationStatus } = useIdentityVerification();
 
   useFocusEffect(
@@ -195,8 +197,7 @@ const VehicleOwnerAccountScreen: React.FC = () => {
     },
   ];
 
-  // Ajouter l'option Administration si admin
-  if (profile?.role === 'admin') {
+  if (isStaff) {
     menuItems.push({
       id: 'admin',
       title: t('account.admin'),

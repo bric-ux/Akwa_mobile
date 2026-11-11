@@ -134,7 +134,7 @@ const AdminPushNotificationScreen: React.FC = () => {
 
     Alert.alert(
       'Confirmer l’envoi',
-      `Notification push uniquement\n\n${targetRecipients.length} destinataire(s)`,
+      `Le message apparaît dans la messagerie, envoyé par Service AkwaHome.\n\n${targetRecipients.length} destinataire(s)`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -312,7 +312,7 @@ const AdminPushNotificationScreen: React.FC = () => {
             ) : (
               <>
                 <Ionicons name="notifications" size={20} color="#fff" />
-                <Text style={styles.actionBtnText}>Envoyer en push uniquement</Text>
+                <Text style={styles.actionBtnText}>Envoyer</Text>
               </>
             )}
           </TouchableOpacity>

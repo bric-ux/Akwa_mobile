@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,9 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAdmin } from '../hooks/useAdmin';
 import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { useOnboardingStaff } from '../hooks/useOnboardingStaff';
 import { useMessaging } from '../hooks/useMessaging';
+import { supabase } from '../services/supabase';
 import { AKWAHOME_SUPPORT_TITLE } from '../constants/supportMessaging';
 import {
   displayEmailOrPhone,
@@ -36,6 +38,7 @@ interface User {
   phone?: string;
   role: 'user' | 'admin';
   is_host: boolean;
+  is_semi_admin?: boolean;
   created_at: string;
   avatar_url?: string;
   identity_verified?: boolean | null;
@@ -50,36 +53,50 @@ const AdminUsersScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { profile } = useUserProfile();
-  const { getAllUsers, updateUserRole, loading } = useAdmin();
+  const { isFullAdmin, loading: staffLoading } = useOnboardingStaff();
+  const { getAllUsers, updateUserRole, setSemiAdminRole, loading } = useAdmin();
   const { createOrGetAdminSupportConversation, sendMessage, sending } = useMessaging();
   
   const [users, setUsers] = useState<User[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterRole, setFilterRole] = useState<'all' | 'user' | 'admin' | 'host'>('all');
+  const [filterRole, setFilterRole] = useState<'all' | 'user' | 'admin' | 'host' | 'semi_admin'>('all');
   const [messageTarget, setMessageTarget] = useState<User | null>(null);
   const [messageText, setMessageText] = useState('');
   const [messageSending, setMessageSending] = useState(false);
   const [listLoading, setListLoading] = useState(true);
 
+  const getAllUsersRef = useRef(getAllUsers);
+  getAllUsersRef.current = getAllUsers;
+
   const loadUsers = useCallback(async () => {
     try {
-      const allUsers = await getAllUsers();
-      setUsers(allUsers as User[]);
+      const allUsers = await getAllUsersRef.current();
+      const { data: semiRows } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'semi_admin' as any);
+      const semiIds = new Set((semiRows || []).map((r: { user_id: string }) => r.user_id));
+      setUsers(
+        (allUsers as User[]).map((u) => ({
+          ...u,
+          is_semi_admin: semiIds.has(u.user_id),
+        })),
+      );
     } catch (error) {
       console.error('Erreur lors du chargement des utilisateurs:', error);
     } finally {
       setListLoading(false);
     }
-  }, [getAllUsers]);
+  }, []);
 
-  // Charger les utilisateurs quand l'écran devient actif
+  // Charger les utilisateurs quand l'écran devient actif (admin full uniquement)
   useFocusEffect(
     React.useCallback(() => {
-      if (user && profile?.role === 'admin') {
+      if (user && isFullAdmin) {
         loadUsers();
       }
-    }, [user, profile])
+    }, [user, isFullAdmin, loadUsers])
   );
 
   const handleRefresh = async () => {
@@ -140,6 +157,10 @@ const AdminUsersScreen: React.FC = () => {
             try {
               const result = await updateUserRole(userId, newRole);
               if (result.success) {
+                if (newRole === 'admin') {
+                  // Un admin full n'a pas besoin du rôle semi-admin
+                  await setSemiAdminRole(userId, false);
+                }
                 Alert.alert('Succès', `Rôle ${actionText} avec succès`);
                 loadUsers(); // Recharger la liste
               } else {
@@ -151,6 +172,35 @@ const AdminUsersScreen: React.FC = () => {
           },
         },
       ]
+    );
+  };
+
+  const handleSemiAdminToggle = async (userId: string, enable: boolean) => {
+    const userToUpdate = users.find((u) => u.user_id === userId);
+    if (!userToUpdate) return;
+    if (userToUpdate.role === 'admin') {
+      Alert.alert('Info', 'Cet utilisateur est déjà administrateur complet.');
+      return;
+    }
+    const actionText = enable ? 'attribuer le rôle semi-admin' : 'retirer le rôle semi-admin';
+    Alert.alert(
+      'Confirmer',
+      `Êtes-vous sûr de vouloir ${actionText} à ${userToUpdate.first_name} ${userToUpdate.last_name} ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Confirmer',
+          onPress: async () => {
+            const result = await setSemiAdminRole(userId, enable);
+            if (result.success) {
+              Alert.alert('Succès', enable ? 'Semi-admin attribué' : 'Semi-admin retiré');
+              loadUsers();
+            } else {
+              Alert.alert('Erreur', 'Impossible de mettre à jour le semi-admin');
+            }
+          },
+        },
+      ],
     );
   };
 
@@ -207,9 +257,11 @@ const AdminUsersScreen: React.FC = () => {
     }
   };
 
-  const getRoleBadge = (role: string, isHost: boolean) => {
+  const getRoleBadge = (role: string, isHost: boolean, isSemiAdmin?: boolean) => {
     if (role === 'admin') {
       return { color: '#e74c3c', text: 'Admin', icon: 'shield-outline' };
+    } else if (isSemiAdmin) {
+      return { color: '#b45309', text: 'Semi-admin', icon: 'shield-half-outline' };
     } else if (isHost) {
       return { color: '#2E7D32', text: 'Hôte', icon: 'home-outline' };
     } else {
@@ -233,17 +285,19 @@ const AdminUsersScreen: React.FC = () => {
     let matchesRole = true;
     if (filterRole === 'admin') {
       matchesRole = user.role === 'admin';
+    } else if (filterRole === 'semi_admin') {
+      matchesRole = !!user.is_semi_admin && user.role !== 'admin';
     } else if (filterRole === 'host') {
       matchesRole = user.is_host && user.role !== 'admin';
     } else if (filterRole === 'user') {
-      matchesRole = user.role === 'user' && !user.is_host;
+      matchesRole = user.role === 'user' && !user.is_host && !user.is_semi_admin;
     }
 
     return matchesSearch && matchesRole;
   }), [users, searchQuery, filterRole]);
 
   const renderUserItem = ({ item: user }: { item: User }) => {
-    const roleInfo = getRoleBadge(user.role, user.is_host);
+    const roleInfo = getRoleBadge(user.role, user.is_host, user.is_semi_admin);
     const identityInfo = getIdentityBadge(user.identity_verified);
     const displayName = formatDisplayName(user);
     const contactEntries = getContactEntries(user);
@@ -356,6 +410,28 @@ const AdminUsersScreen: React.FC = () => {
               <Text style={styles.actionButtonText}>Promouvoir Admin</Text>
             </TouchableOpacity>
           )}
+
+          {user.role !== 'admin' && !user.is_semi_admin && (
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: '#fff7ed' }]}
+              onPress={() => handleSemiAdminToggle(user.user_id, true)}
+              disabled={loading}
+            >
+              <Ionicons name="shield-half-outline" size={16} color="#b45309" />
+              <Text style={styles.actionButtonText}>Semi-admin</Text>
+            </TouchableOpacity>
+          )}
+
+          {user.is_semi_admin && user.role !== 'admin' && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.demoteButton]}
+              onPress={() => handleSemiAdminToggle(user.user_id, false)}
+              disabled={loading}
+            >
+              <Ionicons name="remove-circle-outline" size={16} color="#3498db" />
+              <Text style={styles.actionButtonText}>Retirer semi-admin</Text>
+            </TouchableOpacity>
+          )}
           
           {user.role === 'admin' && user.user_id !== profile?.id && (
             <TouchableOpacity
@@ -392,15 +468,25 @@ const AdminUsersScreen: React.FC = () => {
     );
   }
 
-  // Vérifier que l'utilisateur est admin
-  if (profile?.role !== 'admin') {
+  if (staffLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#e74c3c" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Comptes & rôles : admin full uniquement (pas le semi-admin)
+  if (!isFullAdmin) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centerContainer}>
           <Ionicons name="shield-outline" size={64} color="#e74c3c" />
           <Text style={styles.emptyTitle}>Accès refusé</Text>
           <Text style={styles.emptySubtitle}>
-            Vous n'avez pas les permissions nécessaires pour accéder à l'administration.
+            Seuls les administrateurs complets peuvent gérer les rôles.
           </Text>
           <TouchableOpacity
             style={styles.loginButton}
@@ -466,14 +552,14 @@ const AdminUsersScreen: React.FC = () => {
 
       {/* Filtres */}
       <View style={styles.filtersContainer}>
-        {['all', 'user', 'host', 'admin'].map((role) => (
+        {(['all', 'user', 'host', 'semi_admin', 'admin'] as const).map((role) => (
           <TouchableOpacity
             key={role}
             style={[
               styles.filterButton,
               filterRole === role && styles.filterButtonActive,
             ]}
-            onPress={() => setFilterRole(role as any)}
+            onPress={() => setFilterRole(role)}
           >
             <Text
               style={[
@@ -481,10 +567,15 @@ const AdminUsersScreen: React.FC = () => {
                 filterRole === role && styles.filterButtonTextActive,
               ]}
             >
-              {role === 'all' ? 'Tous' :
-               role === 'user' ? 'Utilisateurs' :
-               role === 'host' ? 'Hôtes' :
-               'Admins'}
+              {role === 'all'
+                ? 'Tous'
+                : role === 'user'
+                  ? 'Utilisateurs'
+                  : role === 'host'
+                    ? 'Hôtes'
+                    : role === 'semi_admin'
+                      ? 'Semi-admins'
+                      : 'Admins'}
             </Text>
           </TouchableOpacity>
         ))}

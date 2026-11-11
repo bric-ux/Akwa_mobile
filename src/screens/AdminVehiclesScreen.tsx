@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
-import { useUserProfile } from '../hooks/useUserProfile';
+import { useOnboardingStaff } from '../hooks/useOnboardingStaff';
 import { Vehicle } from '../types';
 import { supabase } from '../services/supabase';
 import { useCurrency } from '../hooks/useCurrency';
@@ -25,7 +25,7 @@ import { useCurrency } from '../hooks/useCurrency';
 const AdminVehiclesScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { profile } = useUserProfile();
+  const { isStaff, loading: staffLoading } = useOnboardingStaff();
   const { formatPrice } = useCurrency();
   
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -76,10 +76,10 @@ const AdminVehiclesScreen: React.FC = () => {
 
   useFocusEffect(
     React.useCallback(() => {
-      if (user && profile?.role === 'admin') {
+      if (user && isStaff) {
         loadVehicles();
       }
-    }, [user, profile])
+    }, [user, isStaff])
   );
 
   const handleRefresh = async () => {
@@ -214,6 +214,20 @@ const AdminVehiclesScreen: React.FC = () => {
       ]
     );
   };
+
+  if (!isStaff && !staffLoading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }} edges={['top']}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Ionicons name="shield-outline" size={56} color="#ccc" />
+          <Text style={{ marginTop: 12, fontSize: 18, fontWeight: '600' }}>Accès réservé</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
+            <Text style={{ color: '#e74c3c', fontWeight: '600' }}>Retour</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

@@ -22,7 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAdmin } from '../hooks/useAdmin';
 import { useAuth } from '../services/AuthContext';
-import { useUserProfile } from '../hooks/useUserProfile';
+import { useOnboardingStaff } from '../hooks/useOnboardingStaff';
 import { HostApplication } from '../hooks/useHostApplications';
 import { supabase } from '../services/supabase';
 import { getAmenityIcon } from '../utils/amenityIcons';
@@ -31,7 +31,7 @@ import { useAmenities } from '../hooks/useAmenities';
 const AdminApplicationsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { profile } = useUserProfile();
+  const { isStaff, isFullAdmin, loading: staffLoading } = useOnboardingStaff();
   const { getAllHostApplications, updateApplicationStatus, deleteHostApplication, loading } = useAdmin();
   const { amenities } = useAmenities();
   
@@ -159,10 +159,10 @@ const AdminApplicationsScreen: React.FC = () => {
   // Charger les candidatures quand l'écran devient actif
   useFocusEffect(
     React.useCallback(() => {
-      if (user && profile?.role === 'admin') {
+      if (user && isStaff) {
         loadApplications();
       }
-    }, [user, profile])
+    }, [user, isStaff])
   );
 
   useEffect(() => {
@@ -180,6 +180,13 @@ const AdminApplicationsScreen: React.FC = () => {
   const handleStatusUpdate = async (applicationId: string, status: 'pending' | 'reviewing' | 'approved' | 'rejected') => {
     const application = applications.find(app => app.id === applicationId);
     if (!application) return;
+    if (!isFullAdmin && application.status === 'approved') {
+      Alert.alert(
+        'Action impossible',
+        'Cette candidature a déjà été acceptée. Seul un administrateur peut la modifier.',
+      );
+      return;
+    }
 
     const actionText = {
       pending: 'mettre en attente',
@@ -828,7 +835,11 @@ const AdminApplicationsScreen: React.FC = () => {
           {/* Actions */}
           <View style={styles.detailsSection}>
             <Text style={styles.detailsSectionTitle}>⚡ Actions</Text>
-            
+            {!isFullAdmin && selectedApp.status === 'approved' ? (
+              <Text style={{ color: '#666', fontSize: 14, lineHeight: 20 }}>
+                Cette candidature a déjà été acceptée. Seul un administrateur peut la modifier.
+              </Text>
+            ) : (
             <View style={styles.actionButtons}>
               {selectedApp.status !== 'reviewing' && (
                 <TouchableOpacity
@@ -920,6 +931,7 @@ const AdminApplicationsScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
             </View>
+            )}
           </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -1176,8 +1188,18 @@ const AdminApplicationsScreen: React.FC = () => {
     );
   };
 
+  if (staffLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#e74c3c" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   // Vérifier que l'utilisateur est admin
-  if (profile?.role !== 'admin') {
+  if (!isStaff) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>

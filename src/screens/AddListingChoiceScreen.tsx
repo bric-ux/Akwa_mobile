@@ -11,6 +11,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
+import { useOnboardingStaff } from '../hooks/useOnboardingStaff';
+import StaffCreateForOtherHint from '../components/admin/StaffCreateForOtherHint';
 
 type ListingChoice = {
   id: string;
@@ -26,6 +28,7 @@ type ListingChoice = {
 export default function AddListingChoiceScreen() {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
+  const { isStaff } = useOnboardingStaff();
   const { monthlyRental, hotel } = useFeatureFlags();
 
   const goAuthThen = (returnTo: string) => {
@@ -117,6 +120,7 @@ export default function AddListingChoiceScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {isStaff ? <StaffCreateForOtherHint /> : null}
         <Text style={styles.sectionTitle}>Type de bien</Text>
         <View style={styles.section}>
           {options.map((opt, index) => (
