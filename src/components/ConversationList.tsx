@@ -11,10 +11,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Conversation } from '../types';
+import akwaHomeLogo from '../../assets/icon.png';
 import {
   AKWAHOME_SUPPORT_SUBTITLE,
   AKWAHOME_SUPPORT_TITLE,
   isAdminSupportConversation,
+  supportMessagePreview,
 } from '../constants/supportMessaging';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -79,10 +81,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
   };
 
   const getOtherUserName = (conversation: Conversation) => {
-    if (
-      isAdminSupportConversation(conversation) &&
-      currentUserId === conversation.guest_id
-    ) {
+    if (isAdminSupportConversation(conversation)) {
       return AKWAHOME_SUPPORT_TITLE;
     }
     const otherUser = getOtherUser(conversation);
@@ -97,9 +96,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
 
   const getConversationSubtitle = (conversation: Conversation) => {
     if (isAdminSupportConversation(conversation)) {
-      return currentUserId === conversation.guest_id
-        ? AKWAHOME_SUPPORT_SUBTITLE
-        : AKWAHOME_SUPPORT_TITLE;
+      return AKWAHOME_SUPPORT_SUBTITLE;
     }
     if (conversation.title) return conversation.title;
     if (conversation.property?.title) {
@@ -128,6 +125,9 @@ const ConversationList: React.FC<ConversationListProps> = ({
     }
     
     const message = String(conversation.last_message.message ?? '');
+    if (isAdminSupportConversation(conversation)) {
+      return supportMessagePreview(message) || t('messages.noMessages');
+    }
     // Tronquer le message s'il est trop long
     if (message.length > 50) {
       return message.substring(0, 50) + '...';
@@ -150,7 +150,9 @@ const ConversationList: React.FC<ConversationListProps> = ({
       activeOpacity={0.7}
     >
       <View style={styles.avatarContainer}>
-        {avatarUrl ? (
+        {isAdminSupportConversation(item) ? (
+          <Image source={akwaHomeLogo} style={styles.avatar} resizeMode="cover" />
+        ) : avatarUrl ? (
           <Image
             source={{ uri: String(avatarUrl) }}
             style={styles.avatar}
@@ -195,7 +197,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
         )}
         
         <View style={styles.lastMessageContainer}>
-          {isLastMessageFromCurrentUser(item) && (
+          {isLastMessageFromCurrentUser(item) && !isAdminSupportConversation(item) && (
             <Text style={styles.youLabel}>Vous: </Text>
           )}
           <Text 

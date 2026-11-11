@@ -13,6 +13,7 @@ import {
   Dimensions,
   RefreshControl,
   BackHandler,
+  Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,8 +26,11 @@ import MessageBubble from '../components/MessageBubble';
 import { useLanguage } from '../contexts/LanguageContext';
 import BottomNavigationBar from '../components/BottomNavigationBar';
 import GuestModePlaceholder from '../components/GuestModePlaceholder';
+import akwaHomeLogo from '../../assets/icon.png';
 import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
 import {
+  AKWAHOME_SUPPORT_READONLY,
+  AKWAHOME_SUPPORT_SUBTITLE,
   AKWAHOME_SUPPORT_TITLE,
   isAdminSupportConversation,
 } from '../constants/supportMessaging';
@@ -280,6 +284,12 @@ const MessagingScreen: React.FC = () => {
     if (!newMessage.trim() || !selectedConversation || !user || sending) {
       return;
     }
+    if (
+      isAdminSupportConversation(selectedConversation) &&
+      user.id === selectedConversation.guest_id
+    ) {
+      return;
+    }
 
     // Vérifier si le message contient un numéro de téléphone
     if (containsPhoneNumber(newMessage)) {
@@ -422,10 +432,7 @@ const MessagingScreen: React.FC = () => {
   };
 
   const getOtherUserName = (conversation: Conversation) => {
-    if (
-      isAdminSupportConversation(conversation) &&
-      user?.id === conversation.guest_id
-    ) {
+    if (isAdminSupportConversation(conversation)) {
       return AKWAHOME_SUPPORT_TITLE;
     }
     if (user?.id === conversation.guest_id) {
@@ -509,12 +516,20 @@ const MessagingScreen: React.FC = () => {
           >
             <Ionicons name="arrow-back" size={24} color="#007AFF" />
           </TouchableOpacity>
+
+          {isAdminSupportConversation(selectedConversation) ? (
+            <Image source={akwaHomeLogo} style={styles.supportLogo} resizeMode="cover" />
+          ) : null}
           
           <View style={styles.chatHeaderInfo}>
             <Text style={styles.chatTitle} numberOfLines={1}>
               {getOtherUserName(selectedConversation)}
             </Text>
-            {(selectedConversation.property?.id || selectedConversation.vehicle?.id) ? (
+            {isAdminSupportConversation(selectedConversation) ? (
+              <Text style={styles.chatSubtitle} numberOfLines={1}>
+                {AKWAHOME_SUPPORT_SUBTITLE}
+              </Text>
+            ) : (selectedConversation.property?.id || selectedConversation.vehicle?.id) ? (
               <TouchableOpacity
                 onPress={() => {
                   if (selectedConversation.property?.id) {
@@ -568,6 +583,11 @@ const MessagingScreen: React.FC = () => {
         />
 
         {/* Zone de saisie */}
+        {isAdminSupportConversation(selectedConversation) && user?.id === selectedConversation.guest_id ? (
+          <View style={styles.supportNotice}>
+            <Text style={styles.supportNoticeText}>{AKWAHOME_SUPPORT_READONLY}</Text>
+          </View>
+        ) : (
         <View style={styles.inputContainer}>
           <View style={styles.inputWrapper}>
             <TextInput
@@ -598,6 +618,7 @@ const MessagingScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         </View>
+        )}
       </KeyboardAvoidingView>
     );
   };
@@ -677,6 +698,12 @@ const styles = StyleSheet.create({
     padding: 8,
     marginRight: 8,
   },
+  supportLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+  },
   chatHeaderInfo: {
     flex: 1,
   },
@@ -709,6 +736,19 @@ const styles = StyleSheet.create({
   },
   messagesContent: {
     paddingVertical: 16,
+  },
+  supportNotice: {
+    backgroundColor: '#fafaf9',
+    borderTopWidth: 1,
+    borderTopColor: '#e7e5e4',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  supportNoticeText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#57534e',
+    textAlign: 'center',
   },
   inputContainer: {
     backgroundColor: '#fff',
