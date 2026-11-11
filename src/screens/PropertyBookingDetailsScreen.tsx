@@ -20,6 +20,7 @@ import InvoiceDisplay from '../components/InvoiceDisplay';
 import BookingModificationModal from '../components/BookingModificationModal';
 import { useBookingModifications } from '../hooks/useBookingModifications';
 import { useCurrency } from '../hooks/useCurrency';
+import { useLanguage } from '../contexts/LanguageContext';
 import { getCancellationPolicyLabel, getCancellationPolicyText } from '../utils/cancellationPolicy';
 
 type PropertyBookingDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyBookingDetails'>;
@@ -29,6 +30,7 @@ const PropertyBookingDetailsScreen: React.FC = () => {
   const route = useRoute<PropertyBookingDetailsRouteProp>();
   const { bookingId } = route.params;
   const { user } = useAuth();
+  const { t } = useLanguage();
   const { currency, rates } = useCurrency();
   const { getUserBookings } = useBookings();
   const { getBookingPendingRequest } = useBookingModifications();
@@ -273,10 +275,10 @@ const PropertyBookingDetailsScreen: React.FC = () => {
             <Text style={styles.sectionTitle}>Politique d'annulation</Text>
             <Text style={styles.policyDetailText}>
               <Text style={styles.policyDetailEmphasis}>
-                {getCancellationPolicyLabel(booking.properties.cancellation_policy, 'property')}
+                {getCancellationPolicyLabel(booking.properties.cancellation_policy, 'property', t)}
               </Text>
               {' : '}
-              {getCancellationPolicyText(booking.properties.cancellation_policy, 'property')}
+              {getCancellationPolicyText(booking.properties.cancellation_policy, 'property', t)}
             </Text>
           </View>
         )}

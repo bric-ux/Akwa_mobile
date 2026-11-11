@@ -37,6 +37,7 @@ const PropertyMap: React.FC<PropertyMapProps> = ({
   });
   
   const getFullAddress = () => {
+    if (locationName?.trim()) return locationName.trim();
     const parts = [];
     if (neighborhoodName) parts.push(neighborhoodName);
     if (cityName) parts.push(cityName);

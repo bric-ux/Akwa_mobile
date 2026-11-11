@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
-import { InteractionManager } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { ensureAndroidNotificationChannel } from '../lib/appIconBadge';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 /**
  * iOS / Android 13+ : enregistre ou met à jour le token Expo push après connexion.
@@ -20,7 +20,7 @@ export function PushNotificationBootstrap() {
     if (!user?.id) return;
 
     let cancelled = false;
-    const task = InteractionManager.runAfterInteractions(() => {
+    const task = runAfterInteractions(() => {
       void (async () => {
         try {
           if (cancelled || !Device.isDevice) return;

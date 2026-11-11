@@ -32,6 +32,7 @@ import MediaThumb from '../components/MediaThumb';
 import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
 import { isMediaRowVideo, normalizeHostMediaRows } from '../utils/media';
 import AdminCreateForUserPanel, { AdminTargetUser } from '../components/admin/AdminCreateForUserPanel';
+import { PRESET_VEHICLE_FEATURE_CODES, vehicleFeatureLabel } from '../catalog/vehicleFeatureCatalog';
 
 const MAX_VEHICLE_VIDEOS = 5;
 
@@ -65,18 +66,7 @@ const CANCELLATION_POLICIES = [
   { value: 'non_refundable' as const, label: 'Non remboursable', description: 'Aucun remboursement en cas d\'annulation' },
 ];
 
-const COMMON_FEATURES = [
-  'Climatisation',
-  'GPS',
-  'Bluetooth',
-  'Sièges en cuir',
-  'Toit ouvrant',
-  'Caméra de recul',
-  'Régulateur de vitesse',
-  'Détecteur de pluie',
-  'Phares automatiques',
-  'Parking assisté',
-];
+const COMMON_FEATURES = PRESET_VEHICLE_FEATURE_CODES;
 
 const VEHICLE_PHOTO_CATEGORIES = [
   { value: 'exterior', label: 'Extérieur', icon: 'car-outline', color: '#2563eb' },
@@ -1699,7 +1689,7 @@ const AddVehicleScreen: React.FC = () => {
                       formData.features.includes(feature) && styles.featureTextSelected,
                     ]}
                   >
-                    {feature}
+                    {vehicleFeatureLabel(feature, t)}
                   </Text>
                   {formData.features.includes(feature) && (
                     <Ionicons name="checkmark" size={16} color="#2E7D32" />
@@ -1708,7 +1698,7 @@ const AddVehicleScreen: React.FC = () => {
               ))}
               {/* Afficher les équipements personnalisés */}
               {formData.features
-                .filter(f => !COMMON_FEATURES.includes(f))
+                .filter(f => !(COMMON_FEATURES as readonly string[]).includes(f))
                 .map((feature, index) => (
                   <TouchableOpacity
                     key={`custom-${index}`}
@@ -1716,7 +1706,7 @@ const AddVehicleScreen: React.FC = () => {
                     onPress={() => toggleFeature(feature)}
                   >
                     <Text style={[styles.featureText, styles.featureTextSelected]}>
-                      {feature}
+                      {vehicleFeatureLabel(feature, t)}
                     </Text>
                     <Ionicons name="checkmark" size={16} color="#2E7D32" />
                   </TouchableOpacity>

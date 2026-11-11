@@ -19,6 +19,11 @@ export const MONTHLY_FURNITURE_OPTIONS = [
 
 export type MonthlyFurnitureId = (typeof MONTHLY_FURNITURE_OPTIONS)[number]['id'];
 
-export function monthlyFurnitureLabel(id: string): string {
+type TranslateFn = (key: string, params?: Record<string, string>) => string;
+
+export function monthlyFurnitureLabel(id: string, t: TranslateFn): string {
+  const key = `monthlyFurniture.${id}`;
+  const translated = t(key);
+  if (translated && translated !== key) return translated;
   return MONTHLY_FURNITURE_OPTIONS.find((o) => o.id === id)?.label ?? id;
 }

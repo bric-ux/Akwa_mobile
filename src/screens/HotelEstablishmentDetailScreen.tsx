@@ -794,7 +794,7 @@ export default function HotelEstablishmentDetailScreen() {
                 <Ionicons name="shield-checkmark-outline" size={18} color={HOTEL_COLORS.primary} />
                 <Text style={styles.infoText}>
                   {t('hotel.cancellation', {
-                    policy: hotelCancellationLabel(item.cancellation_policy),
+                    policy: hotelCancellationLabel(item.cancellation_policy, t),
                   })}
                 </Text>
               </View>
@@ -803,7 +803,7 @@ export default function HotelEstablishmentDetailScreen() {
               <View style={styles.amenityWrap}>
                 {item.amenities.map((a: string) => (
                   <View key={a} style={styles.amenityChip}>
-                    <Text style={styles.amenityChipText}>{hotelAmenityLabel(a)}</Text>
+                    <Text style={styles.amenityChipText}>{hotelAmenityLabel(a, t)}</Text>
                   </View>
                 ))}
               </View>

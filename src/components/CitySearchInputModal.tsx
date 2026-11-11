@@ -18,9 +18,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCities } from '../hooks/useCities';
 import { useNeighborhoods } from '../hooks/useNeighborhoods';
 import {
-  forwardGeocodeNominatim,
-  matchLocationNearCoords,
+  forwardGeocodeCombined,
+  formatForwardGeocodeLabel,
+  resolvePreciseLocationFromCoords,
 } from '../lib/geolocation';
+import {
+  haystackMatchesAllTokens,
+  tokenizeSearchQuery,
+} from '../lib/locationTextSearch';
 
 interface SearchResult {
   id: string;
@@ -119,34 +124,41 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
       return;
     }
 
-    const searchTerm = searchQuery.toLowerCase();
+    const tokens = tokenizeSearchQuery(searchQuery);
     const filteredResults: SearchResult[] = [];
 
     cities.forEach((city) => {
-      if (city.name.toLowerCase().includes(searchTerm)) {
-        filteredResults.push({
-          id: city.id,
-          name: city.name,
-          type: 'city',
-          latitude: city.latitude,
-          longitude: city.longitude,
-        });
-      }
+      if (!tokens.length || !haystackMatchesAllTokens(city.name, tokens)) return;
+      filteredResults.push({
+        id: city.id,
+        name: city.name,
+        type: 'city',
+        latitude: city.latitude,
+        longitude: city.longitude,
+      });
     });
 
     neighborhoods.forEach((neighborhood) => {
-      if (neighborhood.name.toLowerCase().includes(searchTerm)) {
-        filteredResults.push({
-          id: neighborhood.id,
-          name: neighborhood.name,
-          type: neighborhood.type === 'commune' ? 'commune' : 'neighborhood',
-          commune: neighborhood.type === 'commune' ? neighborhood.name : undefined,
-          city_id: neighborhood.parent_id,
-          parent_id: neighborhood.parent_id,
-          latitude: neighborhood.latitude,
-          longitude: neighborhood.longitude,
-        });
-      }
+      const parent =
+        neighborhoods.find((n) => n.id === neighborhood.parent_id) ||
+        cities.find((c) => c.id === neighborhood.parent_id);
+      const grand =
+        parent?.parent_id != null
+          ? cities.find((c) => c.id === parent.parent_id) ||
+            neighborhoods.find((n) => n.id === parent.parent_id)
+          : null;
+      const hay = `${neighborhood.name} ${parent?.name || ''} ${grand?.name || ''}`;
+      if (!tokens.length || !haystackMatchesAllTokens(hay, tokens)) return;
+      filteredResults.push({
+        id: neighborhood.id,
+        name: neighborhood.name,
+        type: neighborhood.type === 'commune' ? 'commune' : 'neighborhood',
+        commune: neighborhood.type === 'commune' ? neighborhood.name : undefined,
+        city_id: neighborhood.parent_id,
+        parent_id: neighborhood.parent_id,
+        latitude: neighborhood.latitude,
+        longitude: neighborhood.longitude,
+      });
     });
 
     filteredResults.sort((a, b) => {
@@ -163,12 +175,12 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
     const dbResults = uniqueResults.slice(0, 12);
     setResults(dbResults);
 
-    // Secours carte si peu / aucun résultat en base
-    if (dbResults.length < 4) {
+    // Secours carte si multi-mots ou peu de résultats en base
+    if (tokens.length > 1 || dbResults.length < 4) {
       setMapLoading(true);
       osmTimeoutRef.current = setTimeout(async () => {
         try {
-          const osmHits = await forwardGeocodeNominatim(searchQuery.trim(), { limit: 6 });
+          const osmHits = await forwardGeocodeCombined(searchQuery.trim(), { limit: 6 });
           const normalize = (s: string) =>
             s
               .toLowerCase()
@@ -177,11 +189,16 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
               .trim();
           const osmResults: SearchResult[] = [];
           for (const hit of osmHits) {
-            const already = dbResults.some((r) => normalize(r.name) === normalize(hit.shortName));
+            const label = formatForwardGeocodeLabel(hit);
+            const already = dbResults.some(
+              (r) =>
+                normalize(r.name) === normalize(hit.shortName) ||
+                normalize(r.name) === normalize(label),
+            );
             if (already) continue;
             osmResults.push({
               id: `osm_${hit.placeId}`,
-              name: hit.shortName,
+              name: label,
               type: hit.typeHint,
               latitude: hit.latitude,
               longitude: hit.longitude,
@@ -230,25 +247,35 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
       Number.isFinite(result.longitude)
     ) {
       try {
-        const matched = await matchLocationNearCoords({
-          latitude: result.latitude,
-          longitude: result.longitude,
-        });
-        if (matched?.id) {
-          finalResult = {
-            ...result,
-            id: matched.id,
-            name: result.name,
-            type:
-              matched.type === 'city' || matched.type === 'commune' || matched.type === 'neighborhood'
-                ? matched.type
-                : result.type,
-            parent_id: matched.parent_id ?? undefined,
+        const preferredPlace =
+          result.name.split(',')[0]?.trim() || result.name;
+        const precise = await resolvePreciseLocationFromCoords(
+          {
             latitude: result.latitude,
             longitude: result.longitude,
-            fromMap: true,
-          };
-        }
+          },
+          { preferredPlaceName: preferredPlace },
+        );
+        const matched = precise.matchedLocation;
+        const enrichedName =
+          precise.addressLabel?.trim() || result.name;
+        finalResult = {
+          ...result,
+          id: matched?.id || result.id,
+          name: enrichedName,
+          type:
+            matched?.type === 'city' ||
+            matched?.type === 'commune' ||
+            matched?.type === 'neighborhood'
+              ? matched.type
+              : result.type,
+          parent_id: matched?.parent_id ?? undefined,
+          commune: matched?.commune ?? result.commune,
+          latitude: result.latitude,
+          longitude: result.longitude,
+          fromMap: true,
+        };
+        setInputValue(enrichedName);
       } catch {
         // garder le résultat OSM tel quel
       }

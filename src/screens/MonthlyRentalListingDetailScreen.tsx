@@ -239,7 +239,7 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
               <View style={styles.amenityList}>
                 {listing.amenities.map((a, i) => (
                   <Text key={i} style={styles.amenityTag}>
-                    {monthlyFurnitureLabel(a)}
+                    {monthlyFurnitureLabel(a, t)}
                   </Text>
                 ))}
               </View>

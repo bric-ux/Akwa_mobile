@@ -7,22 +7,12 @@
  * (flux dédié, pas de partage avec ce handler pour éviter les faux succès).
  */
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  ActivityIndicator,
-  Linking,
-  AppState,
-  AppStateStatus,
-  InteractionManager,
-} from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, Linking, AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { NavigationContainerRef } from '@react-navigation/native';
 import { checkPaymentStatus } from '../services/cardPaymentService';
 import CardPaymentSuccessView from './CardPaymentSuccessView';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 const POLL_INTERVAL_MS = 2500;
 const PAYMENT_SUCCESS_PATH = 'payment-success';
@@ -143,7 +133,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
       // Wave : géré par WaveReturnHandler (pas ici)
       if (parsed.wave) return;
       // Stripe : délai + InteractionManager pour éviter gel au retour (navigation directe depuis Stripe)
-      InteractionManager.runAfterInteractions(() => {
+      runAfterInteractions(() => {
         setTimeout(() => setPendingPayment(parsed), STRIPE_RETURN_DELAY_MS);
       });
     }
@@ -167,7 +157,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
   const closeModal = useCallback(() => {
     // Comme pour le véhicule : on ferme uniquement le modal, sans appeler navigate().
     // La navigation vers BookingsTab (résidence) provoquait un gel au retour par deep link.
-    InteractionManager.runAfterInteractions(() => {
+    runAfterInteractions(() => {
       setTimeout(() => {
         setPendingPayment(null);
         setStatus('checking');

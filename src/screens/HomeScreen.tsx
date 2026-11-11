@@ -1,20 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  RefreshControl,
-  ActivityIndicator,
-  ScrollView,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
-  Linking,
-  InteractionManager,
-  ImageBackground,
-  useWindowDimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, ScrollView, NativeSyntheticEvent, NativeScrollEvent, Linking, ImageBackground, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -40,6 +25,7 @@ import type { LoadFailureKind } from '../utils/loadError';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
 import { EXPLORE_SHELF_CARD_WIDTH } from '../constants/exploreShelfCard';
 import { VEHICLE_COLORS } from '../constants/colors';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 /** Titres explore + première carte : alignés sur le carrousel « trésors CI » */
 const EXPLORE_GUTTER = HOME_EXPLORE_HORIZONTAL_GUTTER;
@@ -91,7 +77,7 @@ const HomeScreen: React.FC = () => {
   const [showDeferredHeaderContent, setShowDeferredHeaderContent] = useState(false);
 
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
+    const task = runAfterInteractions(() => {
       setShowDeferredHeaderContent(true);
     });
     return () => {

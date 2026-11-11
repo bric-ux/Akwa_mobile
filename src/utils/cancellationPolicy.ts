@@ -4,22 +4,25 @@
  */
 export type ServiceType = 'property' | 'vehicle';
 
+type TranslateFn = (key: string, params?: Record<string, string>) => string;
+
 /** Libellé court pour affichage « Modérée : … » */
 export const getCancellationPolicyLabel = (
-  policy?: string | null,
-  _serviceType: ServiceType = 'property'
+  policy: string | null | undefined,
+  _serviceType: ServiceType = 'property',
+  t: TranslateFn,
 ): string => {
   switch (policy) {
     case 'flexible':
-      return 'Flexible';
+      return t('cancel.labelFlexible');
     case 'moderate':
-      return 'Modérée';
+      return t('cancel.labelModerate');
     case 'strict':
-      return 'Stricte';
+      return t('cancel.labelStrict');
     case 'non_refundable':
-      return 'Non remboursable';
+      return t('cancel.labelNonRefundable');
     default:
-      return 'Politique d’annulation';
+      return t('cancel.policyDefault');
   }
 };
 
@@ -91,41 +94,38 @@ export function ownerReceivedFundsForModificationRefundVehicle(booking: {
 }
 
 export const getCancellationPolicyText = (
-  policy?: string | null,
-  serviceType: ServiceType = 'property'
+  policy: string | null | undefined,
+  serviceType: ServiceType = 'property',
+  t: TranslateFn,
 ): string => {
-  // Quand la politique n'est pas renseignée, éviter d'afficher un texte générique trompeur
-  const fallbackProperty = "Politique d'annulation non précisée pour cette propriété. Contactez l'hôte pour plus d'informations.";
-  const fallbackVehicle = "Politique d'annulation non précisée pour ce véhicule. Contactez le propriétaire pour plus d'informations.";
   if (!policy) {
-    return serviceType === 'property' ? fallbackProperty : fallbackVehicle;
+    return serviceType === 'property' ? t('cancel.propertyFallback') : t('cancel.vehicleFallback');
   }
 
   if (serviceType === 'property') {
     switch (policy) {
       case 'flexible':
-        return "Annulation gratuite jusqu'à 24h avant l'arrivée. Remboursement intégral.";
+        return t('cancel.propertyFlexible');
       case 'moderate':
-        return "Annulation gratuite jusqu'à 5 jours avant l'arrivée. Après, 50% de pénalité.";
+        return t('cancel.propertyModerate');
       case 'strict':
-        return "Annulation gratuite jusqu'à 28 jours avant l'arrivée. Entre 7 et 28 jours : 50% remboursé. Moins de 7 jours : aucun remboursement.";
+        return t('cancel.propertyStrict');
       case 'non_refundable':
-        return "Aucun remboursement en cas d'annulation.";
+        return t('cancel.propertyNonRefundable');
       default:
-        return fallbackProperty;
+        return t('cancel.propertyFallback');
     }
   }
-  // Véhicule
   switch (policy) {
     case 'flexible':
-      return "Flexible – Annulation gratuite jusqu'à 24h avant le début. Remboursement intégral.";
+      return t('cancel.vehicleFlexible');
     case 'moderate':
-      return "Modérée – Annulation gratuite jusqu'à 5 jours avant le début. Après, 50% de pénalité.";
+      return t('cancel.vehicleModerate');
     case 'strict':
-      return "Stricte – Gratuit jusqu'à 28 jours avant. Entre 7 et 28 jours : 50% remboursé. Moins de 7 jours : aucun remboursement.";
+      return t('cancel.vehicleStrict');
     case 'non_refundable':
-      return "Non remboursable – Aucun remboursement en cas d'annulation.";
+      return t('cancel.vehicleNonRefundable');
     default:
-      return fallbackVehicle;
+      return t('cancel.vehicleFallback');
   }
 };

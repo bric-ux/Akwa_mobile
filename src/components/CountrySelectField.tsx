@@ -1,17 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Modal,
-  FlatList,
-  StyleSheet,
-  InteractionManager,
-  Pressable,
-} from 'react-native';
+import { View, Text, TouchableOpacity, Modal, FlatList, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PHONE_AUTH_COUNTRIES, type CountryDial } from '../lib/phoneAuth';
 import { resolveProfileCountryLabel } from '../lib/phoneAuth';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 type Props = {
   value: string;
@@ -43,7 +35,7 @@ const CountrySelectField: React.FC<Props> = ({
     ) ?? null;
 
   const openPicker = useCallback(() => {
-    InteractionManager.runAfterInteractions(() => {
+    runAfterInteractions(() => {
       setPickerOpen(true);
     });
   }, []);

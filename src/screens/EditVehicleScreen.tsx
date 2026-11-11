@@ -25,6 +25,11 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../services/supabase';
 import MediaThumb from '../components/MediaThumb';
 import { isMediaRowVideo, normalizeHostMediaRows, isVideoUrl } from '../utils/media';
+import {
+  PRESET_VEHICLE_FEATURE_CODES,
+  normalizeVehicleFeatureCodes,
+  vehicleFeatureLabel,
+} from '../catalog/vehicleFeatureCatalog';
 
 const MAX_EDIT_VEHICLE_VIDEOS = 5;
 
@@ -58,18 +63,7 @@ const CANCELLATION_POLICIES = [
   { value: 'non_refundable' as const, label: 'Non remboursable', description: 'Aucun remboursement en cas d\'annulation' },
 ];
 
-const COMMON_FEATURES = [
-  'Climatisation',
-  'GPS',
-  'Bluetooth',
-  'Sièges en cuir',
-  'Toit ouvrant',
-  'Caméra de recul',
-  'Régulateur de vitesse',
-  'Détecteur de pluie',
-  'Phares automatiques',
-  'Parking assisté',
-];
+const COMMON_FEATURES = PRESET_VEHICLE_FEATURE_CODES;
 
 type EditVehicleRouteParams = {
   vehicleId: string;
@@ -196,7 +190,7 @@ const EditVehicleScreen: React.FC = () => {
           security_deposit: vehicleData.security_deposit?.toString() || '0',
           minimum_rental_days: vehicleData.minimum_rental_days?.toString() || '1',
           auto_booking: vehicleData.auto_booking || false,
-          features: vehicleData.features || [],
+          features: normalizeVehicleFeatureCodes(vehicleData.features || []),
           rules: vehicleData.rules || [],
           hourly_rental_enabled: vehicleData.hourly_rental_enabled || false,
           price_per_hour: vehicleData.price_per_hour?.toString() || '',
@@ -1065,13 +1059,27 @@ const EditVehicleScreen: React.FC = () => {
                       formData.features.includes(feature) && styles.featureTextSelected,
                     ]}
                   >
-                    {feature}
+                    {vehicleFeatureLabel(feature, t)}
                   </Text>
                   {formData.features.includes(feature) && (
                     <Ionicons name="checkmark" size={16} color="#2E7D32" />
                   )}
                 </TouchableOpacity>
               ))}
+              {formData.features
+                .filter((f) => !(COMMON_FEATURES as readonly string[]).includes(f))
+                .map((feature, index) => (
+                  <TouchableOpacity
+                    key={`custom-${index}`}
+                    style={[styles.featureTag, styles.featureTagSelected]}
+                    onPress={() => toggleFeature(feature)}
+                  >
+                    <Text style={[styles.featureText, styles.featureTextSelected]}>
+                      {vehicleFeatureLabel(feature, t)}
+                    </Text>
+                    <Ionicons name="checkmark" size={16} color="#2E7D32" />
+                  </TouchableOpacity>
+                ))}
             </View>
             <View style={styles.customInputRow}>
               <TextInput

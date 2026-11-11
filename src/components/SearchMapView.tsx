@@ -33,17 +33,17 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
     if (properties.length === 0) return { lat: 7.5399, lng: -5.5471 }; // Côte d'Ivoire par défaut
 
     const validProps = properties.filter(p => 
-      (p.location?.latitude || p.locations?.latitude || p.latitude) && 
-      (p.location?.longitude || p.locations?.longitude || p.longitude)
+      (p.latitude || p.location?.latitude || p.locations?.latitude) && 
+      (p.longitude || p.location?.longitude || p.locations?.longitude)
     );
 
     if (validProps.length === 0) return { lat: 7.5399, lng: -5.5471 };
 
     const lat = validProps.reduce((sum, p) => 
-      sum + (p.location?.latitude || p.locations?.latitude || p.latitude || 0), 0) / validProps.length;
+      sum + (p.latitude || p.location?.latitude || p.locations?.latitude || 0), 0) / validProps.length;
     
     const lng = validProps.reduce((sum, p) => 
-      sum + (p.location?.longitude || p.locations?.longitude || p.longitude || 0), 0) / validProps.length;
+      sum + (p.longitude || p.location?.longitude || p.locations?.longitude || 0), 0) / validProps.length;
 
     return { lat, lng };
   };
@@ -73,8 +73,8 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
     const TOLERANCE = 0.0001; // Environ 11 mètres
     
     props.forEach(property => {
-      const lat = property.location?.latitude || property.locations?.latitude || property.latitude || 0;
-      const lng = property.location?.longitude || property.locations?.longitude || property.longitude || 0;
+      const lat = property.latitude || property.location?.latitude || property.locations?.latitude || 0;
+      const lng = property.longitude || property.location?.longitude || property.locations?.longitude || 0;
       
       // Trouver un groupe existant avec des coordonnées proches
       let foundGroup = false;
@@ -105,8 +105,8 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
     console.log('💰 Devise actuelle:', currency, currencySymbol);
     
     const validProperties = properties.filter(p => {
-      const hasCoords = (p.location?.latitude || p.locations?.latitude || p.latitude) && 
-                       (p.location?.longitude || p.locations?.longitude || p.longitude);
+      const hasCoords = (p.latitude || p.location?.latitude || p.locations?.latitude) && 
+                       (p.longitude || p.location?.longitude || p.locations?.longitude);
       if (!hasCoords) {
         console.log('⚠️ Propriété sans coordonnées:', p.title, {
           location: p.location,
@@ -127,8 +127,8 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
     
     propertyGroups.forEach((groupProps) => {
       const firstProp = groupProps[0];
-      const lat = firstProp.location?.latitude || firstProp.locations?.latitude || firstProp.latitude || 0;
-      const lng = firstProp.location?.longitude || firstProp.locations?.longitude || firstProp.longitude || 0;
+      const lat = firstProp.latitude || firstProp.location?.latitude || firstProp.locations?.latitude || 0;
+      const lng = firstProp.longitude || firstProp.location?.longitude || firstProp.locations?.longitude || 0;
       
       // Préparer les données de toutes les propriétés du groupe
       const groupData = groupProps.map(property => {

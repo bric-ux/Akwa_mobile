@@ -5,12 +5,17 @@
 import { supabase } from '../services/supabase';
 import { calculateDistance } from '../utils/distance';
 import {
-  forwardGeocodeNominatim,
+  forwardGeocodeCombined,
   matchLocationNearCoords,
   reverseGeocodeNominatim,
   type MatchedLocation,
   type ReverseGeocodeResult,
 } from './geolocation';
+import {
+  buildNameIlikeOrFilter,
+  haystackMatchesAllTokens,
+  tokenizeSearchQuery,
+} from './locationTextSearch';
 
 export type ResolveLocationFilters = {
   centerLat?: number;
@@ -103,7 +108,7 @@ export async function resolveOffCatalogLocationIds(
   let reverseHint: ReverseGeocodeResult | null = null;
 
   if (centerLat == null || centerLng == null) {
-    const hits = await forwardGeocodeNominatim(searchTerm, { limit: 1 });
+    const hits = await forwardGeocodeCombined(searchTerm, { limit: 1 });
     if (hits[0]) {
       centerLat = hits[0].latitude;
       centerLng = hits[0].longitude;
@@ -196,6 +201,128 @@ export async function resolveLocationIdsForSearchTerm(
     filtersCenter: { lat: filters?.centerLat ?? null, lng: filters?.centerLng ?? null },
     radiusKm: filters?.radiusKm ?? null,
   });
+
+  // Multi-mots (« cocody angré ») : matcher nom + parent, pas la chaîne entière
+  const tokens = tokenizeSearchQuery(term);
+  if (tokens.length >= 2) {
+    const orFilter = buildNameIlikeOrFilter(tokens);
+    const { data: neighRows } = await supabase
+      .from('locations')
+      .select('id, name, type, parent_id, latitude, longitude')
+      .eq('type', 'neighborhood')
+      .or(orFilter!)
+      .limit(40);
+
+    if (neighRows?.length) {
+      const parentIds = [
+        ...new Set(neighRows.map((n) => n.parent_id).filter(Boolean) as string[]),
+      ];
+      const { data: parents } = await supabase
+        .from('locations')
+        .select('id, name, type, parent_id')
+        .in('id', parentIds);
+      const parentsById = (parents || []).reduce(
+        (acc, p) => {
+          acc[p.id] = p;
+          return acc;
+        },
+        {} as Record<string, { id: string; name: string; type: string; parent_id?: string | null }>,
+      );
+      const gpIds = [
+        ...new Set(
+          (parents || []).map((p) => p.parent_id).filter(Boolean) as string[],
+        ),
+      ];
+      let citiesById: Record<string, string> = {};
+      if (gpIds.length) {
+        const { data: cities } = await supabase
+          .from('locations')
+          .select('id, name')
+          .in('id', gpIds);
+        citiesById = (cities || []).reduce((acc, c) => {
+          acc[c.id] = c.name;
+          return acc;
+        }, {} as Record<string, string>);
+      }
+
+      const matched = neighRows.filter((n) => {
+        const p = n.parent_id ? parentsById[n.parent_id] : null;
+        const cityName = p?.parent_id ? citiesById[p.parent_id] : '';
+        const hay = `${n.name} ${p?.name || ''} ${cityName}`;
+        return haystackMatchesAllTokens(hay, tokens);
+      });
+
+      if (matched.length > 0) {
+        const expanded = await Promise.all(
+          matched.map((row) => expandLocationIdsForMatch(row as MatchedLocation)),
+        );
+        const locationIds = [...new Set(expanded.flat())];
+        const locationNames = await namesForLocationIds(locationIds);
+        const withCoords = matched.find(
+          (c) => c.latitude != null && c.longitude != null,
+        );
+        console.log('🔎 [resolve] match MULTI-TOKEN neighborhood', {
+          tokens,
+          matched: matched.map((m) => m.name),
+          locationIdsCount: locationIds.length,
+        });
+        return {
+          locationIds,
+          geoSoftMatch: true,
+          locationNames: [...matched.map((m) => m.name), ...locationNames],
+          centerLat: withCoords?.latitude ?? filters?.centerLat,
+          centerLng: withCoords?.longitude ?? filters?.centerLng,
+        };
+      }
+
+      // Même logique pour communes (ex. « abidjan cocody »)
+      const { data: communeRows } = await supabase
+        .from('locations')
+        .select('id, name, type, parent_id, latitude, longitude')
+        .eq('type', 'commune')
+        .or(orFilter!)
+        .limit(40);
+      if (communeRows?.length) {
+        const cParentIds = [
+          ...new Set(communeRows.map((c) => c.parent_id).filter(Boolean) as string[]),
+        ];
+        const { data: cParents } = cParentIds.length
+          ? await supabase.from('locations').select('id, name').in('id', cParentIds)
+          : { data: [] as { id: string; name: string }[] };
+        const cParentNames = (cParents || []).reduce((acc, p) => {
+          acc[p.id] = p.name;
+          return acc;
+        }, {} as Record<string, string>);
+        const matchedCommunes = communeRows.filter((c) => {
+          const hay = `${c.name} ${c.parent_id ? cParentNames[c.parent_id] || '' : ''}`;
+          return haystackMatchesAllTokens(hay, tokens);
+        });
+        if (matchedCommunes.length > 0) {
+          const expanded = await Promise.all(
+            matchedCommunes.map((row) =>
+              expandLocationIdsForMatch(row as MatchedLocation),
+            ),
+          );
+          const locationIds = [...new Set(expanded.flat())];
+          const locationNames = await namesForLocationIds(locationIds);
+          const withCoords = matchedCommunes.find(
+            (c) => c.latitude != null && c.longitude != null,
+          );
+          console.log('🔎 [resolve] match MULTI-TOKEN commune', {
+            tokens,
+            matched: matchedCommunes.map((m) => m.name),
+          });
+          return {
+            locationIds,
+            geoSoftMatch: true,
+            locationNames: [...matchedCommunes.map((m) => m.name), ...locationNames],
+            centerLat: withCoords?.latitude ?? filters?.centerLat,
+            centerLng: withCoords?.longitude ?? filters?.centerLng,
+          };
+        }
+      }
+    }
+  }
 
   const { data: cityData } = await supabase
     .from('locations')

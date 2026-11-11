@@ -1,8 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useCities } from './useCities';
 import { useNeighborhoods } from './useNeighborhoods';
-import { forwardGeocodeNominatim } from '../lib/geolocation';
+import { forwardGeocodeCombined, formatForwardGeocodeLabel } from '../lib/geolocation';
+import {
+  buildNameIlikeOrFilter,
+  haystackMatchesAllTokens,
+  scoreTokenMatch,
+  tokenizeSearchQuery,
+  normalizeSearchText,
+} from '../lib/locationTextSearch';
 
 export interface LocationResult {
   id: string;
@@ -18,61 +25,21 @@ export interface LocationResult {
   fromMap?: boolean;
 }
 
+type LocRow = {
+  id: string;
+  name: string;
+  type: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  parent_id?: string | null;
+};
+
 export const useLocationSearch = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  const { cities, loading: citiesLoading } = useCities();
-  const { neighborhoods, loading: neighborhoodsLoading } = useNeighborhoods();
 
-  // Fonction utilitaire pour normaliser le texte (supprimer accents, tirets, etc.)
-  const normalizeText = (text: string): string => {
-    return text
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') // Supprimer les accents
-      .replace(/[-\s]/g, '') // Supprimer tirets et espaces
-      .replace(/['"]/g, ''); // Supprimer apostrophes et guillemets
-  };
-
-  // Fonction de calcul de score de pertinence
-  const calculateRelevanceScore = (item: any, query: string, type: 'city' | 'neighborhood' | 'commune'): number => {
-    const normalizedQuery = normalizeText(query);
-    const normalizedName = normalizeText(item.name);
-    
-    let score = 0;
-    
-    // Score pour correspondance exacte du nom (100 points)
-    if (normalizedName === normalizedQuery) {
-      score += 100;
-    }
-    // Score pour début du nom (80 points)
-    else if (normalizedName.startsWith(normalizedQuery)) {
-      score += 80;
-    }
-    // Score pour inclusion dans le nom (60 points)
-    else if (normalizedName.includes(normalizedQuery)) {
-      score += 60;
-    }
-    // Score pour correspondance partielle (20 points)
-    else {
-      const words = normalizedName.split('');
-      const queryWords = normalizedQuery.split('');
-      let partialMatches = 0;
-      
-      for (let i = 0; i < Math.min(words.length, queryWords.length); i++) {
-        if (words[i] === queryWords[i]) {
-          partialMatches++;
-        }
-      }
-      
-      if (partialMatches > 0) {
-        score += (partialMatches / Math.max(words.length, queryWords.length)) * 20;
-      }
-    }
-    
-    return score;
-  };
+  const { loading: citiesLoading } = useCities();
+  const { loading: neighborhoodsLoading } = useNeighborhoods();
 
   const searchLocations = async (query: string): Promise<LocationResult[]> => {
     if (!query || query.length < 2) {
@@ -83,164 +50,156 @@ export const useLocationSearch = () => {
     setError(null);
 
     try {
-      const searchLower = query.toLowerCase().trim();
+      const tokens = tokenizeSearchQuery(query);
+      if (!tokens.length) return [];
+
+      const orFilter = buildNameIlikeOrFilter(tokens);
       const results: Array<LocationResult & { score: number }> = [];
 
-      console.log('🔍 [useLocationSearch] Recherche pour:', query);
+      console.log('🔍 [useLocationSearch] Recherche pour:', query, 'tokens:', tokens);
 
-      // Recherche directe dans la base de données pour garantir les résultats
-      // 1. Rechercher les villes
-      const { data: citiesData, error: citiesError } = await supabase
-        .from('locations')
-        .select('id, name, latitude, longitude, type')
-        .eq('type', 'city')
-        .ilike('name', `%${query}%`)
-        .limit(10);
-
-      if (!citiesError && citiesData) {
-        citiesData.forEach(city => {
-          const score = calculateRelevanceScore(city, query, 'city');
-          if (score > 0) {
-            results.push({
-              id: city.id,
-              name: city.name,
-              type: 'city' as const,
-              latitude: city.latitude,
-              longitude: city.longitude,
-              score: score + 100 // Bonus pour les villes
-            });
-          }
-        });
-      }
-
-      // 2. Rechercher les communes
-      const { data: communesData, error: communesError } = await supabase
-        .from('locations')
-        .select('id, name, latitude, longitude, type, parent_id')
-        .eq('type', 'commune')
-        .ilike('name', `%${query}%`)
-        .limit(10);
-
-      if (!communesError && communesData) {
-        communesData.forEach(commune => {
-          const score = calculateRelevanceScore(commune, query, 'commune');
-          if (score > 0) {
-            results.push({
-              id: commune.id,
-              name: commune.name,
-              type: 'commune' as const,
-              commune: commune.name,
-              city_id: commune.parent_id,
-              latitude: commune.latitude,
-              longitude: commune.longitude,
-              score: score + 50 // Bonus pour les communes
-            });
-          }
-        });
-      }
-
-      // 3. Rechercher les quartiers
-      const { data: neighborhoodsData, error: neighborhoodsError } = await supabase
-        .from('locations')
-        .select('id, name, latitude, longitude, type, parent_id')
-        .eq('type', 'neighborhood')
-        .ilike('name', `%${query}%`)
-        .limit(10);
-
-      if (!neighborhoodsError && neighborhoodsData && neighborhoodsData.length > 0) {
-        const parentIds = neighborhoodsData.map(n => n.parent_id).filter(Boolean) as string[];
-        let parentNames: { [key: string]: string } = {};
-        let parentParentIds: string[] = [];
-        let parents: { id: string; name: string; type?: string; parent_id?: string | null }[] = [];
-        if (parentIds.length > 0) {
-          const { data: parentsData } = await supabase
-            .from('locations')
-            .select('id, name, type, parent_id')
-            .in('id', parentIds);
-          if (parentsData) {
-            parents = parentsData;
-            parentNames = parents.reduce((acc, p) => {
-              acc[p.id] = p.name;
-              return acc;
-            }, {} as { [key: string]: string });
-            parentParentIds = parents.map(p => p.parent_id).filter(Boolean) as string[];
-          }
+      const fetchType = async (type: 'city' | 'commune' | 'neighborhood') => {
+        let q = supabase
+          .from('locations')
+          .select('id, name, latitude, longitude, type, parent_id')
+          .eq('type', type)
+          .limit(40);
+        q = orFilter ? q.or(orFilter) : q.ilike('name', `%${query}%`);
+        const { data, error: err } = await q;
+        if (err) {
+          console.warn(`[useLocationSearch] ${type}:`, err.message);
+          return [] as LocRow[];
         }
-        let cityNames: Record<string, string> = {};
-        if (parentParentIds.length > 0) {
-          const { data: cityRows } = await supabase
-            .from('locations')
-            .select('id, name')
-            .in('id', parentParentIds);
-          if (cityRows) cityNames = cityRows.reduce((acc, r) => { acc[r.id] = r.name; return acc; }, {} as Record<string, string>);
-        }
+        return (data || []) as LocRow[];
+      };
 
-        const communeToCityId = parents.length > 0
-          ? parents.reduce((acc, p) => {
-              if (p.parent_id) acc[p.id] = p.parent_id;
-              return acc;
-            }, {} as Record<string, string>)
-          : {};
+      const [citiesData, communesData, neighborhoodsData] = await Promise.all([
+        fetchType('city'),
+        fetchType('commune'),
+        fetchType('neighborhood'),
+      ]);
 
-        neighborhoodsData.forEach(neighborhood => {
-          const score = calculateRelevanceScore(neighborhood, query, 'neighborhood');
-          if (score > 0) {
-            const communeName = neighborhood.parent_id ? parentNames[neighborhood.parent_id] : undefined;
-            const cityId = neighborhood.parent_id ? communeToCityId[neighborhood.parent_id] : undefined;
-            const cityName = cityId ? cityNames[cityId] : undefined;
-            results.push({
-              id: neighborhood.id,
-              name: neighborhood.name,
-              type: 'neighborhood' as const,
-              cityName,
-              commune: communeName,
-              city_id: neighborhood.parent_id,
-              latitude: neighborhood.latitude,
-              longitude: neighborhood.longitude,
-              score
-            });
-          }
+      // Parents pour communes / quartiers
+      const parentIds = [
+        ...communesData.map((c) => c.parent_id),
+        ...neighborhoodsData.map((n) => n.parent_id),
+      ].filter(Boolean) as string[];
+
+      let parentsById: Record<
+        string,
+        { id: string; name: string; type?: string; parent_id?: string | null }
+      > = {};
+      if (parentIds.length) {
+        const { data: parents } = await supabase
+          .from('locations')
+          .select('id, name, type, parent_id')
+          .in('id', [...new Set(parentIds)]);
+        parentsById = (parents || []).reduce((acc, p) => {
+          acc[p.id] = p;
+          return acc;
+        }, {} as typeof parentsById);
+      }
+
+      const grandParentIds = Object.values(parentsById)
+        .map((p) => p.parent_id)
+        .filter(Boolean) as string[];
+      let citiesById: Record<string, string> = {};
+      if (grandParentIds.length) {
+        const { data: cityRows } = await supabase
+          .from('locations')
+          .select('id, name')
+          .in('id', [...new Set(grandParentIds)]);
+        citiesById = (cityRows || []).reduce((acc, r) => {
+          acc[r.id] = r.name;
+          return acc;
+        }, {} as Record<string, string>);
+      }
+
+      for (const city of citiesData) {
+        const hay = city.name;
+        if (!haystackMatchesAllTokens(hay, tokens) && tokens.length > 1) continue;
+        if (tokens.length === 1 && !haystackMatchesAllTokens(hay, tokens)) continue;
+        const score = scoreTokenMatch(city.name, tokens, query) + 100;
+        if (score <= 0) continue;
+        results.push({
+          id: city.id,
+          name: city.name,
+          type: 'city',
+          latitude: city.latitude ?? undefined,
+          longitude: city.longitude ?? undefined,
+          score,
         });
       }
 
-      // Trier par score décroissant, puis par type, puis par nom
+      for (const commune of communesData) {
+        const parentName = commune.parent_id ? parentsById[commune.parent_id]?.name : '';
+        const hay = `${commune.name} ${parentName || ''}`;
+        if (!haystackMatchesAllTokens(hay, tokens)) continue;
+        const score = scoreTokenMatch(commune.name, tokens, query) + 50;
+        results.push({
+          id: commune.id,
+          name: commune.name,
+          type: 'commune',
+          commune: commune.name,
+          city_id: commune.parent_id ?? undefined,
+          cityName: parentName || undefined,
+          latitude: commune.latitude ?? undefined,
+          longitude: commune.longitude ?? undefined,
+          score,
+        });
+      }
+
+      for (const neighborhood of neighborhoodsData) {
+        const parent = neighborhood.parent_id ? parentsById[neighborhood.parent_id] : null;
+        const communeName = parent?.name;
+        const cityName =
+          parent?.parent_id != null ? citiesById[parent.parent_id] : undefined;
+        // Cocody peut être type commune ou city selon la hiérarchie
+        const parentAsCity =
+          parent?.type === 'city' || parent?.type === 'commune' ? parent.name : undefined;
+        const hay = `${neighborhood.name} ${communeName || ''} ${cityName || ''} ${parentAsCity || ''}`;
+        if (!haystackMatchesAllTokens(hay, tokens)) continue;
+        const score = scoreTokenMatch(neighborhood.name, tokens, query);
+        results.push({
+          id: neighborhood.id,
+          name: neighborhood.name,
+          type: 'neighborhood',
+          cityName: cityName || parentAsCity,
+          commune: communeName,
+          city_id: neighborhood.parent_id ?? undefined,
+          latitude: neighborhood.latitude ?? undefined,
+          longitude: neighborhood.longitude ?? undefined,
+          score,
+        });
+      }
+
       results.sort((a, b) => {
-        // D'abord par score
-        if (a.score !== b.score) {
-          return b.score - a.score;
-        }
-        
-        // Puis par type (villes d'abord, puis communes, puis quartiers)
+        if (a.score !== b.score) return b.score - a.score;
         if (a.type !== b.type) {
           const typeOrder = { city: 0, commune: 1, neighborhood: 2 };
           return typeOrder[a.type] - typeOrder[b.type];
         }
-        
-        // Enfin par nom alphabétique
         return a.name.localeCompare(b.name);
       });
 
-      // Supprimer le score des résultats finaux
-      let finalResults = results.map(({ score, ...result }) => result);
+      let finalResults = results.map(({ score: _s, ...result }) => result);
 
-      // Secours OpenStreetMap si peu de résultats en base
-      if (finalResults.length < 5) {
+      // OSM : toujours si multi-mots ou si peu de résultats DB
+      const shouldOsm = tokens.length > 1 || finalResults.length < 5;
+      if (shouldOsm) {
         try {
-          const osmHits = await forwardGeocodeNominatim(query.trim(), { limit: 6 });
-          const normalize = (s: string) =>
-            s
-              .toLowerCase()
-              .normalize('NFD')
-              .replace(/[\u0300-\u036f]/g, '')
-              .trim();
+          const osmHits = await forwardGeocodeCombined(query.trim(), { limit: 8 });
           for (const hit of osmHits) {
+            const label = formatForwardGeocodeLabel(hit);
             const already = finalResults.some(
-              (r) => normalize(r.name) === normalize(hit.shortName),
+              (r) =>
+                normalizeSearchText(r.name) === normalizeSearchText(hit.shortName) ||
+                normalizeSearchText(r.name) === normalizeSearchText(label),
             );
             if (already) continue;
             finalResults.push({
               id: `osm_${hit.placeId}`,
-              name: hit.shortName,
+              name: label,
               type: hit.typeHint,
               latitude: hit.latitude,
               longitude: hit.longitude,
@@ -252,12 +211,13 @@ export const useLocationSearch = () => {
         }
       }
 
-      console.log('✅ [useLocationSearch] Résultats trouvés:', finalResults.length);
-      console.log('📋 [useLocationSearch] Premiers résultats:', finalResults.slice(0, 5).map(r => `${r.name} (${r.type})`));
+      console.log(
+        '✅ [useLocationSearch] Résultats:',
+        finalResults.length,
+        finalResults.slice(0, 5).map((r) => `${r.name} (${r.type}${r.fromMap ? '/map' : ''})`),
+      );
 
-      // Limiter à 20 résultats pour les performances
       return finalResults.slice(0, 20);
-
     } catch (err: any) {
       console.error('❌ Erreur lors de la recherche de localisation:', err);
       setError(err.message || 'Erreur lors de la recherche');
@@ -272,26 +232,24 @@ export const useLocationSearch = () => {
     setError(null);
 
     try {
-      // Récupérer simplement les villes disponibles avec coordonnées
-      const { data, error } = await supabase
+      const { data, error: qErr } = await supabase
         .from('locations')
         .select('id, name, latitude, longitude')
         .eq('type', 'city')
         .limit(8);
 
-      if (error) {
-        console.error('Erreur lors du chargement des villes:', error);
+      if (qErr) {
+        console.error('Erreur lors du chargement des villes:', qErr);
         return [];
       }
 
-      return (data || []).map(city => ({
+      return (data || []).map((city) => ({
         id: city.id,
         name: city.name,
         type: 'city' as const,
         latitude: city.latitude,
         longitude: city.longitude,
       }));
-
     } catch (err: any) {
       console.error('❌ Erreur lors du chargement des villes:', err);
       setError(err.message || 'Erreur lors du chargement');

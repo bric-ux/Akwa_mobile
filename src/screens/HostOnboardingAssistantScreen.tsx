@@ -1,19 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Platform,
-  StatusBar,
-  TextInput,
-  FlatList,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Alert,
-  ScrollView,
-  InteractionManager,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar, TextInput, FlatList, ActivityIndicator, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, StackActions } from '@react-navigation/native';
@@ -32,6 +18,7 @@ import {
   ASSISTANT_BEDROOM_OPTIONS,
   ASSISTANT_BATHROOM_OPTIONS,
 } from '../constants/hostListingForm';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 type Role = 'user' | 'assistant';
 
@@ -219,7 +206,7 @@ const HostOnboardingAssistantScreen: React.FC = () => {
       if (pops > 0) {
         navigation.dispatch(StackActions.pop(pops));
       }
-      InteractionManager.runAfterInteractions(() => {
+      runAfterInteractions(() => {
         navigation.navigate('BecomeHost' as never);
       });
     } catch (e: unknown) {

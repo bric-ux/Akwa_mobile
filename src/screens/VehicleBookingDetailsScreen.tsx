@@ -365,10 +365,10 @@ const VehicleBookingDetailsScreen: React.FC = () => {
             <Text style={styles.sectionTitle}>{t('property.cancellationPolicy')}</Text>
             <Text style={styles.policyDetailText}>
               <Text style={styles.policyDetailEmphasis}>
-                {getCancellationPolicyLabel(booking.vehicle.cancellation_policy, 'vehicle')}
+                {getCancellationPolicyLabel(booking.vehicle.cancellation_policy, 'vehicle', t)}
               </Text>
               {' : '}
-              {getCancellationPolicyText(booking.vehicle.cancellation_policy, 'vehicle')}
+              {getCancellationPolicyText(booking.vehicle.cancellation_policy, 'vehicle', t)}
             </Text>
           </View>
         )}

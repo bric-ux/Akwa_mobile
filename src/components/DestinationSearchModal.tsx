@@ -18,11 +18,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
 import {
-  forwardGeocodeNominatim,
+  forwardGeocodeCombined,
+  formatForwardGeocodeLabel,
   resolvePreciseLocationFromDevice,
 } from '../lib/geolocation';
 import { loadRecentSearches, pushRecentSearch } from '../lib/recentSearches';
 import { useLanguage } from '../contexts/LanguageContext';
+import {
+  buildNameIlikeOrFilter,
+  haystackMatchesAllTokens,
+  normalizeSearchText,
+  tokenizeSearchQuery,
+} from '../lib/locationTextSearch';
 
 export interface DestinationSuggestion {
   id: string;
@@ -181,14 +188,18 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
         }
       });
 
+      const tokens = tokenizeSearchQuery(trimmed);
+      const orFilter = buildNameIlikeOrFilter(tokens.length ? tokens : [trimmed]);
+
       const { data: cities } = await supabase
         .from('locations')
         .select('id, name, type, latitude, longitude')
         .eq('type', 'city')
-        .ilike('name', `%${trimmed}%`)
-        .limit(5);
+        .or(orFilter || `name.ilike.%${trimmed}%`)
+        .limit(15);
 
       cities?.forEach((city) => {
+        if (tokens.length && !haystackMatchesAllTokens(city.name, tokens)) return;
         suggestions.push({
           id: `city_${city.id}`,
           text: city.name,
@@ -201,41 +212,85 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
 
       const { data: communes } = await supabase
         .from('locations')
-        .select('id, name, type, latitude, longitude')
-        .eq('type', 'commune')
-        .ilike('name', `%${trimmed}%`)
-        .limit(5);
-
-      communes?.forEach((commune) => {
-        suggestions.push({
-          id: `commune_${commune.id}`,
-          text: commune.name,
-          type: 'commune',
-          subtitle: t('search.commune'),
-          latitude: commune.latitude ?? undefined,
-          longitude: commune.longitude ?? undefined,
-        });
-      });
-
-      const { data: neighborhoods } = await supabase
-        .from('locations')
         .select('id, name, type, parent_id, latitude, longitude')
-        .eq('type', 'neighborhood')
-        .ilike('name', `%${trimmed}%`)
-        .limit(5);
+        .eq('type', 'commune')
+        .or(orFilter || `name.ilike.%${trimmed}%`)
+        .limit(20);
 
-      if (neighborhoods?.length) {
-        const parentIds = neighborhoods.map((n) => n.parent_id).filter(Boolean) as string[];
+      if (communes?.length) {
+        const parentIds = communes.map((c) => c.parent_id).filter(Boolean) as string[];
         let parentNames: Record<string, string> = {};
         if (parentIds.length > 0) {
           const { data: parents } = await supabase
             .from('locations')
             .select('id, name')
             .in('id', parentIds);
-          parents?.forEach((p) => { parentNames[p.id] = p.name; });
+          parents?.forEach((p) => {
+            parentNames[p.id] = p.name;
+          });
+        }
+        communes.forEach((commune) => {
+          const cityName = commune.parent_id ? parentNames[commune.parent_id] : '';
+          const hay = `${commune.name} ${cityName}`;
+          if (tokens.length && !haystackMatchesAllTokens(hay, tokens)) return;
+          suggestions.push({
+            id: `commune_${commune.id}`,
+            text: commune.name,
+            type: 'commune',
+            subtitle: cityName || t('search.commune'),
+            latitude: commune.latitude ?? undefined,
+            longitude: commune.longitude ?? undefined,
+          });
+        });
+      }
+
+      const { data: neighborhoods } = await supabase
+        .from('locations')
+        .select('id, name, type, parent_id, latitude, longitude')
+        .eq('type', 'neighborhood')
+        .or(orFilter || `name.ilike.%${trimmed}%`)
+        .limit(25);
+
+      if (neighborhoods?.length) {
+        const parentIds = neighborhoods.map((n) => n.parent_id).filter(Boolean) as string[];
+        let parentsById: Record<
+          string,
+          { name: string; parent_id?: string | null; type?: string }
+        > = {};
+        if (parentIds.length > 0) {
+          const { data: parents } = await supabase
+            .from('locations')
+            .select('id, name, type, parent_id')
+            .in('id', parentIds);
+          parents?.forEach((p) => {
+            parentsById[p.id] = p;
+          });
+        }
+        const gpIds = [
+          ...new Set(
+            Object.values(parentsById)
+              .map((p) => p.parent_id)
+              .filter(Boolean) as string[],
+          ),
+        ];
+        let cityNames: Record<string, string> = {};
+        if (gpIds.length) {
+          const { data: citiesRows } = await supabase
+            .from('locations')
+            .select('id, name')
+            .in('id', gpIds);
+          citiesRows?.forEach((c) => {
+            cityNames[c.id] = c.name;
+          });
         }
         neighborhoods.forEach((neighborhood) => {
-          const communeName = neighborhood.parent_id ? parentNames[neighborhood.parent_id] : '';
+          const parent = neighborhood.parent_id
+            ? parentsById[neighborhood.parent_id]
+            : null;
+          const communeName = parent?.name || '';
+          const cityName = parent?.parent_id ? cityNames[parent.parent_id] || '' : '';
+          const hay = `${neighborhood.name} ${communeName} ${cityName}`;
+          if (tokens.length && !haystackMatchesAllTokens(hay, tokens)) return;
           suggestions.push({
             id: `neighborhood_${neighborhood.id}`,
             text: neighborhood.name,
@@ -249,24 +304,22 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
         });
       }
 
-      // Secours OpenStreetMap : quartiers / lieux absents de la base
-      const dbPlaceCount = suggestions.filter((s) =>
-        s.type === 'city' || s.type === 'commune' || s.type === 'neighborhood'
+      // Secours OpenStreetMap : multi-mots ou peu de résultats DB
+      const dbPlaceCount = suggestions.filter(
+        (s) =>
+          s.type === 'city' || s.type === 'commune' || s.type === 'neighborhood',
       ).length;
-      if (dbPlaceCount < 5) {
-        const osmHits = await forwardGeocodeNominatim(trimmed, { limit: 6 });
-        const normalize = (s: string) =>
-          s
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .trim();
+      if (tokens.length > 1 || dbPlaceCount < 5) {
+        const osmHits = await forwardGeocodeCombined(trimmed, { limit: 8 });
         for (const hit of osmHits) {
+          const label = formatForwardGeocodeLabel(hit);
           const already = suggestions.some(
-            (s) => normalize(s.text) === normalize(hit.shortName),
+            (s) =>
+              normalizeSearchText(s.text) === normalizeSearchText(hit.shortName) ||
+              normalizeSearchText(s.text) === normalizeSearchText(label),
           );
           if (already) continue;
-          const areaHint = hit.displayName
+          const areaHint = label
             .split(',')
             .slice(1, 3)
             .map((p) => p.trim())
@@ -274,7 +327,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
             .join(' · ');
           suggestions.push({
             id: `osm_${hit.placeId}`,
-            text: hit.shortName,
+            text: label,
             type: hit.typeHint === 'neighborhood' ? 'neighborhood' : hit.typeHint,
             subtitle: areaHint
               ? t('search.onMapWithArea', { area: areaHint })
@@ -322,7 +375,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
       Keyboard.dismiss();
       const result = await resolvePreciseLocationFromDevice();
       const matched = result.matchedLocation;
-      const label = matched?.name || result.addressLabel;
+      const label = result.addressLabel || matched?.name;
       if (!label?.trim()) {
         Alert.alert(t('search.location'), t('search.nearMeFailed'));
         return;

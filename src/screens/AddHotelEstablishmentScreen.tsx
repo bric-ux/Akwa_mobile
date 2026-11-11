@@ -365,6 +365,8 @@ export default function AddHotelEstablishmentScreen() {
             latitude: lat,
             longitude: lng,
             location_id: locationId,
+            location_label:
+              preciseLocation.locationLabel?.trim() || addressValue || null,
             ...listingExtras,
             updated_at: new Date().toISOString(),
           })
@@ -421,6 +423,8 @@ export default function AddHotelEstablishmentScreen() {
           latitude: lat,
           longitude: lng,
           location_id: locationId,
+          location_label:
+            preciseLocation.locationLabel?.trim() || addressValue || null,
           ...listingExtras,
           status: 'draft',
         })

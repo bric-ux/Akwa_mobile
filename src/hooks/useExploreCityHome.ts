@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { InteractionManager } from 'react-native';
 import { supabase } from '../services/supabase';
 import type { Property, SearchFilters } from '../types';
 import { getPricesForDateBatch } from '../utils/priceCalculator';
@@ -17,6 +16,7 @@ import {
   MIN_PER_CITY,
   PER_CITY_LIMIT,
 } from '../utils/exploreCityLayout';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 const EXPLORE_HOME_CACHE_TTL_MS = 2 * 60 * 1000;
 let exploreHomeCache: {
@@ -187,6 +187,7 @@ async function transformRowsToProperties(rows: any[]): Promise<Property[]> {
         check_in_time: property.check_in_time || null,
         check_out_time: property.check_out_time || null,
         address_details: property.address_details || '',
+        location_label: property.location_label || '',
         host_guide: property.host_guide || '',
         discount_enabled: property.discount_enabled || false,
         discount_min_nights: property.discount_min_nights || null,
@@ -290,6 +291,7 @@ async function transformRowsToPropertiesLight(rows: any[]): Promise<Property[]> 
       check_in_time: property.check_in_time || null,
       check_out_time: property.check_out_time || null,
       address_details: property.address_details || '',
+        location_label: property.location_label || '',
       host_guide: property.host_guide || '',
       discount_enabled: property.discount_enabled || false,
       discount_min_nights: property.discount_min_nights || null,
@@ -430,7 +432,7 @@ export function useExploreCityHome() {
 
       // Enrichissement différé (prix dynamiques + ratings batch) sans bloquer le 1er scroll.
       await new Promise<void>((resolve) => {
-        InteractionManager.runAfterInteractions(() => resolve());
+        runAfterInteractions(() => resolve());
       });
       const enrichedList = await transformRowsToProperties(uniqueRows);
       const enrichedById = new Map(enrichedList.map((p) => [p.id, p]));

@@ -6,10 +6,11 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { AppState, InteractionManager } from 'react-native';
+import { AppState } from 'react-native';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { setAppIconBadgeCount } from '../lib/appIconBadge';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 export interface TabNotificationBadges {
   unreadMessages: number;
@@ -175,7 +176,7 @@ export const TabNotificationBadgesProvider: React.FC<{
       void setAppIconBadgeCount(0);
       return;
     }
-    const task = InteractionManager.runAfterInteractions(() => {
+    const task = runAfterInteractions(() => {
       void refresh();
     });
     return () => task.cancel();

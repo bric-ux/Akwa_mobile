@@ -228,9 +228,26 @@ const EditPropertyScreen: React.FC = () => {
           '';
         const locId = propertyData.location_id || locObj?.id || null;
 
-        if (locObj || locName) {
+        console.log('📍 [loc] LOAD raw', {
+          propertyId,
+          db_latitude: propertyData.latitude,
+          db_longitude: propertyData.longitude,
+          location_id: locId,
+          locObj: locObj
+            ? { id: locObj.id, name: locObj.name, type: locObj.type, lat: locObj.latitude, lng: locObj.longitude }
+            : null,
+        });
+
+        // Libellé précis hors catalogue (ex. quartier OSM absent de locations)
+        const savedLabel =
+          (typeof propertyData.location_label === 'string' &&
+          propertyData.location_label.trim()
+            ? propertyData.location_label.trim()
+            : '') || locName;
+
+        if (locObj || locName || savedLabel) {
           if (locObj) setSelectedLocation(locObj);
-          setLocationDisplay(locName);
+          setLocationDisplay(savedLabel);
         }
 
         const propLat = Number(
@@ -239,6 +256,17 @@ const EditPropertyScreen: React.FC = () => {
         const propLng = Number(
           propertyData.longitude ?? locObj?.longitude
         );
+        console.log('📍 [loc] LOAD pin utilisé', {
+          propLat,
+          propLng,
+          source:
+            propertyData.latitude != null && propertyData.longitude != null
+              ? 'properties.lat/lng'
+              : 'locations.lat/lng (fallback)',
+          displayName: savedLabel,
+          location_label: propertyData.location_label ?? null,
+          locName,
+        });
         if (Number.isFinite(propLat) && Number.isFinite(propLng)) {
           const matched = locId
             ? {
@@ -255,7 +283,7 @@ const EditPropertyScreen: React.FC = () => {
             : null;
           setPreciseLocation({
             coords: { latitude: propLat, longitude: propLng },
-            locationLabel: locName,
+            locationLabel: savedLabel,
             matchedLocation: matched,
           });
           if (locId && !locObj) {
@@ -335,13 +363,13 @@ const EditPropertyScreen: React.FC = () => {
         updated_at: new Date().toISOString(),
       };
       
-      // Mettre à jour la localisation (ville/quartier + coords précises)
+      // Localisation : préférer le match carte/GPS (quartier) puis la recherche texte
       // Ne jamais envoyer un id OSM (`osm_…`) comme location_id UUID
       const locCandidate =
-        (isLocationUuid(selectedLocation?.id) ? selectedLocation.id : null) ??
         (isLocationUuid(preciseLocation.matchedLocation?.id)
           ? preciseLocation.matchedLocation!.id
-          : null);
+          : null) ??
+        (isLocationUuid(selectedLocation?.id) ? selectedLocation.id : null);
       if (locCandidate) {
         updateData.location_id = locCandidate;
       }
@@ -353,17 +381,57 @@ const EditPropertyScreen: React.FC = () => {
       ) {
         updateData.latitude = preciseLocation.coords.latitude;
         updateData.longitude = preciseLocation.coords.longitude;
+      } else {
+        throw new Error(
+          'Placez le pin sur la carte ou utilisez le GPS pour enregistrer la position précise.',
+        );
       }
+
+      // Pas tous les quartiers sont en DB → on garde la ville en location_id
+      // et on persiste le libellé précis (OSM) dans location_label (nullable, safe pour anciennes apps).
+      const preciseLabel =
+        preciseLocation.locationLabel?.trim() ||
+        locationDisplay.trim() ||
+        preciseLocation.addressDetailsSuggestion?.trim() ||
+        '';
+      if (preciseLabel) {
+        updateData.location_label = preciseLabel;
+      }
+
+      console.log('📍 [loc] SAVE payload', {
+        propertyId,
+        location_id: updateData.location_id ?? '(non envoyé)',
+        latitude: updateData.latitude,
+        longitude: updateData.longitude,
+        location_label: updateData.location_label ?? null,
+        matched: preciseLocation.matchedLocation
+          ? {
+              id: preciseLocation.matchedLocation.id,
+              name: preciseLocation.matchedLocation.name,
+              type: preciseLocation.matchedLocation.type,
+            }
+          : null,
+        selectedLocation: selectedLocation
+          ? { id: selectedLocation.id, name: selectedLocation.name, type: selectedLocation.type }
+          : null,
+        locationDisplay,
+        preciseLabel: preciseLocation.locationLabel,
+      });
 
       // Mettre à jour la propriété
-      const { error } = await supabase
+      const { data: savedRow, error } = await supabase
         .from('properties')
         .update(updateData)
-        .eq('id', propertyId);
+        .eq('id', propertyId)
+        .select('id, location_id, latitude, longitude, location_label')
+        .maybeSingle();
 
       if (error) {
+        console.error('📍 [loc] SAVE erreur supabase', error);
         throw error;
       }
+
+      console.log('📍 [loc] SAVE confirmé en DB', savedRow);
 
       // Supprimer les anciennes photos
       await supabase

@@ -811,7 +811,7 @@ export const useVehicleBookings = () => {
               basePrice,
               totalPrice,
               ownerNetRevenue,
-              commission: Math.round(basePrice * 0.02),
+              commission: hostCommissionData.hostCommission,
               rentalDays
             });
             

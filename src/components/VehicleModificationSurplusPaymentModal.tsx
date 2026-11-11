@@ -4,21 +4,7 @@
  * Aucun partage avec StripeReturnHandler (qui ne gère que la réservation initiale avec checkout_token).
  */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-  SafeAreaView,
-  Linking,
-  AppState,
-  AppStateStatus,
-  InteractionManager,
-} from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Alert, ActivityIndicator, ScrollView, SafeAreaView, Linking, AppState, AppStateStatus } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
@@ -26,6 +12,7 @@ import { createCheckoutSession, checkPaymentStatus } from '../services/cardPayme
 import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaymentService';
 import CardPaymentSuccessView from './CardPaymentSuccessView';
 import { useCurrency } from '../hooks/useCurrency';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 interface VehicleModificationSurplusPaymentModalProps {
   visible: boolean;
@@ -258,7 +245,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
       setPendingStripeReturn(true);
       if (sessionId) setPendingStripeSessionId(sessionId);
     };
-    InteractionManager.runAfterInteractions(() => {
+    runAfterInteractions(() => {
       setTimeout(apply, 400);
     });
   }, [bookingId]);

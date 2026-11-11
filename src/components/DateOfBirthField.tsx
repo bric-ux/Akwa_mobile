@@ -1,13 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Modal,
-  StyleSheet,
-  InteractionManager,
-  Platform,
-} from 'react-native';
+import { View, Text, TouchableOpacity, Modal, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import {
@@ -18,6 +10,7 @@ import {
   getMinDateOfBirth,
   validateAdultAgeDdMmYyyy,
 } from '../lib/phoneAuth';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 type Variant = 'auth' | 'signup';
 
@@ -82,7 +75,7 @@ const DateOfBirthField: React.FC<Props> = ({
 
   const openPicker = () => {
     setTempDate(getDefaultDateOfBirthPickerValue(value));
-    InteractionManager.runAfterInteractions(() => {
+    runAfterInteractions(() => {
       setShowPicker(true);
     });
   };

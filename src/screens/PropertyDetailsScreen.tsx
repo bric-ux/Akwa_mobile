@@ -36,6 +36,9 @@ import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { getGalleryViewerUrl } from '../utils/media';
 import { log, logError } from '../utils/logger';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
+import { getPropertyTypeLabel } from '../utils/propertyTypeLabel';
+import { amenityLabel } from '../catalog/amenityCatalog';
+import { localizedListingText } from '../utils/localizedListingText';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import { getPropertyPublicWebUrl, getOwnerPublicWebUrl, shareListingLink } from '../utils/shareListingLink';
 import { buildHostProfileInternalParams } from '../utils/profileNavigation';
@@ -44,16 +47,7 @@ import { normalizeVirtualTourUrl } from '../utils/virtualTourUrl';
 import { useNetwork } from '../contexts/NetworkContext';
 import { classifyLoadError, type LoadFailureKind } from '../utils/loadError';
 import LoadErrorCard from '../components/LoadErrorCard';
-
-const PROPERTY_TYPE_KEYS: Record<string, string> = {
-  apartment: 'property.typeApartment',
-  house: 'property.typeHouse',
-  villa: 'property.typeVilla',
-  studio: 'property.typeStudio',
-  guesthouse: 'property.typeGuesthouse',
-  eco_lodge: 'property.typeEcoLodge',
-  other: 'property.typeOther',
-};
+import { getPropertyCardLocationLabel } from '../utils/locationLabel';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
 
@@ -61,14 +55,7 @@ const PropertyDetailsScreen: React.FC = () => {
   const route = useRoute<PropertyDetailsRouteProp>();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { t } = useLanguage();
-
-  const getPropertyTypeLabel = (type?: string | null): string => {
-    if (!type) return t('property.notSpecified');
-    const key = PROPERTY_TYPE_KEYS[type];
-    if (key) return t(key);
-    return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-  };
+  const { t, language } = useLanguage();
   const { isOffline } = useNetwork();
   const { formatPrice: formatCurrencyPrice } = useCurrency();
   const {
@@ -399,17 +386,15 @@ const PropertyDetailsScreen: React.FC = () => {
 
         <View style={styles.titleContainer}>
           <View style={styles.titleTextWrap}>
-            <Text style={styles.title}>{property.title}</Text>
+            <Text style={styles.title}>
+              {localizedListingText(language, property.title, property.title_en)}
+            </Text>
           </View>
         </View>
         
         <View style={styles.locationContainer}>
           <Text style={styles.location}>
-            📍 {typeof property.location === 'object' && property.location !== null && 'name' in property.location
-              ? property.location.name 
-              : typeof property.location === 'string' 
-              ? property.location 
-              : (property as any).locations?.name || t('bookings.locationUnknown')}
+            📍 {getPropertyCardLocationLabel(property as any) || t('bookings.locationUnknown')}
           </Text>
         </View>
 
@@ -463,12 +448,15 @@ const PropertyDetailsScreen: React.FC = () => {
         ) : null}
 
         {/* Description */}
-        {property.description && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('property.about')}</Text>
-            <Text style={styles.description}>{sanitizePublicDescription(property.description)}</Text>
-          </View>
-        )}
+        {(() => {
+          const desc = localizedListingText(language, property.description, property.description_en);
+          return desc ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t('property.about')}</Text>
+              <Text style={styles.description}>{sanitizePublicDescription(desc)}</Text>
+            </View>
+          ) : null;
+        })()}
 
         {/* Avis et commentaires */}
         <PropertyReviews propertyId={property.id} hostId={property.host_id} />
@@ -488,7 +476,7 @@ const PropertyDetailsScreen: React.FC = () => {
                   ]}
                 >
                   <Text style={styles.amenityIcon}>{amenity.icon || '✓'}</Text>
-                  <Text style={styles.amenityName}>{amenity.name}</Text>
+                  <Text style={styles.amenityName}>{amenityLabel(amenity.name, t)}</Text>
                 </View>
               ))}
             </View>
@@ -540,7 +528,9 @@ const PropertyDetailsScreen: React.FC = () => {
                   </View>
                   <View style={styles.rulesCardContent}>
                     <Text style={styles.rulesText}>
-                      {sanitizePublicDescription(property.house_rules)}
+                      {sanitizePublicDescription(
+                        localizedListingText(language, property.house_rules, property.house_rules_en),
+                      )}
                     </Text>
                   </View>
                 </View>
@@ -559,7 +549,7 @@ const PropertyDetailsScreen: React.FC = () => {
             </View>
             <View style={styles.rulesCardContent}>
               <Text style={styles.rulesText}>
-                {getCancellationPolicyText(property.cancellation_policy ?? undefined, 'property')}
+                {getCancellationPolicyText(property.cancellation_policy ?? undefined, 'property', t)}
               </Text>
             </View>
           </View>
@@ -572,7 +562,9 @@ const PropertyDetailsScreen: React.FC = () => {
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>{t('property.type')}</Text>
               <Text style={styles.infoValue}>
-                {getPropertyTypeLabel(property.property_type)}
+                {property.property_type
+                  ? getPropertyTypeLabel(property.property_type, t)
+                  : t('property.notSpecified')}
               </Text>
             </View>
             <View style={styles.infoItem}>
@@ -722,22 +714,21 @@ const PropertyDetailsScreen: React.FC = () => {
             || (property as any).neighborhood?.longitude
             || (property as any).city?.longitude;
           
-          // Extraire le nom de la localisation
-          const locationName = location && 'name' in location 
-            ? (location as any).name 
-            : typeof property.location === 'string' 
-            ? property.location 
-            : (property as any).locations?.name
-            || (property as any).neighborhood?.name
-            || (property as any).neighborhood?.commune
-            || (property as any).city?.name;
-          
-          // Déterminer cityName et neighborhoodName
+          // Libellé hiérarchique : lieu, commune, ville
+          const locationName =
+            getPropertyCardLocationLabel(property as any) ||
+            (location && 'name' in location ? (location as any).name : undefined) ||
+            (typeof property.location === 'string' ? property.location : undefined) ||
+            (property as any).locations?.name ||
+            (property as any).neighborhood?.name ||
+            (property as any).city?.name;
+
           const locationType = location && 'type' in location ? (location as any).type : null;
           const cityName = locationType === 'city' ? (location as any).name : undefined;
-          const neighborhoodName = locationType === 'neighborhood' || locationType === 'commune' 
-            ? (location as any).name 
-            : undefined;
+          const neighborhoodName =
+            locationType === 'neighborhood' || locationType === 'commune'
+              ? (location as any).name
+              : undefined;
           
           // Log pour déboguer
           log('🗺️ [PropertyDetailsScreen] Coordonnées extraites:', {

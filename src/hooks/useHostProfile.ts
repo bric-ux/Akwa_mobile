@@ -108,6 +108,7 @@ export const useHostProfile = () => {
         .from('properties')
         .select(`
           id, title, slug, price_per_night, images, rating, review_count, host_id,
+          location_label,
           locations:location_id ( name ),
           property_photos ( url, is_main, display_order )
         `)

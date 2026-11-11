@@ -21,6 +21,7 @@ function getRefDateStrForListPricing(filters?: SearchFilters): string {
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
 }
 import { getAmenityIcon } from '../utils/amenityIcons';
+import { amenitySlugFromValue } from '../catalog/amenityCatalog';
 import { calculateDistance, isWithinRadius } from '../utils/distance';
 import { log, logError, logWarn } from '../utils/logger';
 import { getPricesForDateBatch } from '../utils/priceCalculator';
@@ -120,19 +121,39 @@ function propertySearchCoords(property: {
   return { lat, lng };
 }
 
+type AmenityCacheEntry = { id: string; name: string; icon: string };
+
+function indexAmenityCacheEntry(
+  cache: Map<string, AmenityCacheEntry>,
+  amenity: { id: string; name: string; slug?: string | null },
+) {
+  const entry: AmenityCacheEntry = {
+    id: amenity.id,
+    name: amenity.slug || amenity.name,
+    icon: getAmenityIcon(amenity.slug || amenity.name),
+  };
+  cache.set(amenity.id, entry);
+  cache.set(amenity.name.toLowerCase(), entry);
+  if (amenity.slug) cache.set(amenity.slug.toLowerCase(), entry);
+  const catalogSlug = amenitySlugFromValue(amenity.name);
+  if (catalogSlug) cache.set(catalogSlug, entry);
+}
+
 /** Lookup synchrone pour la liste recherche (évite N awaits dans Promise.all). */
 function mapAmenitiesFromCache(
   amenityIdsOrNames: string[] | null | undefined,
-  cache: Map<string, { id: string; name: string; icon: string }>
-): { id: string; name: string; icon: string }[] {
+  cache: Map<string, AmenityCacheEntry>
+): AmenityCacheEntry[] {
   if (!amenityIdsOrNames?.length) return [];
   return amenityIdsOrNames
     .map((idOrName) => {
       if (AMENITY_UUID_RE.test(idOrName)) {
         return cache.get(idOrName) ?? null;
       }
-      const byName = cache.get(idOrName.toLowerCase());
-      if (byName) return byName;
+      const byKey = cache.get(idOrName) ?? cache.get(idOrName.toLowerCase());
+      if (byKey) return byKey;
+      const slug = amenitySlugFromValue(idOrName);
+      if (slug && cache.get(slug)) return cache.get(slug)!;
       const amenity = Array.from(cache.values()).find((a) => a.name.toLowerCase() === idOrName.toLowerCase());
       if (amenity) return amenity;
       const trimmed = idOrName.trim();
@@ -141,7 +162,7 @@ function mapAmenitiesFromCache(
       }
       return null;
     })
-    .filter(Boolean) as { id: string; name: string; icon: string }[];
+    .filter(Boolean) as AmenityCacheEntry[];
 }
 
 /** Colonnes allégées pour liste / recherche (la fiche charge le détail via getPropertyById). */
@@ -155,6 +176,8 @@ const PROPERTY_SEARCH_LIST_SELECT = `
   location_id,
   latitude,
   longitude,
+  address_details,
+  location_label,
   price_per_night,
   max_guests,
   bedrooms,
@@ -313,19 +336,12 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         }
         
         if (amenities && amenities.length > 0) {
-          const cache = new Map<string, { id: string; name: string; icon: string }>();
-          amenities.forEach(amenity => {
-            // Indexer par ID (UUID)
-            cache.set(amenity.id, {
+          const cache = new Map<string, AmenityCacheEntry>();
+          amenities.forEach((amenity) => {
+            indexAmenityCacheEntry(cache, {
               id: amenity.id,
               name: amenity.name,
-              icon: getAmenityIcon(amenity.name)
-            });
-            // Aussi indexer par nom en minuscules pour faciliter la recherche
-            cache.set(amenity.name.toLowerCase(), {
-              id: amenity.id,
-              name: amenity.name,
-              icon: getAmenityIcon(amenity.name)
+              slug: amenitySlugFromValue(amenity.name),
             });
           });
           setAmenitiesCache(cache);
@@ -369,22 +385,16 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         }
 
         if (amenities && amenities.length > 0) {
-          const cache = new Map<string, { id: string; name: string; icon: string }>();
-          amenities.forEach(amenity => {
-            cache.set(amenity.id, {
+          const cache = new Map<string, AmenityCacheEntry>();
+          amenities.forEach((amenity) => {
+            indexAmenityCacheEntry(cache, {
               id: amenity.id,
               name: amenity.name,
-              icon: getAmenityIcon(amenity.name)
-            });
-            // Aussi indexer par nom (insensible à la casse) pour faciliter la recherche
-            cache.set(amenity.name.toLowerCase(), {
-              id: amenity.id,
-              name: amenity.name,
-              icon: getAmenityIcon(amenity.name)
+              slug: amenitySlugFromValue(amenity.name),
             });
           });
           setAmenitiesCache(cache);
-          console.log('✅ [mapAmenities] Cache des équipements chargé:', cache.size / 2, 'équipements');
+          console.log('✅ [mapAmenities] Cache des équipements chargé:', amenities.length, 'équipements');
         } else {
           console.warn('⚠️ [mapAmenities] Aucun équipement trouvé dans property_amenities');
         }
@@ -558,8 +568,8 @@ export const useProperties = (options?: UsePropertiesOptions) => {
           // Centre manquant en base → géocode pour élargir (Faya près de Cocody, etc.)
           if (effectiveCenterLat == null || effectiveCenterLng == null) {
             try {
-              const { forwardGeocodeNominatim } = await import('../lib/geolocation');
-              const hits = await forwardGeocodeNominatim(`${searchTerm}, Côte d'Ivoire`);
+              const { forwardGeocodeCombined } = await import('../lib/geolocation');
+              const hits = await forwardGeocodeCombined(`${searchTerm}, Côte d'Ivoire`);
               if (hits?.[0]) {
                 effectiveCenterLat = hits[0].latitude;
                 effectiveCenterLng = hits[0].longitude;
@@ -727,19 +737,18 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         query = query.eq('property_type', filters.propertyType as any);
       }
 
-      // Filtres pour les équipements (recherche dans les amenities)
-      // Support des anciens filtres booléens pour compatibilité
+      // Filtres équipements : dual slug + libellé FR (avant/après migration i18n)
       if (filters?.wifi) {
-        query = query.contains('amenities', ['WiFi gratuit']);
+        query = query.or('amenities.cs.{"wifi"},amenities.cs.{"WiFi gratuit"}');
       }
       if (filters?.parking) {
-        query = query.contains('amenities', ['Parking gratuit']);
+        query = query.or('amenities.cs.{"free_parking"},amenities.cs.{"Parking gratuit"}');
       }
       if (filters?.pool) {
-        query = query.contains('amenities', ['Piscine']);
+        query = query.or('amenities.cs.{"pool"},amenities.cs.{"Piscine"}');
       }
       if (filters?.airConditioning) {
-        query = query.contains('amenities', ['Climatisation']);
+        query = query.or('amenities.cs.{"ac"},amenities.cs.{"Climatisation"}');
       }
       
       // Limite DB : le filtrage dates / rayon réduit encore côté client
@@ -879,8 +888,8 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       } else if (searchTerm && rawData.length === 0) {
         // Pas de centre connu → tenter géocode OSM puis proximité
         try {
-          const { forwardGeocodeNominatim } = await import('../lib/geolocation');
-          const hits = await forwardGeocodeNominatim(`${searchTerm}, Côte d'Ivoire`);
+          const { forwardGeocodeCombined } = await import('../lib/geolocation');
+          const hits = await forwardGeocodeCombined(`${searchTerm}, Côte d'Ivoire`);
           const hit = hits?.[0];
           if (hit) {
             effectiveCenterLat = hit.latitude;
@@ -967,15 +976,18 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         });
       }
 
-      // Filtrer par équipements si spécifié (filtrage côté client pour "ET" logique)
+      // Filtrer par équipements (ET) — dual slug + libellé FR
       let filteredData = rawData;
       if (filters?.amenities && filters.amenities.length > 0) {
         filteredData = filteredData.filter((property) => {
           const propertyAmenities = property.amenities || [];
-          // Vérifier que tous les équipements sélectionnés sont présents
-          return filters.amenities!.every(selectedAmenity => 
-            propertyAmenities.includes(selectedAmenity)
-          );
+          return filters.amenities!.every((selectedAmenity) => {
+            const slug = amenitySlugFromValue(selectedAmenity);
+            return (
+              propertyAmenities.includes(selectedAmenity) ||
+              (slug != null && propertyAmenities.includes(slug))
+            );
+          });
         });
         if (__DEV__) {
           console.log(`🔍 Filtrage par équipements: ${rawData.length || 0} → ${filteredData.length} propriétés`);
@@ -1409,10 +1421,29 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       const allAmenities = [...mappedAmenities, ...customAmenitiesList];
       console.log('✅ [getPropertyById] Tous les équipements (standards + personnalisés):', allAmenities);
       
-      // Extraire les coordonnées de location
+      // Coords précises du bien en priorité (pas le centroïde ville/quartier)
       const location = (data as any).locations;
-      let latitude = location?.latitude || data.latitude;
-      let longitude = location?.longitude || data.longitude;
+      let latitude = data.latitude ?? location?.latitude;
+      let longitude = data.longitude ?? location?.longitude;
+      console.log('📍 [loc] getPropertyById coords', {
+        id: data.id,
+        title: data.title,
+        db_latitude: data.latitude,
+        db_longitude: data.longitude,
+        location_id: data.location_id,
+        location_name: location?.name,
+        location_type: location?.type,
+        location_lat: location?.latitude,
+        location_lng: location?.longitude,
+        chosen_lat: latitude,
+        chosen_lng: longitude,
+        source:
+          data.latitude != null && data.longitude != null
+            ? 'properties'
+            : location?.latitude != null
+              ? 'locations_fallback'
+              : 'none',
+      });
       
       // Si pas de coordonnées et qu'on a un location_id, utiliser la fonction RPC pour remonter la hiérarchie
       if ((!latitude || !longitude) && data.location_id) {
@@ -1481,6 +1512,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         check_in_time: data.check_in_time || null,
         check_out_time: data.check_out_time || null,
         address_details: data.address_details || '',
+        location_label: data.location_label || '',
         host_guide: data.host_guide || '',
         // Inclure les réductions (courte durée et long séjour)
         discount_enabled: data.discount_enabled || false,

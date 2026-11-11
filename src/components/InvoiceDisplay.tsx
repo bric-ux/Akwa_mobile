@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getCommissionRates, getTravelerServiceFeeTtcMultiplier, type ServiceType } from '../lib/commissions';
+import { getCommissionRates, getLegacyCommissionRates, getTravelerServiceFeeTtcMultiplier, type ServiceType } from '../lib/commissions';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 import { calculateTotalPrice, calculateHostCommission, calculateVehiclePriceWithHours, type DiscountConfig } from '../hooks/usePricing';
 import { calculateHostNetAmount as calculateHostNetAmountCentralized } from '../lib/hostNetAmount';
@@ -623,7 +623,13 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   const snapshotRate = calculationDetails?.calculation_snapshot?.paymentRate;
   // Priorité à la devise choisie par l'utilisateur (EUR/USD) dans son compte, sinon devise de la réservation
   const displayCurrency = (currency !== 'XOF' ? currency : null) || snapshotCurrency || (booking as any)?.payment_currency || currency;
-  const commissionRates = getCommissionRates(serviceType, displayCurrency as import('../lib/commissions').CurrencyCode);
+  // Anciennes résas (frais voyageur stockés > 0) : labels/fallback aux taux legacy
+  const storedTravelerFeeHint =
+    Number(calculationDetails?.service_fee) > 0 ||
+    Number((booking as any)?.service_fee) > 0;
+  const commissionRates = storedTravelerFeeHint
+    ? getLegacyCommissionRates(serviceType)
+    : getCommissionRates(serviceType, displayCurrency as import('../lib/commissions').CurrencyCode);
   const displayRate =
     Number(snapshotRate) ||
     Number((booking as any)?.exchange_rate) ||
@@ -1691,7 +1697,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {getCancellationPolicyText(
             serviceType === 'property' ? booking.properties?.cancellation_policy : booking.vehicle?.cancellation_policy,
             serviceType
-          )}
+          , t)}
         </Text>
       </View>
 

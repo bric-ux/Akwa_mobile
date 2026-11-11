@@ -97,8 +97,8 @@ export const useApprovedMonthlyRentalListings = () => {
           // Centre manquant → géocode (Faya près de Cocody, etc.)
           if (centerLat == null || centerLng == null) {
             try {
-              const { forwardGeocodeNominatim } = await import('../lib/geolocation');
-              const hits = await forwardGeocodeNominatim(`${city}, Côte d'Ivoire`);
+              const { forwardGeocodeCombined } = await import('../lib/geolocation');
+              const hits = await forwardGeocodeCombined(`${city}, Côte d'Ivoire`);
               if (hits?.[0]) {
                 centerLat = hits[0].latitude;
                 centerLng = hits[0].longitude;

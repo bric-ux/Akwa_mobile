@@ -1,18 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  Linking,
-  AppState,
-  AppStateStatus,
-  InteractionManager,
-} from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Linking, AppState, AppStateStatus } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
 import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
@@ -21,6 +8,7 @@ import CardPaymentSuccessView from './CardPaymentSuccessView';
 import { formatAmount } from '../utils/priceCalculator';
 import { useCurrency } from '../hooks/useCurrency';
 import type { CommissionDueItem, PlatformPaymentInfo } from '../hooks/useCommissions';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -204,7 +192,7 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
     const urlToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
     if (urlToken && pendingWaveCheckoutToken && urlToken === pendingWaveCheckoutToken) {
       setPendingStripeReturn(true);
-      InteractionManager.runAfterInteractions(() => {
+      runAfterInteractions(() => {
         setTimeout(verifyCommissionPaymentNow, 1000);
       });
       return;
@@ -214,7 +202,7 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
     const urlCommissionId = commissionMatch ? decodeURIComponent(commissionMatch[1]) : null;
     if (urlCommissionId !== commission.id) return;
     setPendingStripeReturn(true);
-    InteractionManager.runAfterInteractions(() => {
+    runAfterInteractions(() => {
       setTimeout(verifyCommissionPaymentNow, 1000);
     });
   }, [commission, pendingWaveCheckoutToken, verifyCommissionPaymentNow]);

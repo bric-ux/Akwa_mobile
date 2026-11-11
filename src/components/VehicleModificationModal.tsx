@@ -1056,7 +1056,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                             <View style={styles.policyNoteContainer}>
                               <Text style={styles.policyNoteLabel}>{t('bookingMod.cancellationTerms')}</Text>
                               <Text style={styles.policyNote}>
-                                {getCancellationPolicyText(policy, 'vehicle')}
+                                {getCancellationPolicyText(policy, 'vehicle', t)}
                               </Text>
                             </View>
                           );

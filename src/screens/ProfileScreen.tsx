@@ -1,16 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  Image,
-  InteractionManager,
-  Animated,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Image, Animated, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect, useRoute, CommonActions } from '@react-navigation/native';
@@ -40,6 +29,7 @@ import {
   countUnseenMonthlyCandidatureAlerts,
   parseMonthlyCandidatureAlertsSeen,
 } from '../utils/monthlyCandidatureAlerts';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -203,7 +193,7 @@ const ProfileScreen: React.FC = () => {
   useFocusEffect(
     React.useCallback(() => {
       if (!user) return;
-      const task = InteractionManager.runAfterInteractions(() => {
+      const task = runAfterInteractions(() => {
         refreshProfile();
         void loadSpaceExtras();
         checkEmailVerificationStatus(true);

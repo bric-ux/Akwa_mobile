@@ -7,6 +7,18 @@ import { Vehicle, VehicleFilters } from '../types';
 import { resolveLocationIdsForSearchTerm } from '../lib/resolveSearchLocations';
 import { isWithinRadius } from '../utils/distance';
 import { notifyAdminsModerationPush } from '../services/notifyAdminsModerationPush';
+import { vehicleFeatureCode, VEHICLE_FEATURE_CATALOG } from '../catalog/vehicleFeatureCatalog';
+
+function vehicleHasFeature(stored: string[] | null | undefined, selected: string): boolean {
+  if (!stored?.length) return false;
+  if (stored.includes(selected)) return true;
+  const code = vehicleFeatureCode(selected);
+  if (code && stored.includes(code)) return true;
+  const fr = code
+    ? VEHICLE_FEATURE_CATALOG.find((f) => f.code === code)?.fr
+    : undefined;
+  return fr != null && stored.includes(fr);
+}
 
 /** Parse YYYY-MM-DD en bornes locales sans skew UTC. */
 function localDayBoundsIso(dateStr: string, endOfDay: boolean): string {
@@ -176,12 +188,7 @@ export const useVehicles = () => {
           .not('location_id', 'is', null);
       }
 
-      if (filters?.features && filters.features.length > 0) {
-        // Filtrer par équipements (tous doivent être présents)
-        filters.features.forEach(feature => {
-          query = query.contains('features', [feature]);
-        });
-      }
+      // Features filtrées côté client (dual code + libellé FR, avant/après migration i18n)
 
       // Recherche textuelle (marque, modèle, titre, description, localisation)
       if (filters?.search && filters.search.trim()) {
@@ -197,6 +204,12 @@ export const useVehicles = () => {
 
       // Filtrer par disponibilité (jour ou heure selon le type)
       let availableVehicles = data || [];
+
+      if (filters?.features && filters.features.length > 0) {
+        availableVehicles = availableVehicles.filter((v) =>
+          filters.features!.every((feature) => vehicleHasFeature(v.features, feature)),
+        );
+      }
       
       console.log(`🔍 [useVehicles] Filtres reçus:`, {
         startDate: filters?.startDate,

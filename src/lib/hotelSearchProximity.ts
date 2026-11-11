@@ -73,8 +73,8 @@ export async function resolveHotelSearchCenter(filters?: CenterFilters): Promise
 
   if (centerLat == null || centerLng == null) {
     try {
-      const { forwardGeocodeNominatim } = await import('./geolocation');
-      const hits = await forwardGeocodeNominatim(`${city}, Côte d'Ivoire`);
+      const { forwardGeocodeCombined } = await import('./geolocation');
+      const hits = await forwardGeocodeCombined(`${city}, Côte d'Ivoire`);
       if (hits?.[0]) {
         centerLat = hits[0].latitude;
         centerLng = hits[0].longitude;

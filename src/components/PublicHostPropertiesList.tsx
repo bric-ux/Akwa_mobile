@@ -7,6 +7,7 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { getPropertyCardLocationLabel } from '../utils/locationLabel';
 
 export type PublicHostProperty = {
   id: string;
@@ -14,7 +15,8 @@ export type PublicHostProperty = {
   slug?: string | null;
   price_per_night?: number | null;
   images?: string[] | null;
-  locations?: { name?: string } | null;
+  location_label?: string | null;
+  locations?: { name?: string; type?: string; parent?: any; commune?: string } | null;
   property_photos?: Array<{ url: string; is_main?: boolean | null }> | null;
 };
 
@@ -64,9 +66,9 @@ export default function PublicHostPropertiesList({
               <Text style={styles.title} numberOfLines={2}>
                 {property.title}
               </Text>
-              {property.locations?.name ? (
+              {getPropertyCardLocationLabel(property) ? (
                 <Text style={styles.meta} numberOfLines={1}>
-                  {property.locations.name}
+                  {getPropertyCardLocationLabel(property)}
                 </Text>
               ) : null}
               {property.price_per_night != null && property.price_per_night > 0 ? (

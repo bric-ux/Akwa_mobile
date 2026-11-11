@@ -254,6 +254,10 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
       location_id: locationId,
       latitude: preciseLocation.coords?.latitude ?? null,
       longitude: preciseLocation.coords?.longitude ?? null,
+      location_label:
+        preciseLocation.locationLabel?.trim() ||
+        form.location.trim() ||
+        null,
       property_type: form.property_type || null,
       surface_m2: surface,
       number_of_rooms: rooms,

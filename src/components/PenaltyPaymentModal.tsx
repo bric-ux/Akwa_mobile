@@ -1,24 +1,12 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  Linking,
-  AppState,
-  AppStateStatus,
-  InteractionManager,
-} from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Linking, AppState, AppStateStatus } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
 import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
 import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaymentService';
 import CardPaymentSuccessView from './CardPaymentSuccessView';
 import { useCurrency } from '../hooks/useCurrency';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 interface PenaltyPaymentModalProps {
   visible: boolean;
@@ -144,7 +132,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
     const urlToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
     if (!urlToken || !pendingWaveCheckoutToken || urlToken !== pendingWaveCheckoutToken) return;
     setPendingWaveReturn(true);
-    InteractionManager.runAfterInteractions(() => {
+    runAfterInteractions(() => {
       setTimeout(verifyWavePaymentNow, 1000);
     });
   }, [pendingWaveCheckoutToken, verifyWavePaymentNow]);

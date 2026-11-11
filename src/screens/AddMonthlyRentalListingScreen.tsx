@@ -194,6 +194,10 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
       location_id: locationId,
       latitude: preciseLocation.coords?.latitude ?? null,
       longitude: preciseLocation.coords?.longitude ?? null,
+      location_label:
+        preciseLocation.locationLabel?.trim() ||
+        form.location.trim() ||
+        null,
       property_type: form.property_type || null,
       surface_m2: Number.isFinite(surface) && surface > 0 ? surface : 1,
       number_of_rooms: Number.isFinite(rooms) && rooms > 0 ? rooms : 1,

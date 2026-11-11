@@ -27,6 +27,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '../utils/navigation';
 import { VEHICLE_COLORS } from '../constants/colors';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
+import { vehicleFeatureLabel } from '../catalog/vehicleFeatureCatalog';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import AppVideo from '../components/AppVideo';
 import { getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
@@ -34,6 +35,7 @@ import { getVehiclePublicWebUrl, shareListingLink } from '../utils/shareListingL
 import { useNetwork } from '../contexts/NetworkContext';
 import { classifyLoadError, type LoadFailureKind } from '../utils/loadError';
 import LoadErrorCard from '../components/LoadErrorCard';
+import { formatCardLocationLabel } from '../utils/locationLabel';
 
 type VehicleDetailsRouteProp = RouteProp<RootStackParamList, 'VehicleDetails'>;
 
@@ -444,7 +446,11 @@ const VehicleDetailsScreen: React.FC = () => {
               {vehicle.location ? (
                 <View style={styles.metaItem}>
                   <Ionicons name="location" size={16} color={VEHICLE_COLORS.primary} />
-                  <Text style={styles.metaText}>{vehicle.location?.name || t('vehicleDetails.locationUnspecified')}</Text>
+                  <Text style={styles.metaText}>
+                    {formatCardLocationLabel(vehicle.location as any) ||
+                      vehicle.location?.name ||
+                      t('vehicleDetails.locationUnspecified')}
+                  </Text>
                 </View>
               ) : null}
             </View>
@@ -653,7 +659,7 @@ const VehicleDetailsScreen: React.FC = () => {
                 {vehicle.features.map((feature, index) => (
                   <View key={index} style={styles.featureTag}>
                     <Ionicons name="checkmark-circle" size={18} color={VEHICLE_COLORS.primary} />
-                    <Text style={styles.featureTagText}>{String(feature || '')}</Text>
+                    <Text style={styles.featureTagText}>{vehicleFeatureLabel(feature, t)}</Text>
                   </View>
                 ))}
               </View>
@@ -683,7 +689,7 @@ const VehicleDetailsScreen: React.FC = () => {
               <View style={styles.featureTextContainer}>
                 <Text style={styles.featureLabel}>{t('vehicleDetails.cancellationConditions')}</Text>
                 <Text style={styles.featureValue}>
-                  {getCancellationPolicyText(vehicle.cancellation_policy ?? undefined, 'vehicle')}
+                  {getCancellationPolicyText(vehicle.cancellation_policy ?? undefined, 'vehicle', t)}
                 </Text>
               </View>
             </View>

@@ -22,6 +22,8 @@ import MediaThumb from './MediaThumb';
 import { getPropertyCoverUrl, getPropertyGalleryUrls, isVideoUrl } from '../utils/media';
 import { getPropertyCardLocationLabel } from '../utils/locationLabel';
 import { getPropertyTypeLabel } from '../utils/propertyTypeLabel';
+import { amenityLabel } from '../catalog/amenityCatalog';
+import { localizedListingText } from '../utils/localizedListingText';
 import {
   EXPLORE_SHELF_IMAGE_HEIGHT,
   LIST_CARD_IMAGE_HEIGHT,
@@ -51,7 +53,8 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
   const { requireAuthForFavorites } = useAuthRedirect();
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
   const { formatPrice: formatPriceWithCurrency, currency } = useCurrency();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const listingTitle = localizedListingText(language, property.title, property.title_en);
   const [isFavorited, setIsFavorited] = useState(false);
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   const [slideWidth, setSlideWidth] = useState(SCREEN_W);
@@ -192,8 +195,8 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
         <ExploreShelfPhotoCard
           onPress={handlePropertyPress}
           title={formatExploreShelfHeadline({
-            title: property.title,
-            typeLabel: getPropertyTypeLabel(property.property_type),
+            title: listingTitle,
+            typeLabel: getPropertyTypeLabel(property.property_type, t),
           })}
           location={locationLabel || undefined}
           priceLabel={`${formatPrice(effectiveNightPrice)}${t('search.perNight')}`}
@@ -230,9 +233,9 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
   }
 
   if (variant === 'list') {
-    const typeLabel = getPropertyTypeLabel(property.property_type);
+    const typeLabel = getPropertyTypeLabel(property.property_type, t);
     const cardTitle = formatListCardTitle({
-      title: property.title,
+      title: listingTitle,
       typeLabel,
     });
     const metaBits = [
@@ -349,7 +352,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
 
           <View style={styles.content}>
             <Text style={styles.title} numberOfLines={2}>
-              {property.title}
+              {listingTitle}
             </Text>
             
             {locationLabel ? (
@@ -391,7 +394,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
               <View style={styles.amenitiesContainer}>
                 {property.amenities.slice(0, 2).map((amenity, index) => (
                   <Text key={index} style={styles.amenity}>
-                    {amenity.name}
+                    {amenityLabel(amenity.name, t)}
                   </Text>
                 ))}
                 {property.amenities.length > 2 && (

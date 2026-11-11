@@ -1,19 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Image,
-  Linking,
-  Keyboard,
-  InteractionManager,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform, Image, Linking, Keyboard } from 'react-native';
 import { ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,6 +23,7 @@ import DateOfBirthField from '../components/DateOfBirthField';
 import { useEmailVerification } from '../hooks/useEmailVerification';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 type AuthScreenRouteProp = RouteProp<RootStackParamList, 'Auth'>;
 
@@ -83,7 +70,7 @@ const AuthScreen: React.FC = () => {
 
   const handleBack = useCallback(() => {
     Keyboard.dismiss();
-    InteractionManager.runAfterInteractions(() => {
+    runAfterInteractions(() => {
       if (navigation.canGoBack()) {
         navigation.goBack();
         return;
@@ -202,7 +189,7 @@ const AuthScreen: React.FC = () => {
     requestAnimationFrame(() => {
       if (navigation.canGoBack()) {
         navigation.goBack();
-        InteractionManager.runAfterInteractions(focusExplorerTab);
+        runAfterInteractions(focusExplorerTab);
         return;
       }
       navigation.dispatch(

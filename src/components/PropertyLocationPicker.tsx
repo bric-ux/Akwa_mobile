@@ -87,13 +87,33 @@ export default function PropertyLocationPicker({
     [lat, lng, hasPrecise],
   );
 
-  const applyResult = (result: PreciseLocationResult) => {
+  const applyResult = (result: PreciseLocationResult, source: string) => {
     const next: PropertyLocationPickerValue = {
       coords: result.coords,
       locationLabel: result.addressLabel,
       matchedLocation: result.matchedLocation,
       addressDetailsSuggestion: result.addressDetailsSuggestion,
     };
+    console.log('📍 [loc] PICKER apply', {
+      source,
+      coords: result.coords,
+      addressLabel: result.addressLabel,
+      matched: result.matchedLocation
+        ? {
+            id: result.matchedLocation.id,
+            name: result.matchedLocation.name,
+            type: result.matchedLocation.type,
+          }
+        : null,
+      reverse: result.reverse
+        ? {
+            neighbourhood: result.reverse.neighbourhood,
+            suburb: result.reverse.suburb,
+            city: result.reverse.city,
+            town: result.reverse.town,
+          }
+        : null,
+    });
     onChange(next);
     if (result.addressLabel) onLocationLabelChange?.(result.addressLabel);
   };
@@ -102,7 +122,7 @@ export default function PropertyLocationPicker({
     try {
       setLoading(true);
       const result = await resolvePreciseLocationFromDevice();
-      applyResult(result);
+      applyResult(result, 'gps');
     } catch (e) {
       Alert.alert(
         'Localisation',
@@ -124,11 +144,12 @@ export default function PropertyLocationPicker({
         longitude: Number(data.longitude),
       };
       if (!Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude)) return;
+      console.log('📍 [loc] PICKER pin message', coords);
       setLoading(true);
       const result = await resolvePreciseLocationFromCoords(coords);
-      applyResult(result);
-    } catch {
-      /* ignore */
+      applyResult(result, 'map-pin');
+    } catch (e) {
+      console.warn('📍 [loc] PICKER pin error', e);
     } finally {
       setLoading(false);
     }

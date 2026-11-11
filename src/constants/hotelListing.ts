@@ -60,7 +60,12 @@ export const HOTEL_CANCELLATION_OPTIONS = [
   },
 ] as const;
 
-export function hotelAmenityLabel(value: string): string {
+type TranslateFn = (key: string, params?: Record<string, string>) => string;
+
+export function hotelAmenityLabel(value: string, t: TranslateFn): string {
+  const key = `hotelAmenity.${value}`;
+  const translated = t(key);
+  if (translated && translated !== key) return translated;
   return HOTEL_AMENITY_OPTIONS.find((a) => a.value === value)?.label || value;
 }
 
@@ -68,10 +73,20 @@ export function hotelLanguageLabel(value: string): string {
   return HOTEL_LANGUAGE_OPTIONS.find((l) => l.value === value)?.label || value;
 }
 
-export function hotelCancellationLabel(value: string | null | undefined): string {
+export function hotelCancellationLabel(value: string | null | undefined, t: TranslateFn): string {
   if (!value) return '';
+  const key = `hotelCancel.${value}`;
+  const translated = t(key);
+  if (translated && translated !== key) return translated;
   const opt = HOTEL_CANCELLATION_OPTIONS.find((c) => c.value === value);
   return opt ? `${opt.label} — ${opt.hint}` : value;
+}
+
+export function hotelRoomCategoryLabel(value: string, t: TranslateFn): string {
+  const key = `hotelRoom.category.${value}`;
+  const translated = t(key);
+  if (translated && translated !== key) return translated;
+  return HOTEL_ROOM_CATEGORIES.find((c) => c.value === value)?.label || value;
 }
 
 /** Affiche une heure Postgres `time` / `HH:MM:SS` en `HH:MM`. */

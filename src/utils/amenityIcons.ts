@@ -1,5 +1,49 @@
+import { amenitySlugFromValue } from '../catalog/amenityCatalog';
+
+const SLUG_EMOJI: Record<string, string> = {
+  wifi: '📶',
+  ac: '❄️',
+  heating: '🔥',
+  fan: '🌀',
+  kitchenette: '🍳',
+  equipped_kitchen: '🍳',
+  microwave: '📱',
+  fridge: '🧊',
+  freezer: '❄️',
+  dishwasher: '🍽️',
+  stove: '🍳',
+  oven: '🔥',
+  washer: '🧺',
+  dryer: '🌪️',
+  iron: '👔',
+  free_parking: '🅿️',
+  garage: '🏠',
+  pool: '🏊‍♂️',
+  jacuzzi: '🛁',
+  sauna: '🧖‍♂️',
+  garden: '🌳',
+  balcony: '🌿',
+  balcony_terrace: '🌿',
+  terrace: '🏖️',
+  flat_tv: '📺',
+  tv: '📺',
+  gym: '💪',
+  beach_access: '🏖️',
+  sea_view: '🌊',
+  pets_allowed: '🐕',
+  non_smoking: '🚭',
+  sheets: '🛏️',
+  towels: '🛁',
+  elevator: '🛗',
+  accessible: '♿',
+  hot_water: '🚿',
+};
+
 // Mapping des équipements vers leurs icônes appropriées
 export const getAmenityIcon = (amenityName: string): string => {
+  const slug = amenitySlugFromValue(amenityName);
+  if (slug && SLUG_EMOJI[slug]) return SLUG_EMOJI[slug];
+
   const iconMap: Record<string, string> = {
     // Connectivité
     'WiFi gratuit': '📶',

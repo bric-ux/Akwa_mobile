@@ -1,15 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Modal,
-  FlatList,
-  StyleSheet,
-  InteractionManager,
-  Pressable,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Modal, FlatList, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PHONE_AUTH_COUNTRIES, type CountryDial } from '../lib/phoneAuth';
 import {
@@ -17,6 +7,7 @@ import {
   AUTH_FORM_TEXT_COLOR,
   authFormInputTextStyle,
 } from '../lib/authFormInput';
+import { runAfterInteractions } from '../utils/runAfterInteractions';
 
 type Props = {
   dial: string;
@@ -40,7 +31,7 @@ const PhoneNumberField: React.FC<Props> = ({
 
   const openPicker = useCallback(() => {
     if (disabled) return;
-    InteractionManager.runAfterInteractions(() => {
+    runAfterInteractions(() => {
       setPickerOpen(true);
     });
   }, [disabled]);

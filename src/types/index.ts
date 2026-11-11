@@ -22,7 +22,12 @@ export interface CategorizedPhoto {
 export interface Property {
   id: string;
   title: string;
+  /** Optional English title (DB column title_en) */
+  title_en?: string | null;
   description: string | null;
+  description_en?: string | null;
+  house_rules_en?: string | null;
+  host_guide_en?: string | null;
   /** URL HTTPS (Matterport, Kuula, etc.) affichée comme visite virtuelle sur la fiche. */
   virtual_tour_url?: string | null;
   location: string | {
@@ -46,6 +51,8 @@ export interface Property {
   created_at: string;
   updated_at: string;
   location_id?: string;
+  /** Libellé précis affiché (quartier OSM, etc.) — indépendant du catalogue locations */
+  location_label?: string | null;
   location?: {
     id: string;
     name: string;
@@ -101,6 +108,7 @@ export interface Property {
   check_in_time?: string;
   check_out_time?: string;
   house_rules?: string;
+  cancellation_policy?: string | null;
   smoking_allowed?: boolean;
   vaping_allowed?: boolean;
   events_allowed?: boolean;

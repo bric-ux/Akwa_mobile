@@ -23,6 +23,7 @@ import MediaThumb from '../components/MediaThumb';
 import { getPropertyCoverUrl, isVideoUrl } from '../utils/media';
 import { getPropertyPublicWebUrl, shareListingLink } from '../utils/shareListingLink';
 import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
+import { getPropertyCardLocationLabel } from '../utils/locationLabel';
 
 type TabType = 'applications' | 'properties';
 
@@ -216,7 +217,7 @@ const MyPropertiesScreen: React.FC = () => {
             {showDot ? <View style={styles.unseenDotInline} /> : null}
           </View>
           <Text style={styles.propertyLocation} numberOfLines={1}>
-            📍 {property.location?.name || property.locations?.name || t('common.unknown')}
+            📍 {getPropertyCardLocationLabel(property) || t('common.unknown')}
           </Text>
           <View style={styles.propertySpecs}>
             <Text style={styles.specText}>👥 {property.max_guests}</Text>

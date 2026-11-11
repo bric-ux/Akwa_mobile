@@ -152,8 +152,8 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
 
     const validProps = properties.filter(
       (p) =>
-        (p.location?.latitude || p.locations?.latitude || p.latitude) &&
-        (p.location?.longitude || p.locations?.longitude || p.longitude)
+        (p.latitude || p.location?.latitude || p.locations?.latitude) &&
+        (p.longitude || p.location?.longitude || p.locations?.longitude)
     );
 
     if (validProps.length === 0) {
@@ -164,8 +164,8 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
     }
 
     // Calculer les limites (min/max lat/lng)
-    const lats = validProps.map(p => p.location?.latitude || p.locations?.latitude || p.latitude || 0);
-    const lngs = validProps.map(p => p.location?.longitude || p.locations?.longitude || p.longitude || 0);
+    const lats = validProps.map(p => p.latitude || p.location?.latitude || p.locations?.latitude || 0);
+    const lngs = validProps.map(p => p.longitude || p.location?.longitude || p.locations?.longitude || 0);
     
     const minLat = Math.min(...lats);
     const maxLat = Math.max(...lats);
@@ -212,8 +212,8 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
     const TOLERANCE = 0.0001; // Environ 11 mètres
     
     props.forEach(property => {
-      const lat = property.location?.latitude || property.locations?.latitude || property.latitude || 0;
-      const lng = property.location?.longitude || property.locations?.longitude || property.longitude || 0;
+      const lat = property.latitude || property.location?.latitude || property.locations?.latitude || 0;
+      const lng = property.longitude || property.location?.longitude || property.locations?.longitude || 0;
       
       // Trouver un groupe existant avec des coordonnées proches
       let foundGroup = false;
@@ -242,8 +242,8 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
   const createMapHTML = useCallback(() => {
     const validProperties = properties.filter(
       (p) =>
-        (p.location?.latitude || p.locations?.latitude || p.latitude) &&
-        (p.location?.longitude || p.locations?.longitude || p.longitude)
+        (p.latitude || p.location?.latitude || p.locations?.latitude) &&
+        (p.longitude || p.location?.longitude || p.locations?.longitude)
     );
 
     // Grouper les propriétés par coordonnées
@@ -254,8 +254,8 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
     
     propertyGroups.forEach((groupProps) => {
       const firstProp = groupProps[0];
-      const lat = firstProp.location?.latitude || firstProp.locations?.latitude || firstProp.latitude || 0;
-      const lng = firstProp.location?.longitude || firstProp.locations?.longitude || firstProp.longitude || 0;
+      const lat = firstProp.latitude || firstProp.location?.latitude || firstProp.locations?.latitude || 0;
+      const lng = firstProp.longitude || firstProp.location?.longitude || firstProp.locations?.longitude || 0;
       
       // Préparer les données de toutes les propriétés du groupe
       const groupData = groupProps.map(property => {

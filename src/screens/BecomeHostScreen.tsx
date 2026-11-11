@@ -1544,6 +1544,10 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       freeCleaningMinDays: formData.freeCleaningMinDays ? parseInt(formData.freeCleaningMinDays) || undefined : undefined,
       latitude: preciseLocation.coords?.latitude ?? null,
       longitude: preciseLocation.coords?.longitude ?? null,
+      locationLabel:
+        preciseLocation.locationLabel?.trim() ||
+        formData.location?.trim() ||
+        null,
       locationId: (() => {
         const raw =
           preciseLocation.matchedLocation?.id ??

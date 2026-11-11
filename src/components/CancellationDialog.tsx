@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useBookingCancellation, CancellationInfo } from '../hooks/useBookingCancellation';
 import { getCancellationPolicyLabel, getCancellationPolicyText, hostHasReceivedGuestCashProperty } from '../utils/cancellationPolicy';
 import { useAuth } from '../services/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { formatPrice } from '../utils/priceCalculator';
 import { inferOriginalSubtotal } from '../utils/amountUtils';
 import { supabase } from '../services/supabase';
@@ -81,6 +82,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
   }>({ loaded: false, paid: false, amountDue: 0 });
   const { cancelBooking, calculateCancellationInfo, loading } = useBookingCancellation();
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   const property = booking.properties || booking.property;
   const cancellationPolicy = property?.cancellation_policy || null;
@@ -97,7 +99,8 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
       booking.total_price,
       nights,
       prop,
-      booking.payment_method === 'card' || booking.payment_method === 'wave'
+      booking.payment_method === 'card' || booking.payment_method === 'wave',
+      (booking as any).service_fee,
     );
     return nights > 0 ? Math.round(subtotal / nights) : undefined;
   })();
@@ -285,7 +288,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
                     Politique : {getPolicyLabel(cancellationPolicy)}
                   </Text>
                   <Text style={styles.policyDescription}>
-                    {getCancellationPolicyText(cancellationPolicy ?? undefined, 'property')}
+                    {getCancellationPolicyText(cancellationPolicy ?? undefined, 'property', t)}
                   </Text>
                 </View>
               </View>
@@ -561,8 +564,8 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
             <View style={styles.policySection}>
               <Text style={styles.policyTitle}>Politique d'annulation</Text>
               <Text style={styles.policyText}>
-                {getCancellationPolicyLabel(cancellationPolicy, 'property')}:{' '}
-                {getCancellationPolicyText(cancellationPolicy ?? undefined, 'property')}
+                {getCancellationPolicyLabel(cancellationPolicy, 'property', t)}:{' '}
+                {getCancellationPolicyText(cancellationPolicy ?? undefined, 'property', t)}
               </Text>
             </View>
 
