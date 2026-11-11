@@ -300,6 +300,15 @@ export const useMessaging = () => {
     setError(null);
     
     try {
+      const { data: thread } = await supabase
+        .from('conversations')
+        .select('kind')
+        .eq('id', conversationId)
+        .maybeSingle();
+      if (thread?.kind === AKWAHOME_SUPPORT_KIND) {
+        throw new Error('Seul AkwaHome peut écrire sur ce fil.');
+      }
+
       // Avant insertion : 1er message = seul déclencheur SMS/email Twilio côté client
       const { count: existingCount } = await supabase
         .from('conversation_messages')

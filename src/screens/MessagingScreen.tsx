@@ -284,10 +284,7 @@ const MessagingScreen: React.FC = () => {
     if (!newMessage.trim() || !selectedConversation || !user || sending) {
       return;
     }
-    if (
-      isAdminSupportConversation(selectedConversation) &&
-      user.id === selectedConversation.guest_id
-    ) {
+    if (isAdminSupportConversation(selectedConversation)) {
       return;
     }
 
@@ -583,7 +580,7 @@ const MessagingScreen: React.FC = () => {
         />
 
         {/* Zone de saisie */}
-        {isAdminSupportConversation(selectedConversation) && user?.id === selectedConversation.guest_id ? (
+        {isAdminSupportConversation(selectedConversation) ? (
           <View style={styles.supportNotice}>
             <Text style={styles.supportNoticeText}>{AKWAHOME_SUPPORT_READONLY}</Text>
           </View>
