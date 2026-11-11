@@ -36,6 +36,7 @@ import { useNetwork } from '../contexts/NetworkContext';
 import { classifyLoadError, type LoadFailureKind } from '../utils/loadError';
 import LoadErrorCard from '../components/LoadErrorCard';
 import { formatCardLocationLabel } from '../utils/locationLabel';
+import PropertyMap from '../components/PropertyMap';
 
 type VehicleDetailsRouteProp = RouteProp<RootStackParamList, 'VehicleDetails'>;
 
@@ -680,6 +681,25 @@ const VehicleDetailsScreen: React.FC = () => {
               </View>
             </View>
           ) : null}
+
+          {(() => {
+            const lat = Number(vehicle.location?.latitude);
+            const lng = Number(vehicle.location?.longitude);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+            const placeLabel =
+              formatCardLocationLabel(vehicle.location as any) ||
+              vehicle.location?.name ||
+              "Côte d'Ivoire";
+            return (
+              <PropertyMap
+                latitude={lat}
+                longitude={lng}
+                locationName={placeLabel}
+                title="Où récupérer le véhicule"
+                directionsLabel="S'y rendre"
+              />
+            );
+          })()}
 
           {/* Politique d'annulation */}
           <View style={styles.section}>

@@ -1625,6 +1625,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                           : formatPayment(finalTotal))}
                   </Text>
                 </View>
+                <Text style={styles.feesIncludedNote}>Frais et taxes comprises</Text>
                 {(selectedPaymentMethod === 'card' || selectedPaymentMethod === 'wave') && effectivePaymentPlan === 'split' && (
                   <View style={styles.priceRow}>
                     <Text style={styles.priceLabel}>{t('booking.remainingOnArrival')}</Text>
@@ -2074,6 +2075,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2E7D32',
+  },
+  feesIncludedNote: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
   },
   // Styles pour les plans de paiement
   paymentPlanContainer: {

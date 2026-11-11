@@ -1127,6 +1127,7 @@ export default function HotelEstablishmentDetailScreen() {
                     </Text>
                     <Text style={styles.sumTotalValue}>{formatPrice(total)}</Text>
                   </View>
+                  <Text style={styles.feesIncludedNote}>Frais et taxes comprises</Text>
                 </View>
               ) : null}
 
@@ -1493,6 +1494,7 @@ const styles = StyleSheet.create({
   },
   sumTotalLabel: { fontSize: 14, fontWeight: '700', color: '#1a1523' },
   sumTotalValue: { fontSize: 16, fontWeight: '800', color: HOTEL_COLORS.primary },
+  feesIncludedNote: { fontSize: 12, color: '#64748b', marginTop: 4 },
   bookBtn: {
     marginTop: 16,
     backgroundColor: HOTEL_COLORS.primary,

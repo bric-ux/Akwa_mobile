@@ -1768,6 +1768,7 @@ const VehicleBookingScreen: React.FC = () => {
                 : formatPrice(totalPrice)}
             </Text>
           </View>
+          <Text style={styles.feesIncludedNote}>Frais et taxes comprises</Text>
           {securityDeposit > 0 ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>{t('vehicleBooking.deposit')}</Text>
@@ -2394,6 +2395,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
     color: '#2E7D32',
+  },
+  feesIncludedNote: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
   },
   footer: {
     padding: 20,

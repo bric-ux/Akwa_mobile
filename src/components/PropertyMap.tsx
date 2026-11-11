@@ -9,6 +9,9 @@ interface PropertyMapProps {
   locationName?: string;
   cityName?: string;
   neighborhoodName?: string;
+  title?: string;
+  /** Libellé du bouton d'itinéraire. Défaut : « S'y rendre ». */
+  directionsLabel?: string;
 }
 
 const PropertyMap: React.FC<PropertyMapProps> = ({
@@ -17,13 +20,16 @@ const PropertyMap: React.FC<PropertyMapProps> = ({
   locationName,
   cityName,
   neighborhoodName,
+  title = 'Où vous dormirez',
+  directionsLabel = "S'y rendre",
 }) => {
   // Coordonnées par défaut: Abidjan (centre de la Côte d'Ivoire)
   const defaultLatitude = 5.3600;
   const defaultLongitude = -4.0083;
   
-  const mapLatitude = latitude || defaultLatitude;
-  const mapLongitude = longitude || defaultLongitude;
+  const hasPoint = Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude));
+  const mapLatitude = hasPoint ? Number(latitude) : defaultLatitude;
+  const mapLongitude = hasPoint ? Number(longitude) : defaultLongitude;
   
   console.log('🗺️ Coordonnées de la carte:', { 
     latitude, 
@@ -45,8 +51,8 @@ const PropertyMap: React.FC<PropertyMapProps> = ({
     return parts.join(', ');
   };
 
-  const handleOpenMap = () => {
-    const url = `https://www.openstreetmap.org/?mlat=${mapLatitude}&mlon=${mapLongitude}&zoom=15&layers=M`;
+  const handleOpenDirections = () => {
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${mapLatitude},${mapLongitude}`;
     Linking.openURL(url).catch(err => console.error('Erreur:', err));
   };
 
@@ -94,7 +100,7 @@ const PropertyMap: React.FC<PropertyMapProps> = ({
     <View style={styles.container}>
       <View style={styles.header}>
         <Ionicons name="location" size={20} color="#e74c3c" />
-        <Text style={styles.title}>Où vous dormirez</Text>
+        <Text style={styles.title}>{title}</Text>
       </View>
       
       <View style={styles.mapContainer}>
@@ -104,10 +110,12 @@ const PropertyMap: React.FC<PropertyMapProps> = ({
           scrollEnabled={false}
           zoomEnabled={true}
         />
-        <TouchableOpacity style={styles.expandButton} onPress={handleOpenMap}>
-          <Ionicons name="expand" size={16} color="#fff" />
-          <Text style={styles.expandButtonText}>Ouvrir en grand</Text>
-        </TouchableOpacity>
+        {hasPoint ? (
+          <TouchableOpacity style={styles.expandButton} onPress={handleOpenDirections}>
+            <Ionicons name="navigate" size={16} color="#fff" />
+            <Text style={styles.expandButtonText}>{directionsLabel}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
       
       <View style={styles.addressContainer}>
@@ -126,7 +134,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '600', color: '#333', marginLeft: 8 },
   mapContainer: { width: '100%', height: 250, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#e0e0e0', position: 'relative' },
   mapView: { flex: 1, backgroundColor: '#f8f9fa' },
-  expandButton: { position: 'absolute', bottom: 10, right: 10, backgroundColor: '#e74c3c', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 5 },
+  expandButton: { position: 'absolute', bottom: 10, left: 10, backgroundColor: '#0f172a', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 5 },
   expandButtonText: { color: '#fff', fontSize: 12, fontWeight: '600', marginLeft: 4 },
   addressContainer: { marginTop: 12, padding: 16, backgroundColor: '#f8f9fa', borderRadius: 8 },
   addressRow: { flexDirection: 'row', alignItems: 'center' },
