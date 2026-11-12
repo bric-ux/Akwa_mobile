@@ -49,6 +49,10 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   const iconScale = useRef(new Animated.Value(1)).current;
   const hintOpacity = useRef(new Animated.Value(1)).current;
   const hintTranslate = useRef(new Animated.Value(0)).current;
+  const photoScale = useRef(new Animated.Value(1.07)).current;
+  const photoShift = useRef(new Animated.Value(8)).current;
+  const textRise = useRef(new Animated.Value(10)).current;
+  const ruleScale = useRef(new Animated.Value(0)).current;
 
   const [hintIndex, setHintIndex] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -61,6 +65,44 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
     return () => sub.remove();
   }, []);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      photoScale.setValue(1);
+      photoShift.setValue(0);
+      textRise.setValue(0);
+      ruleScale.setValue(1);
+      return;
+    }
+
+    Animated.parallel([
+      Animated.timing(photoScale, {
+        toValue: 1,
+        duration: 18000,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(photoShift, {
+        toValue: 0,
+        duration: 18000,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(textRise, {
+        toValue: 0,
+        duration: 850,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(ruleScale, {
+        toValue: 1,
+        duration: 700,
+        delay: 150,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [photoScale, photoShift, reduceMotion, ruleScale, textRise]);
 
   useEffect(() => {
     if (reduceMotion) return;
@@ -190,15 +232,26 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   return (
     <View style={[styles.container, { height: heroMinHeight }]} collapsable={false}>
       <View style={[styles.imageClip, { height: heroMinHeight }]} collapsable={false}>
-        <Image
-          source={HERO_SOURCE}
-          style={{ width: '100%', height: heroMinHeight, borderRadius: 0 }}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          priority="high"
-          transition={200}
-        />
+        <Animated.View
+          style={{
+            width: '100%',
+            height: heroMinHeight,
+            transform: [{ translateY: photoShift }, { scale: photoScale }],
+          }}
+        >
+          <Image
+            source={HERO_SOURCE}
+            style={{ width: '100%', height: heroMinHeight, borderRadius: 0 }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            priority="high"
+            transition={0}
+          />
+        </Animated.View>
       </View>
+      <View pointerEvents="none" style={styles.shadeBase} />
+      <View pointerEvents="none" style={styles.shadeMid} />
+      <View pointerEvents="none" style={styles.shadeBottom} />
       <View
         style={[
           styles.overlay,
@@ -211,7 +264,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         ]}
       >
         <View style={styles.content}>
-          <View style={styles.titleBlock}>
+          <Animated.View style={[styles.titleBlock, { transform: [{ translateY: textRise }] }]}>
+            <Animated.View style={[styles.rule, { transform: [{ scaleX: ruleScale }] }]} />
             <Text style={[styles.title, { fontSize: dynamic.titleSize }]}>{t('home.findYour')}</Text>
             <Text
               style={[
@@ -241,7 +295,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             >
               {t('brand.tagline')}
             </Text>
-          </View>
+          </Animated.View>
 
           <Animated.View
             style={[
@@ -338,9 +392,33 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 0,
   },
+  shadeBase: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+  },
+  shadeMid: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '58%',
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+  },
+  shadeBottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '32%',
+    backgroundColor: 'rgba(0, 0, 0, 0.42)',
+  },
   overlay: {
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    backgroundColor: 'transparent',
     alignItems: 'stretch',
     paddingTop: 16,
     paddingBottom: 16,
@@ -362,6 +440,13 @@ const styles = StyleSheet.create({
   titleBlock: {
     alignItems: 'center',
     flexShrink: 1,
+  },
+  rule: {
+    width: 36,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#F97316',
+    marginBottom: 10,
   },
   title: {
     fontWeight: 'bold',
