@@ -57,7 +57,7 @@ async function mapAvailableUnits(
   checkOut: string,
 ): Promise<Map<string, number>> {
   const map = new Map<string, number>();
-  const chunkSize = 8;
+  const chunkSize = 24;
   for (let i = 0; i < roomIds.length; i += chunkSize) {
     const chunk = roomIds.slice(i, i + chunkSize);
     const results = await Promise.all(

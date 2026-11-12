@@ -17,6 +17,7 @@ import {
   resolvePreciseLocationFromCoords,
   resolvePreciseLocationFromDevice,
 } from '../lib/geolocation';
+import { AKWA_LEAFLET_BASEMAP_JS, AKWA_MAP_BASE_CSS } from '../lib/mapBasemap';
 
 export type PropertyLocationPickerValue = {
   coords: GeoCoords | null;
@@ -55,17 +56,15 @@ export default function PropertyLocationPicker({
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    html, body, #map { margin:0; padding:0; width:100%; height:100%; }
+    html, body, #map { margin:0; padding:0; width:100%; height:100%; background:#e7eef2; }
+    ${AKWA_MAP_BASE_CSS}
   </style>
 </head>
 <body>
   <div id="map"></div>
   <script>
-    var map = L.map('map', { zoomControl: true }).setView([${lat}, ${lng}], ${hasPrecise ? 16 : 12});
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles © Esri — OpenStreetMap',
-      maxZoom: 19
-    }).addTo(map);
+    var map = L.map('map', { zoomControl: true, attributionControl: true }).setView([${lat}, ${lng}], ${hasPrecise ? 16 : 12});
+    ${AKWA_LEAFLET_BASEMAP_JS}
     var marker = L.marker([${lat}, ${lng}], { draggable: true }).addTo(map);
     function emit(lat, lng) {
       if (window.ReactNativeWebView) {

@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import type { AdminBookingService, AdminBookingStatusKey } from '../../lib/adminBookingStatusList';
 
 export type StatusCounts = {
   pending?: number;
@@ -22,6 +23,7 @@ export type BookingBreakdown = {
 
 type Props = {
   breakdown?: BookingBreakdown | null;
+  onOpenStatus?: (service: AdminBookingService, status: AdminBookingStatusKey) => void;
 };
 
 const ROWS: {
@@ -36,7 +38,7 @@ const ROWS: {
   { key: 'monthly', label: 'Bail longue durée', icon: 'calendar-outline', color: '#0f766e' },
 ];
 
-export default function AdminBookingBreakdownSection({ breakdown }: Props) {
+export default function AdminBookingBreakdownSection({ breakdown, onOpenStatus }: Props) {
   return (
     <View style={styles.wrap}>
       <Text style={styles.title}>Réservations par service</Text>
@@ -51,11 +53,11 @@ export default function AdminBookingBreakdownSection({ breakdown }: Props) {
                 { label: 'Refusées', value: data.rejected || 0 },
               ]
             : [
-                { label: 'En attente', value: data.pending || 0 },
-                { label: 'Confirmées', value: data.confirmed || 0 },
-                { label: 'En cours', value: data.in_progress || 0 },
-                { label: 'Annulées', value: data.cancelled || 0 },
-                { label: 'Terminées', value: data.completed || 0 },
+                { label: 'En attente', value: data.pending || 0, status: 'pending' as const },
+                { label: 'Confirmées', value: data.confirmed || 0, status: 'confirmed' as const },
+                { label: 'En cours', value: data.in_progress || 0, status: 'in_progress' as const },
+                { label: 'Annulées', value: data.cancelled || 0, status: 'cancelled' as const },
+                { label: 'Terminées', value: data.completed || 0, status: 'completed' as const },
               ];
         return (
           <View key={row.key} style={styles.card}>
@@ -66,12 +68,33 @@ export default function AdminBookingBreakdownSection({ breakdown }: Props) {
               <Text style={styles.cardTitle}>{row.label}</Text>
             </View>
             <View style={styles.grid}>
-              {cells.map((c) => (
-                <View key={c.label} style={styles.cell}>
-                  <Text style={styles.cellValue}>{c.value}</Text>
-                  <Text style={styles.cellLabel}>{c.label}</Text>
-                </View>
-              ))}
+              {cells.map((c) => {
+                const status = 'status' in c ? c.status : undefined;
+                const openable = Boolean(onOpenStatus && status && row.key !== 'monthly');
+                const body = (
+                  <>
+                    <Text style={styles.cellValue}>{c.value}</Text>
+                    <Text style={styles.cellLabel}>{c.label}</Text>
+                  </>
+                );
+                if (!openable || !status || row.key === 'monthly') {
+                  return (
+                    <View key={c.label} style={styles.cell}>
+                      {body}
+                    </View>
+                  );
+                }
+                return (
+                  <TouchableOpacity
+                    key={c.label}
+                    style={styles.cell}
+                    activeOpacity={0.7}
+                    onPress={() => onOpenStatus?.(row.key, status)}
+                  >
+                    {body}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         );

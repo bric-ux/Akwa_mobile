@@ -187,7 +187,7 @@ export async function resolveOffCatalogLocationIds(
  * Résout un terme de recherche destination → location_ids (ville/commune/quartier élargi).
  * Gère le cas « Kennedy » vide en base → zone parente ou carte.
  */
-export async function resolveLocationIdsForSearchTerm(
+async function resolveLocationIdsForSearchTermUncached(
   searchTerm: string,
   filters?: ResolveLocationFilters,
 ): Promise<ResolvedSearchLocations> {
@@ -371,11 +371,18 @@ export async function resolveLocationIdsForSearchTerm(
     return result;
   }
 
-  const { data: communeData } = await supabase
-    .from('locations')
-    .select('id, name, type, parent_id, latitude, longitude')
-    .eq('type', 'commune')
-    .ilike('name', `%${term}%`);
+  const [{ data: communeData }, { data: neighborhoodData }] = await Promise.all([
+    supabase
+      .from('locations')
+      .select('id, name, type, parent_id, latitude, longitude')
+      .eq('type', 'commune')
+      .ilike('name', `%${term}%`),
+    supabase
+      .from('locations')
+      .select('id, name, type, parent_id, latitude, longitude')
+      .eq('type', 'neighborhood')
+      .ilike('name', `%${term}%`),
+  ]);
 
   if (communeData && communeData.length > 0) {
     const communeIds = communeData.map((c) => c.id);
@@ -407,12 +414,6 @@ export async function resolveLocationIdsForSearchTerm(
     });
     return result;
   }
-
-  const { data: neighborhoodData } = await supabase
-    .from('locations')
-    .select('id, name, type, parent_id, latitude, longitude')
-    .eq('type', 'neighborhood')
-    .ilike('name', `%${term}%`);
 
   if (neighborhoodData && neighborhoodData.length > 0) {
     let candidates = neighborhoodData;
@@ -473,4 +474,21 @@ export async function resolveLocationIdsForSearchTerm(
     names: off.locationNames,
   });
   return off;
+}
+
+const resolveCache = new Map<string, { at: number; value: ResolvedSearchLocations }>();
+const RESOLVE_TTL_MS = 10 * 60 * 1000;
+
+/** Même résolution, gardée en mémoire : une ville déjà cherchée ne refait pas les allers-retours. */
+export async function resolveLocationIdsForSearchTerm(
+  searchTerm: string,
+  filters?: ResolveLocationFilters,
+): Promise<ResolvedSearchLocations> {
+  const term = searchTerm.trim().toLowerCase();
+  const key = `${term}|${filters?.centerLat ?? ''}|${filters?.centerLng ?? ''}|${filters?.radiusKm ?? ''}`;
+  const hit = resolveCache.get(key);
+  if (hit && Date.now() - hit.at < RESOLVE_TTL_MS) return hit.value;
+  const value = await resolveLocationIdsForSearchTermUncached(searchTerm, filters);
+  resolveCache.set(key, { at: Date.now(), value });
+  return value;
 }

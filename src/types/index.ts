@@ -339,6 +339,10 @@ export type RootStackParamList = {
   AdminRevenue: undefined;
   AdminBookingCalculationTest: undefined;
   AdminBookingManagement: { bookingId?: string; bookingType?: 'property' | 'vehicle' } | undefined;
+  AdminBookingStatusList: {
+    service: 'residences' | 'vehicles' | 'hotels';
+    status: 'pending' | 'confirmed' | 'in_progress' | 'cancelled' | 'completed';
+  };
   AdminCommissionPaymentTest: undefined;
   AdminWaveTest: undefined;
   AdminMonthlyRental: undefined;

@@ -18,6 +18,7 @@ import { VehicleBooking } from '../types';
 import { useVehicleBookings } from '../hooks/useVehicleBookings';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
+import { notifyAdminsBookingChange } from '../services/notifyAdminsBookingPush';
 import { useBookingCancellation, CancellationInfo } from '../hooks/useBookingCancellation';
 import { useCurrency } from '../hooks/useCurrency';
 import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
@@ -397,6 +398,12 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
       })
       .eq('id', bookingId);
     if (updateError) return false;
+    notifyAdminsBookingChange({
+      bookingId,
+      bookingType: 'vehicle',
+      event: 'cancelled',
+      listingTitle: [bookingData?.vehicle?.brand, bookingData?.vehicle?.model].filter(Boolean).join(' '),
+    });
     if (opts?.hostRefundAmountXOF != null && opts.hostRefundAmountXOF > 0 && bookingData?.vehicle?.owner_id) {
       try {
         await supabase.from('host_refund_due').insert({

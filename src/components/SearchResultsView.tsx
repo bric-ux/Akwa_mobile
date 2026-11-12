@@ -18,6 +18,7 @@ import { Property } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { useLanguage } from '../contexts/LanguageContext';
 import { TRAVELER_COLORS, COMMON_COLORS } from '../constants/colors';
+import { AKWA_LEAFLET_BASEMAP_JS, AKWA_MAP_BASE_CSS } from '../lib/mapBasemap';
 import PropertyCard from './PropertyCard';
 import { getPriceForDate, getAveragePriceForPeriod, getPricesForDateBatch } from '../utils/priceCalculator';
 
@@ -298,9 +299,9 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    body { margin: 0; padding: 0; background: #f0f0f0; }
-    #map { width: 100%; height: 100vh; background: #f0f0f0; }
-    .leaflet-container { background: #f0f0f0; }
+    body { margin: 0; padding: 0; background: #e7eef2; }
+    #map { width: 100%; height: 100vh; background: #e7eef2; }
+    ${AKWA_MAP_BASE_CSS}
     .price-marker {
       background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
       border: 2px solid ${TRAVELER_COLORS.primary};
@@ -417,29 +418,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
         zoomControl: true,
         attributionControl: true
       }).setView([${mapBounds.center.lat}, ${mapBounds.center.lng}], ${getZoomLevel()});
-      
-      // Fond Esri (sans clé) — OSM.org souvent bloqué
-      var esriLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles © Esri — OpenStreetMap',
-        maxZoom: 19
-      });
-      
-      var cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap contributors © CARTO',
-        maxZoom: 19,
-        subdomains: 'abcd'
-      });
-      
-      esriLayer.addTo(map);
-      
-      var switched = false;
-      esriLayer.on('tileerror', function() {
-        if (switched) return;
-        switched = true;
-        console.log('Esri tiles failed, trying CartoDB');
-        map.removeLayer(esriLayer);
-        cartoLayer.addTo(map);
-      });
+      ${AKWA_LEAFLET_BASEMAP_JS}
       
     } catch (error) {
       console.error('Error initializing map:', error);

@@ -709,7 +709,12 @@ const AdminDashboardScreen: React.FC = () => {
                 <ActivityIndicator size="small" color="#64748b" />
               </View>
             ) : (
-              <AdminBookingBreakdownSection breakdown={bookingBreakdown} />
+              <AdminBookingBreakdownSection
+                breakdown={bookingBreakdown}
+                onOpenStatus={(service, status) =>
+                  navigation.navigate('AdminBookingStatusList', { service, status })
+                }
+              />
             )}
           </>
         ) : null}

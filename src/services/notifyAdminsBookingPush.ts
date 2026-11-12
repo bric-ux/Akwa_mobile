@@ -27,3 +27,36 @@ export async function notifyAdminsNewBookingPush(
     }
   }
 }
+
+/** Annulation ou modification : même canal que la nouvelle réservation. */
+export function notifyAdminsBookingChange(params: {
+  bookingId: string;
+  bookingType: 'property' | 'vehicle' | 'hotel';
+  event: 'cancelled' | 'modified';
+  listingTitle?: string;
+  guestName?: string;
+}): void {
+  const listing = params.listingTitle?.trim() || 'Annonce';
+  const guest = params.guestName?.trim() || 'Un voyageur';
+  const title =
+    params.event === 'cancelled'
+      ? params.bookingType === 'vehicle'
+        ? 'Réservation véhicule annulée'
+        : params.bookingType === 'hotel'
+          ? 'Réservation hôtel annulée'
+          : 'Réservation annulée'
+      : params.bookingType === 'vehicle'
+        ? 'Réservation véhicule modifiée'
+        : params.bookingType === 'hotel'
+          ? 'Réservation hôtel modifiée'
+          : 'Réservation modifiée';
+  void notifyAdminsNewBookingPush({
+    bookingId: params.bookingId,
+    bookingType: params.bookingType,
+    listingTitle: listing,
+    guestName: guest,
+    status: params.event,
+    title,
+    body: `${guest} — ${listing}`,
+  });
+}

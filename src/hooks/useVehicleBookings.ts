@@ -8,7 +8,7 @@ import { getCommissionRates, getTravelerServiceFeeTtcMultiplier } from '../lib/c
 import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, calculateHostCommission } from './usePricing';
 import { useCurrency } from './useCurrency';
 import { sendPushToUser } from '../services/pushNotificationService';
-import { notifyAdminsNewBookingPush } from '../services/notifyAdminsBookingPush';
+import { notifyAdminsBookingChange, notifyAdminsNewBookingPush } from '../services/notifyAdminsBookingPush';
 import { PUSH_TYPE_VEHICLE_BOOKING } from '../services/pushNavigation';
 import { computeVehicleRentalDurationFromIso } from '../lib/vehicleRentalDuration';
 import { computeVehicleDriverFee } from '../lib/vehicleDriverFee';
@@ -1315,6 +1315,12 @@ export const useVehicleBookings = () => {
           `Le propriétaire a annulé votre réservation pour "${vehicleTitle}".`,
           { type: PUSH_TYPE_VEHICLE_BOOKING, bookingId: booking.id }
         ).catch(() => {});
+        notifyAdminsBookingChange({
+          bookingId: booking.id,
+          bookingType: 'vehicle',
+          event: 'cancelled',
+          listingTitle: vehicleTitle,
+        });
       }
 
       return { success: true, booking: updatedBooking };
@@ -1371,6 +1377,12 @@ export const useVehicleBookings = () => {
           { type: PUSH_TYPE_VEHICLE_BOOKING, bookingId: bookingId }
         ).catch(() => {});
       }
+      notifyAdminsBookingChange({
+        bookingId,
+        bookingType: 'vehicle',
+        event: 'cancelled',
+        listingTitle: vehicleTitle,
+      });
 
       return { success: true, booking: data };
     } catch (err: any) {

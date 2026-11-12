@@ -4,7 +4,7 @@ import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
 import { useIdentityVerification } from './useIdentityVerification';
 import { sendPushToUser } from '../services/pushNotificationService';
-import { notifyAdminsNewBookingPush } from '../services/notifyAdminsBookingPush';
+import { notifyAdminsBookingChange, notifyAdminsNewBookingPush } from '../services/notifyAdminsBookingPush';
 import { PUSH_TYPE_PROPERTY_BOOKING } from '../services/pushNavigation';
 
 export interface BookingData {
@@ -1102,6 +1102,13 @@ export const useBookings = () => {
         `Le voyageur a annulé sa réservation pour "${fullBooking.properties.title}".`,
         { type: PUSH_TYPE_PROPERTY_BOOKING, bookingId: bookingId }
       ).catch(() => {});
+      notifyAdminsBookingChange({
+        bookingId,
+        bookingType: 'property',
+        event: 'cancelled',
+        listingTitle: fullBooking.properties?.title,
+        guestName: [fullBooking.profiles?.first_name, fullBooking.profiles?.last_name].filter(Boolean).join(' '),
+      });
 
       // Envoyer les emails explicites aux deux parties
       try {

@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Property } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { TRAVELER_COLORS, COMMON_COLORS } from '../constants/colors';
+import { AKWA_LEAFLET_BASEMAP_JS, AKWA_MAP_BASE_CSS } from '../lib/mapBasemap';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 
 interface SearchMapViewProps {
@@ -173,7 +174,7 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
   <style>
     body { margin: 0; padding: 0; }
     #map { width: 100%; height: 100vh; }
-    .leaflet-control-attribution { display: none !important; }
+    ${AKWA_MAP_BASE_CSS}
     .price-marker-wrap {
       position: relative;
       display: inline-block;
@@ -261,13 +262,9 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
   <div id="map"></div>
   <script>
     var map = L.map('map', {
-      attributionControl: false,
+      attributionControl: true,
     }).setView([${center.lat}, ${center.lng}], ${getZoomLevel()});
-    
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-      attribution: '',
-      maxZoom: 19
-    }).addTo(map);
+    ${AKWA_LEAFLET_BASEMAP_JS}
 
     // Ajouter le centre de recherche et le cercle de rayon si disponible
     ${searchCenter && searchRadius ? `

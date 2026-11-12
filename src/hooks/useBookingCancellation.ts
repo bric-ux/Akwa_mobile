@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Alert } from 'react-native';
 import { hostHasReceivedGuestCashProperty } from '../utils/cancellationPolicy';
+import { notifyAdminsBookingChange } from '../services/notifyAdminsBookingPush';
 
 export interface CancellationBreakdown {
   totalNights: number;
@@ -560,6 +561,14 @@ export const useBookingCancellation = () => {
         Alert.alert('Erreur', 'Impossible d\'annuler la réservation');
         return { success: false };
       }
+
+      notifyAdminsBookingChange({
+        bookingId,
+        bookingType: 'property',
+        event: 'cancelled',
+        listingTitle: data?.properties?.title,
+        guestName: [data?.profiles?.first_name, data?.profiles?.last_name].filter(Boolean).join(' '),
+      });
 
       // Si le voyageur a payé via CB/Wave et l'hôte a déjà perçu (48h après check-in),
       // l'hôte doit reverser à AkwaHome au prorata de ce qu'il a réellement perçu (host_net),

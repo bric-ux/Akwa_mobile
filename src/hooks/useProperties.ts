@@ -28,6 +28,9 @@ import { getPricesForDateBatch } from '../utils/priceCalculator';
 import { resolveLocationIdsForSearchTerm } from '../lib/resolveSearchLocations';
 import { sortByPlaceMatch } from '../lib/placeMatchRank';
 
+const SEARCH_LIST_TTL_MS = 2 * 60 * 1000;
+const searchListCache = new Map<string, { at: number; data: Property[] }>();
+
 const AMENITY_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Debug recherche Cocody/Faya — TOUJOURS visible dans Metro (pas seulement __DEV__). */
@@ -310,12 +313,11 @@ type UsePropertiesOptions = { source?: 'home' | 'search' };
 export const useProperties = (options?: UsePropertiesOptions) => {
   const source: 'home' | 'search' = options?.source ?? 'search';
   const [properties, setProperties] = useState<Property[]>([]);
+  const searchSeq = useRef(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   // Cache simple pour éviter les requêtes répétées
-  const [cache, setCache] = useState<Map<string, Property[]>>(new Map());
-
   // Cache pour les équipements (éviter de les charger à chaque fois)
   const [amenitiesCache, setAmenitiesCache] = useState<Map<string, { id: string; name: string; icon: string }>>(new Map());
   const amenitiesCacheRef = useRef<Map<string, { id: string; name: string; icon: string }>>(new Map());
@@ -481,32 +483,19 @@ export const useProperties = (options?: UsePropertiesOptions) => {
     filters?: SearchFilters,
     options?: { forceRefresh?: boolean },
   ) => {
+    const seq = ++searchSeq.current;
     try {
-      setLoading(true);
       setError(null);
 
-      // Créer une clé de cache basée sur les filtres
       const cacheKey = JSON.stringify({ source, filters: filters || {} });
-      // Ne pas servir le cache pour une recherche destination (Cocody → Faya évolue souvent)
-      const skipCache = Boolean(filters?.city?.trim());
-      
-      // Vérifier le cache d'abord (sauf refresh forcé / recherche par ville)
-      if (!options?.forceRefresh && !skipCache && cache.has(cacheKey)) {
-        const cached = cache.get(cacheKey)!;
-        console.log('🔎 [search] CACHE HIT', {
-          count: cached.length,
-          faya: summarizeFayaHits(cached as any[]),
-          cacheKey: cacheKey.slice(0, 120),
-        });
-        setProperties(cache.get(cacheKey)!);
+      const cached = searchListCache.get(cacheKey);
+      const cacheFresh = Boolean(cached && Date.now() - cached.at < SEARCH_LIST_TTL_MS);
+      if (cached) {
+        setProperties(cached.data);
         setLoading(false);
-        return;
-      }
-      if (skipCache) {
-        console.log('🔎 [search] cache ignoré (recherche destination)', {
-          city: filters?.city,
-          forceRefresh: Boolean(options?.forceRefresh),
-        });
+        if (!options?.forceRefresh && cacheFresh) return;
+      } else {
+        setLoading(true);
       }
 
       if (filters?.city?.trim()) {
@@ -614,7 +603,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
           return;
         }
 
-        // Sonde DB : annonces « Faya » existent-elles ?
+        if (__DEV__ && /faya/i.test(searchTerm)) {
         try {
           const { data: fayaProbe, error: fayaErr } = await supabase
             .from('properties')
@@ -669,6 +658,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
           debugSearchLog('sonde Faya exception', {
             error: probeErr instanceof Error ? probeErr.message : String(probeErr),
           });
+        }
         }
       }
 
@@ -753,16 +743,54 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         query = query.or('amenities.cs.{"ac"},amenities.cs.{"Climatisation"}');
       }
       
-      // Limite DB : le filtrage dates / rayon réduit encore côté client
+      // Liste et annonces proches en parallèle (la proximité ne doit pas attendre la première requête).
+      const searchTermForNearby = filters?.city?.trim() || '';
+      let nearbyPrefetch: PromiseLike<{ data: any[] | null; error: { message?: string } | null }> =
+        Promise.resolve({ data: null, error: null });
+      if (searchTermForNearby && effectiveCenterLat != null && effectiveCenterLng != null) {
+        const mergeRadius =
+          effectiveRadiusKm && effectiveRadiusKm > 0 ? effectiveRadiusKm : 25;
+        const latDelta = mergeRadius / 111;
+        const cosLat = Math.cos((effectiveCenterLat * Math.PI) / 180);
+        const lngDelta = mergeRadius / (111 * Math.max(0.2, Math.abs(cosLat)));
+        let nearbyQuery = supabase
+          .from('properties')
+          .select(propertiesSelect)
+          .eq('is_active', true)
+          .eq('is_hidden', false)
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null)
+          .gte('latitude', effectiveCenterLat - latDelta)
+          .lte('latitude', effectiveCenterLat + latDelta)
+          .gte('longitude', effectiveCenterLng - lngDelta)
+          .lte('longitude', effectiveCenterLng + lngDelta)
+          .limit(150);
+        if (source === 'home') nearbyQuery = nearbyQuery.eq('hide_from_home', false);
+        if (filters?.guests) nearbyQuery = nearbyQuery.gte('max_guests', filters.guests);
+        if (filters?.priceMin) nearbyQuery = nearbyQuery.gte('price_per_night', filters.priceMin);
+        if (filters?.priceMax) nearbyQuery = nearbyQuery.lte('price_per_night', filters.priceMax);
+        if (
+          filters?.propertyType &&
+          ['apartment', 'house', 'villa', 'eco_lodge', 'other'].includes(filters.propertyType)
+        ) {
+          nearbyQuery = nearbyQuery.eq('property_type', filters.propertyType as any);
+        }
+        nearbyPrefetch = nearbyQuery.then(({ data: nearbyData, error: nearbyErr }) => ({
+          data: (nearbyData as any[] | null) ?? null,
+          error: nearbyErr,
+        }));
+      }
+
       const { data, error } = await query
         .order('price_per_night', { ascending: true })
         .limit(100);
+      const nearbyPrefetched = await nearbyPrefetch;
 
       if (error) {
         throw error;
       }
 
-      let rawData = data || [];
+      let rawData = (data || []) as any[];
       const searchTerm = filters?.city?.trim() || '';
       const DEFAULT_PLACE_RADIUS_KM = 25;
 
@@ -805,30 +833,8 @@ export const useProperties = (options?: UsePropertiesOptions) => {
           bbox,
         });
 
-        let nearbyQuery = supabase
-          .from('properties')
-          .select(propertiesSelect)
-          .eq('is_active', true)
-          .eq('is_hidden', false)
-          .not('latitude', 'is', null)
-          .not('longitude', 'is', null)
-          .gte('latitude', bbox.latMin)
-          .lte('latitude', bbox.latMax)
-          .gte('longitude', bbox.lngMin)
-          .lte('longitude', bbox.lngMax)
-          .limit(150);
-        if (source === 'home') nearbyQuery = nearbyQuery.eq('hide_from_home', false);
-        if (filters?.guests) nearbyQuery = nearbyQuery.gte('max_guests', filters.guests);
-        if (filters?.priceMin) nearbyQuery = nearbyQuery.gte('price_per_night', filters.priceMin);
-        if (filters?.priceMax) nearbyQuery = nearbyQuery.lte('price_per_night', filters.priceMax);
-        if (
-          filters?.propertyType &&
-          ['apartment', 'house', 'villa', 'eco_lodge', 'other'].includes(filters.propertyType)
-        ) {
-          nearbyQuery = nearbyQuery.eq('property_type', filters.propertyType as any);
-        }
-
-        const { data: nearbyData, error: nearbyErr } = await nearbyQuery;
+        const nearbyData = (nearbyPrefetched.data || []) as any[];
+        const nearbyErr = nearbyPrefetched.error;
         debugSearchLog('proximité réponse DB', {
           error: nearbyErr?.message ?? null,
           nearbyCount: nearbyData?.length ?? 0,
@@ -1217,7 +1223,13 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       }
 
       const propertyIds = (filteredData || []).map((p) => p.id);
-      const ratingsMap = await calculateRatingsFromReviewsBatch(propertyIds);
+      const ratingsPromise = calculateRatingsFromReviewsBatch(propertyIds);
+      const refDate = getRefDateStrForListPricing(filters);
+      const baseMap = new Map(
+        (filteredData || []).map((p) => [p.id, p.price_per_night || 0]),
+      );
+      const pricePromise = getPricesForDateBatch(propertyIds, refDate, baseMap);
+      const ratingsMap = new Map<string, { rating: number; review_count: number }>();
 
       const transformedProperties = (filteredData || []).map((property) => {
         const mappedAmenities = mapAmenitiesFromCache(property.amenities, amenityLookup);
@@ -1317,24 +1329,25 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         console.log('🔎 [search] ========== FIN RECHERCHE ==========');
       }
 
-      const refDate = getRefDateStrForListPricing(filters);
-      const baseMap = new Map(
-        transformedProperties.map((p: Property) => [p.id, p.price_per_night || 0])
-      );
-      const priceMap = await getPricesForDateBatch(
-        transformedProperties.map((p: Property) => p.id),
-        refDate,
-        baseMap
-      );
-      const withDynamic: Property[] = (transformedProperties as Property[]).map((p: Property) => ({
-        ...p,
-        dynamic_price_today: priceMap.get(p.id) ?? p.price_per_night,
-      }));
+      if (searchSeq.current === seq) {
+        setProperties(transformedProperties as Property[]);
+        setLoading(false);
+      }
+
+      const [liveRatings, priceMap] = await Promise.all([ratingsPromise, pricePromise]);
+      if (searchSeq.current !== seq) return;
+      const withDynamic: Property[] = (transformedProperties as Property[]).map((p: Property) => {
+        const calculated = liveRatings.get(p.id);
+        return {
+          ...p,
+          rating: calculated?.rating || p.rating || 0,
+          review_count: calculated?.review_count || p.review_count || 0,
+          dynamic_price_today: priceMap.get(p.id) ?? p.price_per_night,
+        };
+      });
 
       setProperties(withDynamic);
-
-      // Mettre en cache les résultats
-      setCache(prev => new Map(prev).set(cacheKey, withDynamic));
+      searchListCache.set(cacheKey, { at: Date.now(), data: withDynamic });
       
     } catch (err) {
       console.error('Erreur lors du chargement des propriétés:', err);
@@ -1578,11 +1591,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
   const refreshProperties = useCallback(async (filters?: SearchFilters) => {
     console.log('🔄 Rafraîchissement forcé des propriétés (cache ignoré)');
     const cacheKey = JSON.stringify({ source, filters: filters || {} });
-    setCache((prevCache) => {
-      const newCache = new Map(prevCache);
-      newCache.delete(cacheKey);
-      return newCache;
-    });
+    searchListCache.delete(cacheKey);
     await fetchProperties(filters, { forceRefresh: true });
   }, [fetchProperties, source]);
 

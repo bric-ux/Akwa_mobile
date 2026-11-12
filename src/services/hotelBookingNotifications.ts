@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { sendPushToUser } from './pushNotificationService';
 import { PUSH_TYPE_HOTEL_BOOKING } from './pushNavigation';
-import { notifyAdminsNewBookingPush } from './notifyAdminsBookingPush';
+import { notifyAdminsBookingChange, notifyAdminsNewBookingPush } from './notifyAdminsBookingPush';
 
 type HotelBookingContext = {
   id: string;
@@ -230,6 +230,13 @@ export async function notifyHotelBookingStatusChange(
       `Votre demande pour ${title} a été refusée.`,
       { type: PUSH_TYPE_HOTEL_BOOKING, bookingId: ctx.id, role: 'guest' },
     ).catch(() => {}),
+    notifyAdminsBookingChange({
+      bookingId: ctx.id,
+      bookingType: 'hotel',
+      event: 'cancelled',
+      listingTitle: title,
+      guestName: ctx.guest.name,
+    }),
   ]);
 }
 
@@ -257,5 +264,12 @@ export async function notifyHotelBookingCancelledByGuest(bookingId: string): Pro
       `${ctx.guest.name} a annulé sa demande pour ${title}.`,
       { type: PUSH_TYPE_HOTEL_BOOKING, bookingId: ctx.id, role: 'host' },
     ).catch(() => {}),
+    notifyAdminsBookingChange({
+      bookingId: ctx.id,
+      bookingType: 'hotel',
+      event: 'cancelled',
+      listingTitle: title,
+      guestName: ctx.guest.name,
+    }),
   ]);
 }

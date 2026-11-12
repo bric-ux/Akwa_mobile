@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCurrency } from '../hooks/useCurrency';
 import { useLanguage } from '../contexts/LanguageContext';
 import { TRAVELER_COLORS } from '../constants/colors';
+import { AKWA_LEAFLET_BASEMAP_JS, AKWA_MAP_BASE_CSS } from '../lib/mapBasemap';
 
 export type StayMapMarker = {
   id: string;
@@ -89,9 +90,9 @@ const StayListingMapView: React.FC<Props> = ({
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-  body{margin:0;padding:0;background:#f0f0f0}
+  body{margin:0;padding:0;background:#e7eef2}
   #map{width:100%;height:100vh}
-  .leaflet-control-attribution{display:none!important}
+  ${AKWA_MAP_BASE_CSS}
   .price-marker{
     background:#fff;border:2px solid ${accentColor};border-radius:20px;
     padding:6px 10px;font-weight:700;font-size:12px;color:#1f2937;
@@ -102,8 +103,8 @@ const StayListingMapView: React.FC<Props> = ({
 <div id="map"></div>
 <script>
   var items = ${JSON.stringify(payload)};
-  var map = L.map('map',{attributionControl:false,zoomControl:true}).setView([${centerLat},${centerLng}],12);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(map);
+  var map = L.map('map',{attributionControl:true,zoomControl:true}).setView([${centerLat},${centerLng}],12);
+  ${AKWA_LEAFLET_BASEMAP_JS}
   var leafletMarkers = [];
   items.forEach(function(item){
     var label = (item.rawPrice||0).toLocaleString('fr-FR',{maximumFractionDigits:0}) + ' ${curSym}';

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { Alert } from 'react-native';
+import { notifyAdminsBookingChange } from '../services/notifyAdminsBookingPush';
 
 export interface BookingModificationRequest {
   id: string;
@@ -426,6 +427,13 @@ export const useBookingModifications = () => {
         .eq('id', requestId);
 
       if (updateError) throw updateError;
+
+      notifyAdminsBookingChange({
+        bookingId: request.booking_id,
+        bookingType: 'property',
+        event: 'modified',
+        listingTitle: request.booking?.properties?.title,
+      });
 
       // Récupérer la réservation mise à jour pour obtenir les nouvelles valeurs (discount_amount, etc.)
       const { data: updatedBooking, error: fetchUpdatedError } = await supabase

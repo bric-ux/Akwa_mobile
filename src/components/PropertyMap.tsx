@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
+import { AKWA_LEAFLET_BASEMAP_JS, AKWA_MAP_BASE_CSS } from '../lib/mapBasemap';
 
 interface PropertyMapProps {
   latitude?: number;
@@ -66,20 +67,17 @@ const PropertyMap: React.FC<PropertyMapProps> = ({
       <style>
         body { margin: 0; padding: 0; }
         #map { width: 100%; height: 100vh; }
-        .leaflet-control-attribution { display: none !important; }
+        ${AKWA_MAP_BASE_CSS}
       </style>
     </head>
     <body>
       <div id="map"></div>
       <script>
         var map = L.map('map', {
-          attributionControl: false,
+          attributionControl: true,
           zoomControl: false,
-        }).setView([${mapLatitude}, ${mapLongitude}], 13);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-          attribution: '',
-          maxZoom: 19
-        }).addTo(map);
+        }).setView([${mapLatitude}, ${mapLongitude}], 16);
+        ${AKWA_LEAFLET_BASEMAP_JS}
         
         var marker = L.marker([${mapLatitude}, ${mapLongitude}], {
           icon: L.divIcon({

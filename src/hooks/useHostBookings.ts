@@ -5,6 +5,7 @@ import { useEmailService } from './useEmailService';
 import { sendPushToUser } from '../services/pushNotificationService';
 import { PUSH_TYPE_PROPERTY_BOOKING } from '../services/pushNavigation';
 import { calculateHostNetAmount } from '../lib/hostNetAmount';
+import { notifyAdminsBookingChange } from '../services/notifyAdminsBookingPush';
 
 export interface HostBooking {
   id: string;
@@ -750,6 +751,13 @@ export const useHostBookings = () => {
         .eq('id', bookingId);
 
       if (updateError) throw updateError;
+
+      notifyAdminsBookingChange({
+        bookingId,
+        bookingType: 'property',
+        event: 'cancelled',
+        listingTitle: (booking as any)?.properties?.title || (booking as any)?.property?.title,
+      });
 
       // Créer penalty_tracking seulement si pas déjà créé (flux "paiement d'abord" fournit existingPenaltyTrackingId).
       let penaltyTrackingId: string | undefined = existingPenaltyTrackingId;

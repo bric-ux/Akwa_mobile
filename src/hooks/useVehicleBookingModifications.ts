@@ -4,6 +4,7 @@ import { Alert } from 'react-native';
 import { calculateHostCommission } from './usePricing';
 import { computeVehicleDriverFee } from '../lib/vehicleDriverFee';
 import { getTravelerServiceFeeTtcMultiplier } from '../lib/commissions';
+import { notifyAdminsBookingChange } from '../services/notifyAdminsBookingPush';
 
 export interface VehicleBookingModificationData {
   bookingId: string;
@@ -650,6 +651,13 @@ export const useVehicleBookingModifications = () => {
         .eq('id', requestId);
 
       if (updateError) throw updateError;
+
+      notifyAdminsBookingChange({
+        bookingId: request.booking_id,
+        bookingType: 'vehicle',
+        event: 'modified',
+        listingTitle: [vehicle?.brand, vehicle?.model].filter(Boolean).join(' '),
+      });
 
       // Envoyer les emails avec justificatifs
       try {

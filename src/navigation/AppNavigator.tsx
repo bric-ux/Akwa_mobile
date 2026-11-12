@@ -107,6 +107,7 @@ import AdminPenaltiesScreen from '../screens/AdminPenaltiesScreen';
 import DeclareDisputeScreen from '../screens/DeclareDisputeScreen';
 import AdminRefundsScreen from '../screens/AdminRefundsScreen';
 import AdminBookingManagementScreen from '../screens/AdminBookingManagementScreen';
+import AdminBookingStatusListScreen from '../screens/AdminBookingStatusListScreen';
 import AdminRevenueScreen from '../screens/AdminRevenueScreen';
 import AdminPayoutsScreen from '../screens/AdminPayoutsScreen';
 import AdminReferralPayoutsScreen from '../screens/AdminReferralPayoutsScreen';
@@ -1236,6 +1237,14 @@ const AppNavigator = () => {
               component={AdminBookingManagementScreen}
               options={{
                 title: 'Gestion réservation',
+                headerShown: false
+              }}
+            />
+            <Stack.Screen
+              name="AdminBookingStatusList"
+              component={AdminBookingStatusListScreen}
+              options={{
+                title: 'Réservations',
                 headerShown: false
               }}
             />
