@@ -42,6 +42,10 @@ type Props = {
   ) => void;
   onSearchPress: (query: string) => void;
   isSearching: boolean;
+  /** Hôtel proposé seulement s’il y a une annonce publiée. */
+  showHotel?: boolean;
+  /** Bail proposé seulement s’il y a une annonce publiée. */
+  showMonthly?: boolean;
 };
 
 const SearchFormModal: React.FC<Props> = ({
@@ -63,8 +67,12 @@ const SearchFormModal: React.FC<Props> = ({
   onDateGuestsChange,
   onSearchPress,
   isSearching,
+  showHotel,
+  showMonthly,
 }) => {
-  const { monthlyRental, hotel } = useFeatureFlags();
+  const flags = useFeatureFlags();
+  const hotel = showHotel ?? flags.hotel;
+  const monthlyRental = showMonthly ?? flags.monthlyRental;
   const { t } = useLanguage();
   const showTypeSwitch = monthlyRental || hotel;
   const [showDestinationModal, setShowDestinationModal] = useState(false);

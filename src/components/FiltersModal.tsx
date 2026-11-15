@@ -25,6 +25,10 @@ interface FiltersModalProps {
   onApply: (filters: SearchFilters) => void;
   initialFilters?: SearchFilters;
   lockedRentalType?: StaySearchType;
+  /** Hôtel proposé seulement s’il y a une annonce publiée. */
+  showHotel?: boolean;
+  /** Bail proposé seulement s’il y a une annonce publiée. */
+  showMonthly?: boolean;
 }
 
 const FiltersModal: React.FC<FiltersModalProps> = ({
@@ -33,8 +37,12 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
   onApply,
   initialFilters = {},
   lockedRentalType,
+  showHotel,
+  showMonthly,
 }) => {
-  const { monthlyRental, hotel } = useFeatureFlags();
+  const flags = useFeatureFlags();
+  const hotel = showHotel ?? flags.hotel;
+  const monthlyRental = showMonthly ?? flags.monthlyRental;
   const showTypeSwitch = (monthlyRental || hotel) && !lockedRentalType;
   const [filters, setFilters] = useState<SearchFilters>(initialFilters);
   const { amenities, loading: amenitiesLoading } = useAmenities();

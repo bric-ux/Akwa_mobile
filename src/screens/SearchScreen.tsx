@@ -53,6 +53,39 @@ const SearchScreen: React.FC = () => {
   const { t, language } = useLanguage();
   const dateLocale = language === 'en' ? 'en-GB' : 'fr-FR';
   const { monthlyRental, hotel: hotelEnabled, loading: flagsLoading } = useFeatureFlags();
+  const [hasHotels, setHasHotels] = useState<boolean | null>(null);
+  const [hasMonthly, setHasMonthly] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (flagsLoading) return;
+    let cancelled = false;
+    (async () => {
+      if (!hotelEnabled) {
+        setHasHotels(false);
+      } else {
+        const { count } = await supabase
+          .from('hotel_establishments')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'active')
+          .eq('hidden_by_admin', false)
+          .eq('hide_from_home', false);
+        if (!cancelled) setHasHotels((count ?? 0) > 0);
+      }
+      if (!monthlyRental) {
+        setHasMonthly(false);
+      } else {
+        const { count } = await supabase
+          .from('monthly_rental_listings')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'approved')
+          .eq('hidden_by_admin', false);
+        if (!cancelled) setHasMonthly((count ?? 0) > 0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [flagsLoading, hotelEnabled, monthlyRental]);
 
   const routeInitialType = parseRouteStayType(
     (route.params as any)?.initialRentalType ?? (route.params as any)?.rentalType,
@@ -200,16 +233,20 @@ const SearchScreen: React.FC = () => {
   }, [searchDates.checkIn, searchDates.checkOut, searchDates.adults, searchDates.children, searchDates.babies]);
 
 
-  const showStayTypeSwitch = monthlyRental || hotelEnabled;
+  const stayPresenceReady =
+    !flagsLoading && (!hotelEnabled || hasHotels !== null) && (!monthlyRental || hasMonthly !== null);
+  const offerHotel = hotelEnabled && hasHotels === true;
+  const offerMonthly = monthlyRental && hasMonthly === true;
+  const showStayTypeSwitch = stayPresenceReady && (offerHotel || offerMonthly);
   const rentalType = ((): StaySearchType | null => {
     const raw = filters.rentalType as StaySearchType | 'all' | undefined;
     if (!raw || raw === 'all') {
-      // Sans switch (flags off) : résidence seule, pas besoin de choix explicite
-      if (!flagsLoading && !showStayTypeSwitch) return 'short_term';
+      // Sans hôtel ni bail publié : résidence seule, pas de choix à afficher.
+      if (stayPresenceReady && !showStayTypeSwitch) return 'short_term';
       return null;
     }
-    if (raw === 'monthly' && !monthlyRental) return showStayTypeSwitch ? null : 'short_term';
-    if (raw === 'hotel' && !hotelEnabled) return showStayTypeSwitch ? null : 'short_term';
+    if (stayPresenceReady && raw === 'monthly' && !offerMonthly) return 'short_term';
+    if (stayPresenceReady && raw === 'hotel' && !offerHotel) return 'short_term';
     return raw;
   })();
   const currentSearchQuery =
@@ -1274,9 +1311,9 @@ const SearchScreen: React.FC = () => {
         onClose={closeFilters}
         onApply={handleFilterChange}
         initialFilters={filters}
-        lockedRentalType={
-          !(monthlyRental || hotelEnabled) ? 'short_term' : undefined
-        }
+        lockedRentalType={stayPresenceReady && !showStayTypeSwitch ? 'short_term' : undefined}
+        showHotel={offerHotel}
+        showMonthly={offerMonthly}
       />
 
       <SearchFormModal
@@ -1287,6 +1324,8 @@ const SearchScreen: React.FC = () => {
         onOpenFilters={openFiltersFromSearchForm}
         rentalType={rentalType}
         onRentalModeSwitch={handleRentalModeSwitch}
+        showHotel={offerHotel}
+        showMonthly={offerMonthly}
         currentSearchQuery={currentSearchQuery}
         onSearch={handleSearch}
         onSuggestionSelect={handleSuggestionSelect}
