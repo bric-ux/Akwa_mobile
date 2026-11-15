@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
 
 type WeatherCity = {
   city: string;
@@ -24,8 +23,6 @@ const WEATHER_CITIES: WeatherCity[] = [
   { city: 'Jacqueville', temp: 26, condition: 'Ensoleillé', icon: 'sunny' },
 ];
 
-const ROTATE_MS = 3500;
-
 function weatherIconName(icon: WeatherCity['icon'], hour: number) {
   const isDay = hour >= 6 && hour < 18;
   switch (icon) {
@@ -42,54 +39,23 @@ function weatherIconName(icon: WeatherCity['icon'], hour: number) {
   }
 }
 
-/** Chip météo compact — alterne les villes CI. */
-const HomeWeatherChip: React.FC = () => {
+/** Relevé de la ville de la diapositive, en haut à droite du carrousel. */
+const HomeWeatherChip: React.FC<{ city: string }> = ({ city }) => {
   const navigation = useNavigation();
   const [now, setNow] = useState(new Date());
-  const [index, setIndex] = useState(0);
-  const opacity = useRef(new Animated.Value(1)).current;
+  const current = WEATHER_CITIES.find((item) => item.city === city);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 180,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (!finished) return;
-        setIndex((i) => (i + 1) % WEATHER_CITIES.length);
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 220,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, ROTATE_MS);
-    return () => clearInterval(id);
-  }, [opacity]);
+  if (!current) return null;
 
   const hour = parseInt(
     now.toLocaleTimeString('fr-FR', { hour: '2-digit', timeZone: 'Africa/Abidjan' }).split(':')[0],
     10,
   );
-  const time = now.toLocaleTimeString('fr-FR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Africa/Abidjan',
-  });
-  const dateLabel = now.toLocaleDateString('fr-FR', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'Africa/Abidjan',
-  });
-
-  const current = WEATHER_CITIES[index];
   const icon = weatherIconName(current.icon, hour) as keyof typeof Ionicons.glyphMap;
 
   return (
@@ -100,58 +66,34 @@ const HomeWeatherChip: React.FC = () => {
       accessibilityRole="button"
       accessibilityLabel={`Météo ${current.city}, ${current.temp} degrés, ${current.condition}`}
     >
-      <View style={styles.iconWrap}>
-        <Ionicons name={icon} size={16} color="#64748b" />
-      </View>
-      <Animated.View style={[styles.textCol, { opacity }]}>
-        <Text style={styles.title} numberOfLines={1}>
-          {current.city} · {current.temp}°
-        </Text>
-        <Text style={styles.meta} numberOfLines={1}>
-          {current.condition} · {dateLabel} · {time}
-        </Text>
-      </Animated.View>
-      <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+      <Ionicons name={icon} size={12} color="#fff" />
+      <Text style={styles.title} numberOfLines={1}>
+        {current.city} · {current.temp}°
+      </Text>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   chip: {
-    marginHorizontal: HOME_EXPLORE_HORIZONTAL_GUTTER,
-    marginTop: 8,
-    marginBottom: 0,
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 3,
+    maxWidth: '48%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  iconWrap: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#f8fafc',
-  },
-  textCol: {
-    flex: 1,
-    minWidth: 0,
-    gap: 1,
+    gap: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   title: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0f172a',
-  },
-  meta: {
+    flexShrink: 1,
     fontSize: 12,
-    color: '#64748b',
+    fontWeight: '600',
+    color: '#fff',
   },
 });
 

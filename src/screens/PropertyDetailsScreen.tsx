@@ -1201,11 +1201,12 @@ const styles = StyleSheet.create({
   },
   contactButton: {
     height: 44,
-    paddingHorizontal: 4,
+    paddingHorizontal: 16,
     paddingVertical: 0,
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: '#1c1917',
+    backgroundColor: '#fff',
+    borderRadius: 8,
   },
   loadingText: {
     fontSize: 18,

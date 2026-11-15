@@ -14,7 +14,6 @@ import DraftResumeBubble from '../components/DraftResumeBubble';
 import ImageCarousel from '../components/ImageCarousel';
 import HomeCategoryPills from '../components/home/HomeCategoryPills';
 import HomeStayTypeShelves from '../components/home/HomeStayTypeShelves';
-import HomeWeatherChip from '../components/HomeWeatherChip';
 import ZipDailyCard from '../components/zip/ZipDailyCard';
 import MatchPredictionBanner from '../components/MatchPredictionBanner';
 import TeddyExploreFab from '../components/TeddyExploreFab';
@@ -41,12 +40,12 @@ const EXPLORE_CARD_WIDTH = EXPLORE_SHELF_CARD_WIDTH;
 
 // Données du carrousel en dehors du composant pour éviter re-création à chaque rendu
 const CAROUSEL_IMAGE_DEFS = [
-  { id: '1', source: require('../../assets/images/pont.jpg'), titleKey: 'home.carousel.pont.title', descKey: 'home.carousel.pont.desc' },
-  { id: '2', source: require('../../assets/images/basilique-yamoussoukro.jpg'), titleKey: 'home.carousel.basilique.title', descKey: 'home.carousel.basilique.desc' },
-  { id: '3', source: require('../../assets/images/elephants.jpg'), titleKey: 'home.carousel.comoe.title', descKey: 'home.carousel.comoe.desc' },
-  { id: '4', source: require('../../assets/images/culture.jpg'), titleKey: 'home.carousel.masks.title', descKey: 'home.carousel.masks.desc' },
-  { id: '5', source: require('../../assets/images/abidjan.jpg'), titleKey: 'home.carousel.abidjan.title', descKey: 'home.carousel.abidjan.desc' },
-  { id: '6', source: require('../../assets/images/plages-assinie.jpg'), titleKey: 'home.carousel.assinie.title', descKey: 'home.carousel.assinie.desc' },
+  { id: '1', source: require('../../assets/images/pont.jpg'), titleKey: 'home.carousel.pont.title', descKey: 'home.carousel.pont.desc', weatherCity: 'Abidjan' },
+  { id: '2', source: require('../../assets/images/basilique-yamoussoukro.jpg'), titleKey: 'home.carousel.basilique.title', descKey: 'home.carousel.basilique.desc', weatherCity: 'Yamoussoukro' },
+  { id: '3', source: require('../../assets/images/elephants.jpg'), titleKey: 'home.carousel.comoe.title', descKey: 'home.carousel.comoe.desc', weatherCity: 'Korhogo' },
+  { id: '4', source: require('../../assets/images/culture.jpg'), titleKey: 'home.carousel.masks.title', descKey: 'home.carousel.masks.desc', weatherCity: 'Bouaké' },
+  { id: '5', source: require('../../assets/images/abidjan.jpg'), titleKey: 'home.carousel.abidjan.title', descKey: 'home.carousel.abidjan.desc', weatherCity: 'Abidjan' },
+  { id: '6', source: require('../../assets/images/plages-assinie.jpg'), titleKey: 'home.carousel.assinie.title', descKey: 'home.carousel.assinie.desc', weatherCity: 'Grand-Bassam' },
 ] as const;
 
 /** Espace sous la liste pour le FAB Teddy (remplace l’ancien bouton +) */
@@ -200,7 +199,9 @@ const HomeScreen: React.FC = () => {
 
       const chunk = item.groups;
       const clusterTotal = chunk.reduce((sum, cg) => sum + cg.totalCount, 0);
-      const title = chunk.map((cg) => cg.cityName).join(' & ');
+      const names = chunk.map((cg) => cg.cityName);
+      const title = names[0] ?? '';
+      const extra = names.slice(1).join(' · ');
       const subtitle = t(
         clusterTotal > 1 ? 'home.housingAvailable_other' : 'home.housingAvailable_one',
       ).replace('{count}', String(clusterTotal));
@@ -210,8 +211,12 @@ const HomeScreen: React.FC = () => {
         <View style={styles.exploreSection}>
           <View style={styles.exploreSectionHeader}>
             <View style={styles.exploreSectionTitles}>
-              <Text style={styles.exploreCityTitle}>{title}</Text>
-              <Text style={styles.exploreCitySubtitle}>{subtitle}</Text>
+              <Text style={styles.exploreCityTitle} numberOfLines={1}>
+                {title}
+              </Text>
+              <Text style={styles.exploreCitySubtitle} numberOfLines={1}>
+                {extra ? `${subtitle} · ${extra}` : subtitle}
+              </Text>
             </View>
             <TouchableOpacity
               style={styles.exploreVoirTout}
@@ -258,6 +263,7 @@ const HomeScreen: React.FC = () => {
         source: item.source,
         title: t(item.titleKey),
         description: t(item.descKey),
+        weatherCity: item.weatherCity,
       })),
     [t],
   );
@@ -288,7 +294,6 @@ const HomeScreen: React.FC = () => {
         {showDeferredHeaderContent ? (
           <>
             <MatchPredictionBanner />
-            <HomeWeatherChip />
             <ZipDailyCard />
           </>
         ) : null}

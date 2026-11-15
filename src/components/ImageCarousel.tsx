@@ -11,6 +11,7 @@ import {
 import { Image } from 'expo-image';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
 import { useLanguage } from '../contexts/LanguageContext';
+import HomeWeatherChip from './HomeWeatherChip';
 
 const SCREEN_W = Dimensions.get('window').width;
 const CAROUSEL_SIDE_MARGIN = HOME_EXPLORE_HORIZONTAL_GUTTER;
@@ -21,6 +22,7 @@ interface CarouselImage {
   source: any;
   title: string;
   description: string;
+  weatherCity?: string;
 }
 
 interface ImageCarouselProps {
@@ -128,6 +130,9 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
                 </Text>
               ) : null}
             </View>
+            {images[currentIndex]?.weatherCity ? (
+              <HomeWeatherChip city={images[currentIndex].weatherCity} />
+            ) : null}
             <View style={styles.heroBottom} pointerEvents="box-none">
               <View style={styles.heroDots}>
                 {images.map((_, index) => (
@@ -175,7 +180,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 16,
     left: 16,
-    right: 16,
+    right: 132,
   },
   heroTitle: {
     fontSize: 22,
