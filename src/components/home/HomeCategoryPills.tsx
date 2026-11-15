@@ -4,10 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ImageBackground,
-  ScrollView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../../constants/homeExploreLayout';
 import { useFeatureFlags } from '../../contexts/FeatureFlagsContext';
@@ -20,34 +17,26 @@ export type HomeCategoryId = 'residence' | 'monthly' | 'vehicle' | 'hotel';
 type CategoryDef = {
   id: HomeCategoryId;
   labelKey: string;
-  image: number;
 };
-
-const PILL_WIDTH = 148;
-const PILL_GAP = 8;
 
 const RESIDENCE_CATEGORY: CategoryDef = {
   id: 'residence',
   labelKey: 'category.residences',
-  image: require('../../../assets/images/category-residences.jpg'),
 };
 
 const VEHICLE_CATEGORY: CategoryDef = {
   id: 'vehicle',
   labelKey: 'category.vehicles',
-  image: require('../../../assets/images/category-vehicles.jpg'),
 };
 
 const MONTHLY_CATEGORY: CategoryDef = {
   id: 'monthly',
   labelKey: 'category.monthly',
-  image: require('../../../assets/IMG_9552.jpeg'),
 };
 
 const HOTEL_CATEGORY: CategoryDef = {
   id: 'hotel',
   labelKey: 'category.hotels',
-  image: require('../../../assets/IMG_9553.jpeg'),
 };
 
 /** Pills catégories — hôtel / bail uniquement s’il existe au moins une annonce publiée. */
@@ -117,95 +106,60 @@ export default function HomeCategoryPills({ refreshKey = 0 }: { refreshKey?: num
   };
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.scroll}
-      contentContainerStyle={styles.nav}
-      accessibilityLabel={t('home.browseCategories')}
-    >
+    <View style={styles.wrap} accessibilityLabel={t('home.browseCategories')}>
       {categories.map((item) => {
         const label = t(item.labelKey);
+        const current = item.id === 'residence';
         return (
           <TouchableOpacity
             key={item.id}
-            style={styles.pill}
-            activeOpacity={0.92}
+            style={styles.item}
+            activeOpacity={0.7}
             onPress={() => onPress(item.id)}
             accessibilityRole="button"
             accessibilityLabel={label}
+            accessibilityState={{ selected: current }}
           >
-            <ImageBackground
-              source={item.image}
-              style={styles.image}
-              resizeMode="cover"
-            >
-              <View style={styles.scrim} />
-              <View style={styles.labelRow}>
-                <Text style={styles.label} numberOfLines={1}>
-                  {label}
-                </Text>
-                <View style={styles.chevron}>
-                  <Ionicons name="chevron-forward" size={12} color="#fff" />
-                </View>
-              </View>
-            </ImageBackground>
+            <Text style={[styles.label, current && styles.labelCurrent]} numberOfLines={1}>
+              {label}
+            </Text>
+            <View style={[styles.rule, current && styles.ruleCurrent]} />
           </TouchableOpacity>
         );
       })}
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    marginTop: 12,
-    marginBottom: 4,
-    flexGrow: 0,
-  },
-  nav: {
-    paddingHorizontal: HOME_EXPLORE_HORIZONTAL_GUTTER,
-    flexDirection: 'row',
-    gap: PILL_GAP,
-  },
-  pill: {
-    width: PILL_WIDTH,
-    height: 80,
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0,0,0,0.1)',
-    backgroundColor: '#0f172a',
-  },
-  image: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  scrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  labelRow: {
+  wrap: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingBottom: 10,
-    zIndex: 1,
+    gap: 22,
+    marginHorizontal: HOME_EXPLORE_HORIZONTAL_GUTTER,
+    marginTop: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e7eb',
+  },
+  item: {
+    paddingBottom: 8,
   },
   label: {
-    flexShrink: 1,
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#fff',
-    letterSpacing: -0.2,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#64748b',
   },
-  chevron: {
-    width: 18,
-    height: 18,
-    flexShrink: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
+  labelCurrent: {
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  rule: {
+    height: 2,
+    marginTop: 8,
+    borderRadius: 1,
+    backgroundColor: 'transparent',
+  },
+  ruleCurrent: {
+    backgroundColor: '#0f172a',
   },
 });

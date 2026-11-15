@@ -17,6 +17,8 @@ interface ContactHostButtonProps {
   variant?: 'primary' | 'secondary' | 'outline';
   size?: 'small' | 'medium' | 'large';
   showIcon?: boolean;
+  label?: string;
+  accentColor?: string;
   style?: any;
   /** Ouvre la messagerie sur la pile (retour = fiche propriété). false = onglet Messages de l'accueil */
   openInStack?: boolean;
@@ -27,6 +29,8 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
   variant = 'primary',
   size = 'medium',
   showIcon = true,
+  label = "Contacter l'hôte",
+  accentColor,
   style,
   openInStack = true,
 }) => {
@@ -210,12 +214,12 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
             <Ionicons
               name="chatbubble-outline"
               size={getIconSize()}
-              color={variant === 'outline' ? '#007AFF' : '#fff'}
+              color={accentColor ?? (variant === 'outline' ? '#007AFF' : '#fff')}
               style={styles.icon}
             />
           )}
-          <Text style={getTextStyle()}>
-            Contacter l'hôte
+          <Text style={[getTextStyle(), accentColor ? { color: accentColor } : null]}>
+            {label}
           </Text>
         </>
       )}

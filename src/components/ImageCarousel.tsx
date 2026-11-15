@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, type ReactNode } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   Dimensions,
   TouchableOpacity,
+  useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
@@ -25,46 +26,59 @@ interface CarouselImage {
 interface ImageCarouselProps {
   images: CarouselImage[];
   onImagePress?: (image: CarouselImage) => void;
+  variant?: 'section' | 'hero';
+  title?: string;
+  subtitle?: string;
+  overlay?: ReactNode;
 }
+
+const HERO_HEIGHT = 248;
 
 export const ImageCarousel: React.FC<ImageCarouselProps> = ({
   images,
   onImagePress,
+  variant = 'section',
+  title,
+  subtitle,
+  overlay,
 }) => {
   const { t } = useLanguage();
+  const { width } = useWindowDimensions();
+  const hero = variant === 'hero';
+  const slideWidth = hero ? width : SLIDE_WIDTH;
+  const slideHeight = hero ? HERO_HEIGHT : 250;
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
 
   const handleScroll = (event: any) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
-    const index = Math.round(contentOffsetX / SLIDE_WIDTH);
-    setCurrentIndex(index);
+    const index = Math.round(contentOffsetX / slideWidth);
+    if (index >= 0 && index < images.length) setCurrentIndex(index);
   };
 
   const goToSlide = (index: number) => {
     scrollViewRef.current?.scrollTo({
-      x: index * SLIDE_WIDTH,
+      x: index * slideWidth,
       animated: true,
     });
   };
 
-  // Défilement automatique toutes les 2 secondes
   useEffect(() => {
     if (images.length <= 1) return;
 
     const interval = setInterval(() => {
       const nextIndex = (currentIndex + 1) % images.length;
       goToSlide(nextIndex);
-    }, 2000);
+    }, hero ? 5000 : 2000);
 
     return () => clearInterval(interval);
-  }, [currentIndex, images.length]);
+  }, [currentIndex, hero, images.length, slideWidth]);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.sectionTitle}>{t('home.carouselTitle')}</Text>
+    <View style={hero ? styles.heroContainer : styles.container}>
+      {hero ? null : <Text style={styles.sectionTitle}>{t('home.carouselTitle')}</Text>}
 
-      <View style={styles.carouselContainer}>
+      <View style={[styles.carouselContainer, hero && styles.heroFrame]}>
         <ScrollView
           ref={scrollViewRef}
           horizontal
@@ -72,14 +86,14 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
           showsHorizontalScrollIndicator={false}
           onScroll={handleScroll}
           scrollEventThrottle={16}
-          style={styles.scrollView}
+          style={{ height: slideHeight }}
         >
           {images.map((image) => (
             <TouchableOpacity
               key={image.id}
-              style={styles.slide}
+              style={{ width: slideWidth, height: slideHeight, backgroundColor: '#0f172a' }}
               onPress={() => onImagePress?.(image)}
-              activeOpacity={0.9}
+              activeOpacity={0.95}
             >
               <Image
                 source={image.source}
@@ -90,35 +104,114 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
                 transition={0}
                 placeholderContentFit="cover"
               />
-
-              <View style={styles.overlay}>
-                <View style={styles.textContainer}>
-                  <Text style={styles.imageTitle}>{image.title}</Text>
-                  <Text style={styles.imageDescription}>{image.description}</Text>
+              {hero ? <View style={styles.heroShade} pointerEvents="none" /> : null}
+              {hero ? null : (
+                <View style={styles.overlay}>
+                  <View style={styles.textContainer}>
+                    <Text style={styles.imageTitle}>{image.title}</Text>
+                    <Text style={styles.imageDescription}>{image.description}</Text>
+                  </View>
                 </View>
-              </View>
+              )}
             </TouchableOpacity>
           ))}
         </ScrollView>
+
+        {hero ? (
+          <>
+            <View style={styles.heroCopy} pointerEvents="none">
+              {title ? <Text style={styles.heroTitle}>{title}</Text> : null}
+              {subtitle ? <Text style={styles.heroTitle}>{subtitle}</Text> : null}
+              {images[currentIndex]?.title ? (
+                <Text style={styles.heroSlide} numberOfLines={1}>
+                  {images[currentIndex].title}
+                </Text>
+              ) : null}
+            </View>
+            <View style={styles.heroBottom} pointerEvents="box-none">
+              <View style={styles.heroDots}>
+                {images.map((_, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => goToSlide(index)}
+                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                    style={[styles.heroDot, index === currentIndex && styles.heroDotActive]}
+                  />
+                ))}
+              </View>
+              {overlay}
+            </View>
+          </>
+        ) : null}
       </View>
 
-      <View style={styles.dotsContainer}>
-        {images.map((_, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[
-              styles.dot,
-              index === currentIndex && styles.activeDot,
-            ]}
-            onPress={() => goToSlide(index)}
-          />
-        ))}
-      </View>
+      {hero ? null : (
+        <View style={styles.dotsContainer}>
+          {images.map((_, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[styles.dot, index === currentIndex && styles.activeDot]}
+              onPress={() => goToSlide(index)}
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  heroContainer: {
+    backgroundColor: '#0f172a',
+  },
+  heroFrame: {
+    height: HERO_HEIGHT,
+  },
+  heroShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+  },
+  heroCopy: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+  },
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#fff',
+    letterSpacing: -0.3,
+  },
+  heroSlide: {
+    marginTop: 6,
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.82)',
+  },
+  heroBottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  heroDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  heroDot: {
+    width: 6,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.45)',
+  },
+  heroDotActive: {
+    width: 16,
+    backgroundColor: '#fff',
+  },
   container: {
     marginVertical: 20,
     marginHorizontal: CAROUSEL_SIDE_MARGIN,

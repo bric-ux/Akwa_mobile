@@ -337,7 +337,10 @@ const PropertyDetailsScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {renderDetailBackButton()}
-      <ScrollView style={styles.scrollView}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: 16 }}
+      >
       {/* Galerie d'images par catégories */}
       <View style={styles.imageContainer}>
         {property.photos && property.photos.length > 0 ? (
@@ -757,22 +760,30 @@ const PropertyDetailsScreen: React.FC = () => {
           );
         })()}
 
-        {/* Boutons d'action */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.bookButton} onPress={handleBookNow}>
-            <Text style={styles.bookButtonText}>{t('property.bookNow')}</Text>
-          </TouchableOpacity>
-          
-          <ContactHostButton
-            property={property}
-            variant="outline"
-            size="medium"
-            style={styles.contactButton}
-            openInStack
-          />
-        </View>
       </View>
       </ScrollView>
+
+      <View style={[styles.actionBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+        <View style={styles.actionPrice}>
+          <Text style={styles.actionPriceValue} numberOfLines={1}>
+            {formatCurrencyPrice(displayPrice !== null ? displayPrice : property.price_per_night, false)}
+          </Text>
+          <Text style={styles.actionPriceUnit}>{t('common.perNight')}</Text>
+        </View>
+        <ContactHostButton
+          property={property}
+          variant="outline"
+          size="small"
+          label={t('property.contact')}
+          accentColor="#1c1917"
+          showIcon={false}
+          style={styles.contactButton}
+          openInStack
+        />
+        <TouchableOpacity style={styles.bookButton} onPress={handleBookNow} activeOpacity={0.88}>
+          <Text style={styles.bookButtonText} numberOfLines={1}>{t('property.reserve')}</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Modal de réservation */}
       {property && (
@@ -1150,25 +1161,51 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2c3e50',
   },
-  actionButtons: {
+  actionBar: {
     flexDirection: 'row',
-    marginTop: 20,
-    gap: 15,
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    backgroundColor: '#fff',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e5e7eb',
+  },
+  actionPrice: {
+    flex: 1,
+    minWidth: 0,
+  },
+  actionPriceValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1c1917',
+    letterSpacing: -0.2,
+  },
+  actionPriceUnit: {
+    marginTop: 1,
+    fontSize: 12,
+    color: '#78716c',
   },
   bookButton: {
+    height: 44,
+    paddingHorizontal: 18,
+    borderRadius: 8,
     backgroundColor: '#e67e22',
-    borderRadius: 12,
-    padding: 15,
     alignItems: 'center',
-    flex: 1,
+    justifyContent: 'center',
   },
   bookButtonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '600',
   },
   contactButton: {
-    flex: 1,
+    height: 44,
+    paddingHorizontal: 4,
+    paddingVertical: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    borderRadius: 0,
   },
   loadingText: {
     fontSize: 18,

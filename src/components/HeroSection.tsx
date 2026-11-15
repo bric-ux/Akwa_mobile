@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   PixelRatio,
-  Platform,
   Animated,
   Easing,
   AccessibilityInfo,
@@ -33,31 +32,26 @@ interface HeroSectionProps {
   /** Marge haute (safe area / header) pour éviter que le titre soit masqué sous la barre système */
   topInset?: number;
   destination?: string;
+  /** Champ seul, posé sur le carrousel. */
+  placement?: 'below' | 'overlay';
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({
   onSearchPress,
   topInset = 0,
   destination,
+  placement = 'below',
 }) => {
   const { height } = useWindowDimensions();
   const fontScale = PixelRatio.getFontScale();
   const { t } = useLanguage();
 
-  const floatAnim = useRef(new Animated.Value(0)).current;
-  const shimmerAnim = useRef(new Animated.Value(0)).current;
-  const iconScale = useRef(new Animated.Value(1)).current;
   const hintOpacity = useRef(new Animated.Value(1)).current;
   const hintTranslate = useRef(new Animated.Value(0)).current;
-  const photoScale = useRef(new Animated.Value(1.07)).current;
-  const photoShift = useRef(new Animated.Value(8)).current;
-  const textRise = useRef(new Animated.Value(10)).current;
-  const ruleScale = useRef(new Animated.Value(0)).current;
 
   const [hintIndex, setHintIndex] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
 
-  const compact = height < 700;
   const veryCompact = height < 600;
 
   useEffect(() => {
@@ -65,101 +59,6 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
     return () => sub.remove();
   }, []);
-
-  useEffect(() => {
-    if (reduceMotion) {
-      photoScale.setValue(1);
-      photoShift.setValue(0);
-      textRise.setValue(0);
-      ruleScale.setValue(1);
-      return;
-    }
-
-    Animated.parallel([
-      Animated.timing(photoScale, {
-        toValue: 1,
-        duration: 18000,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(photoShift, {
-        toValue: 0,
-        duration: 18000,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(textRise, {
-        toValue: 0,
-        duration: 850,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(ruleScale, {
-        toValue: 1,
-        duration: 700,
-        delay: 150,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [photoScale, photoShift, reduceMotion, ruleScale, textRise]);
-
-  useEffect(() => {
-    if (reduceMotion) return;
-
-    const floatLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: -6,
-          duration: 2600,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 2600,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-
-    const shimmerLoop = Animated.loop(
-      Animated.timing(shimmerAnim, {
-        toValue: 1,
-        duration: 4200,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }),
-    );
-
-    const iconLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(iconScale, {
-          toValue: 1.08,
-          duration: 1300,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(iconScale, {
-          toValue: 1,
-          duration: 1300,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-
-    floatLoop.start();
-    shimmerLoop.start();
-    iconLoop.start();
-
-    return () => {
-      floatLoop.stop();
-      shimmerLoop.stop();
-      iconLoop.stop();
-    };
-  }, [floatAnim, shimmerAnim, iconScale, reduceMotion]);
 
   useEffect(() => {
     if (reduceMotion || destination?.trim()) return;
@@ -200,170 +99,73 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     return () => clearInterval(interval);
   }, [destination, hintOpacity, hintTranslate, reduceMotion]);
 
-  const heroMinHeight = useMemo(() => {
-    const ratio = veryCompact ? 0.52 : compact ? 0.44 : 0.4;
-    const raw = Math.round(height * ratio);
-    const fontBoost = fontScale > 1.1 ? Math.round((fontScale - 1) * 56) : 0;
-    const androidBoost = Platform.OS === 'android' ? 28 : 0;
-    const base = veryCompact ? 268 : compact ? 248 : 220;
-    return Math.max(raw, base) + fontBoost + androidBoost;
-  }, [height, compact, veryCompact, fontScale]);
-
-  const dynamic = useMemo(() => {
-    const baseTaglineMb = veryCompact ? 8 : compact ? 12 : 16;
-    return {
-      titleSize: veryCompact ? 24 : compact ? 28 : 32,
-      titleMarginBottom: veryCompact ? 8 : compact ? 12 : 16,
-      subtitleSize: veryCompact ? 14 : compact ? 16 : 18,
-      subtitleLineHeight: veryCompact ? 20 : compact ? 22 : 24,
-      taglineSize: veryCompact ? 13 : compact ? 15 : 16,
-      taglineMarginBottom: baseTaglineMb,
-    };
-  }, [compact, veryCompact]);
+  const heroHeight = useMemo(() => {
+    const fontBoost = fontScale > 1.1 ? Math.round((fontScale - 1) * 28) : 0;
+    return 152 + fontBoost;
+  }, [fontScale]);
 
   const destinationLabel = destination?.trim();
   const showHint = !destinationLabel;
 
-  const shimmerTranslate = shimmerAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-220, 220],
-  });
+  const searchField = (
+    <TouchableOpacity
+      style={styles.searchField}
+      onPress={onSearchPress}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={t('home.openSearch')}
+    >
+      <Ionicons name="search" size={16} color="#0f172a" />
+      <View style={styles.searchTextCol}>
+        {destinationLabel ? (
+          <Text style={styles.searchTitle} numberOfLines={1}>
+            {destinationLabel}
+          </Text>
+        ) : (
+          <View style={styles.searchHintRow}>
+            <Text style={styles.searchTitle} numberOfLines={1}>
+              {t('search.whereToGo')}
+            </Text>
+            {showHint ? (
+              <Animated.Text
+                style={[styles.searchHint, { opacity: hintOpacity, transform: [{ translateY: hintTranslate }] }]}
+                numberOfLines={1}
+              >
+                {DESTINATION_HINTS[hintIndex]}
+              </Animated.Text>
+            ) : null}
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+
+  if (placement === 'overlay') {
+    return <View style={styles.searchWrapOverlay}>{searchField}</View>;
+  }
 
   return (
-    <View style={[styles.container, { height: heroMinHeight }]} collapsable={false}>
-      <View style={[styles.imageClip, { height: heroMinHeight }]} collapsable={false}>
-        <Animated.View
-          style={{
-            width: '100%',
-            height: heroMinHeight,
-            transform: [{ translateY: photoShift }, { scale: photoScale }],
-          }}
-        >
+    <View>
+      <View style={[styles.container, { height: heroHeight }]} collapsable={false}>
+        <View style={[styles.imageClip, { height: heroHeight }]} collapsable={false}>
           <Image
             source={HERO_SOURCE}
-            style={{ width: '100%', height: heroMinHeight, borderRadius: 0 }}
+            style={{ width: '100%', height: heroHeight }}
             contentFit="cover"
             cachePolicy="memory-disk"
             priority="high"
             transition={0}
           />
-        </Animated.View>
-      </View>
-      <View pointerEvents="none" style={styles.shadeBase} />
-      <View pointerEvents="none" style={styles.shadeMid} />
-      <View pointerEvents="none" style={styles.shadeBottom} />
-      <View
-        style={[
-          styles.overlay,
-          {
-            minHeight: heroMinHeight,
-            height: heroMinHeight,
-          },
-          Platform.OS === 'android' && styles.overlayAndroid,
-          topInset > 0 && { paddingTop: Math.max(12, topInset) },
-        ]}
-      >
-        <View style={styles.content}>
-          <Animated.View style={[styles.titleBlock, { transform: [{ translateY: textRise }] }]}>
-            <Animated.View style={[styles.rule, { transform: [{ scaleX: ruleScale }] }]} />
-            <Text style={[styles.title, { fontSize: dynamic.titleSize }]}>{t('home.findYour')}</Text>
-            <Text
-              style={[
-                styles.titleGradient,
-                { fontSize: dynamic.titleSize, marginBottom: dynamic.titleMarginBottom },
-              ]}
-            >
-              {t('home.perfectStay')}
-            </Text>
-            <Text
-              style={[
-                styles.subtitle,
-                {
-                  fontSize: dynamic.subtitleSize,
-                  lineHeight: dynamic.subtitleLineHeight,
-                  marginBottom: veryCompact ? 4 : 8,
-                },
-              ]}
-            >
-              {t('home.heroSubtitle')}
-            </Text>
-            <Text
-              style={[
-                styles.tagline,
-                { fontSize: dynamic.taglineSize, marginBottom: dynamic.taglineMarginBottom },
-              ]}
-            >
-              {t('brand.tagline')}
-            </Text>
-          </Animated.View>
-
-          <Animated.View
-            style={[
-              styles.searchPillOuter,
-              !reduceMotion && { transform: [{ translateY: floatAnim }] },
-            ]}
-          >
-            <TouchableOpacity
-              style={styles.searchPillTouchable}
-              onPress={onSearchPress}
-              activeOpacity={0.92}
-              accessibilityRole="button"
-              accessibilityLabel={t('home.openSearch')}
-            >
-              <View style={styles.searchPill}>
-                {!reduceMotion && (
-                  <Animated.View
-                    pointerEvents="none"
-                    style={[
-                      styles.searchPillShimmer,
-                      { transform: [{ translateX: shimmerTranslate }, { skewX: '-16deg' }] },
-                    ]}
-                  />
-                )}
-
-                <View style={styles.searchPillTextCol}>
-                  {destinationLabel ? (
-                    <Text style={styles.searchPillTitle} numberOfLines={1}>
-                      {destinationLabel}
-                    </Text>
-                  ) : (
-                    <>
-                      <Text style={styles.searchPillTitle} numberOfLines={1}>
-                        {t('search.whereToGo')}
-                      </Text>
-                      {showHint && (
-                        <Animated.View
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 4,
-                            opacity: hintOpacity,
-                            transform: [{ translateY: hintTranslate }],
-                          }}
-                        >
-                          <Text style={styles.searchPillHintDot}>·</Text>
-                          <Text style={styles.searchPillHint} numberOfLines={1}>
-                            {DESTINATION_HINTS[hintIndex]}
-                          </Text>
-                        </Animated.View>
-                      )}
-                    </>
-                  )}
-                </View>
-
-                <Animated.View
-                  style={[
-                    styles.searchIconCircle,
-                    !reduceMotion && { transform: [{ scale: iconScale }] },
-                  ]}
-                >
-                  <Ionicons name="search" size={20} color="#fff" />
-                </Animated.View>
-              </View>
-            </TouchableOpacity>
-          </Animated.View>
+        </View>
+        <View pointerEvents="none" style={styles.shadeBase} />
+        <View pointerEvents="none" style={styles.shadeBottom} />
+        <View style={[styles.titleWrap, topInset > 0 && { paddingTop: topInset }]}>
+          <Text style={[styles.title, { fontSize: veryCompact ? 22 : 24 }]}>{t('home.findYour')}</Text>
+          <Text style={[styles.title, { fontSize: veryCompact ? 22 : 24 }]}>{t('home.perfectStay')}</Text>
         </View>
       </View>
+
+      <View style={styles.searchWrap}>{searchField}</View>
     </View>
   );
 };
@@ -386,11 +188,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     overflow: 'hidden',
-    borderRadius: 0,
-  },
-  backgroundImage: {
-    width: '100%',
-    borderRadius: 0,
   },
   shadeBase: {
     position: 'absolute',
@@ -398,168 +195,65 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-  },
-  shadeMid: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '58%',
-    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+    backgroundColor: 'rgba(0, 0, 0, 0.18)',
   },
   shadeBottom: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: '32%',
-    backgroundColor: 'rgba(0, 0, 0, 0.42)',
+    height: '55%',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
   },
-  overlay: {
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-    alignItems: 'stretch',
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  overlayAndroid: {
-    paddingTop: 20,
-    paddingBottom: 24,
-  },
-  content: {
-    flex: 1,
-    width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
-    paddingHorizontal: 16,
-    justifyContent: 'space-between',
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
-  titleBlock: {
-    alignItems: 'center',
-    flexShrink: 1,
-  },
-  rule: {
-    width: 36,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: '#F97316',
-    marginBottom: 10,
+  titleWrap: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 14,
   },
   title: {
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-    marginBottom: 0,
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  titleGradient: {
-    fontWeight: 'bold',
-    color: '#F97316',
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  subtitle: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  tagline: {
-    color: '#F97316',
-    textAlign: 'center',
     fontWeight: '600',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+    color: '#fff',
+    letterSpacing: -0.3,
   },
-  searchPillOuter: {
-    width: '100%',
-    marginTop: 12,
-    position: 'relative',
+  searchWrap: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
-  searchPillTouchable: {
-    width: '100%',
+  searchWrapOverlay: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
-  searchPill: {
+  searchField: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderRadius: 999,
+    gap: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.7)',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingVertical: 8,
-    paddingLeft: 16,
-    paddingRight: 8,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.22,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 8,
-      },
-      default: {},
-    }),
+    borderColor: '#e5e7eb',
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
   },
-  searchPillShimmer: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 90,
-    backgroundColor: 'rgba(255, 255, 255, 0.55)',
-  },
-  searchPillTextCol: {
+  searchTextCol: {
     flex: 1,
     minWidth: 0,
-    paddingVertical: 4,
-    paddingRight: 4,
   },
-  searchPillTitle: {
+  searchHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#0f172a',
   },
-  searchPillHintDot: {
-    fontSize: 13,
-    color: '#94a3b8',
-    fontWeight: '600',
-  },
-  searchPillHint: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#059669',
+  searchHint: {
     flexShrink: 1,
-  },
-  searchIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#10b981',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#059669',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.35,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-      default: {},
-    }),
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#64748b',
   },
 });

@@ -264,25 +264,14 @@ const HomeScreen: React.FC = () => {
 
   const listHeader = useMemo(() => (
     <>
-      <HeroSection onSearchPress={handleSearchPress} />
-
-      {showDeferredHeaderContent ? (
-        <>
-          <HomeCategoryPills refreshKey={homeShelfRefreshKey} />
-          <MatchPredictionBanner />
-          <HomeWeatherChip />
-          <ZipDailyCard />
-          <ImageCarousel
-            images={carouselImages}
-            onImagePress={() => {}}
-          />
-        </>
-      ) : (
-        <View style={styles.headerDeferredPlaceholder} />
-      )}
-
-      {/* Ordre rayons : Hôtels → Résidences meublées → (villes) ; bail longue durée en bas */}
-      <HomeStayTypeShelves mode="hotel" refreshKey={homeShelfRefreshKey} />
+      <ImageCarousel
+        variant="hero"
+        title={t('home.findYour')}
+        subtitle={t('home.perfectStay')}
+        images={carouselImages}
+        overlay={<HeroSection placement="overlay" onSearchPress={handleSearchPress} />}
+      />
+      <HomeCategoryPills refreshKey={homeShelfRefreshKey} />
 
       <View style={styles.section}>
         <View style={styles.exploreIntroHeader}>
@@ -291,11 +280,20 @@ const HomeScreen: React.FC = () => {
         {exploreErrorCard}
       </View>
     </>
-  ), [handleSearchPress, showDeferredHeaderContent, exploreErrorCard, homeShelfRefreshKey, carouselImages, t]);
+  ), [handleSearchPress, exploreErrorCard, homeShelfRefreshKey, carouselImages, t]);
 
   const listFooter = useMemo(
     () => (
       <>
+        {showDeferredHeaderContent ? (
+          <>
+            <MatchPredictionBanner />
+            <HomeWeatherChip />
+            <ZipDailyCard />
+          </>
+        ) : null}
+
+        <HomeStayTypeShelves mode="hotel" refreshKey={homeShelfRefreshKey} />
         <HomeStayTypeShelves mode="monthly" refreshKey={homeShelfRefreshKey} />
 
         {/* Location de véhicules — même largeur que la grille 2 services */}
@@ -396,7 +394,7 @@ const HomeScreen: React.FC = () => {
         </View>
       </>
     ),
-    [navigation, openKeyboxWhatsApp, bottomServiceCardSize, windowWidth, homeShelfRefreshKey, t],
+    [navigation, openKeyboxWhatsApp, bottomServiceCardSize, windowWidth, homeShelfRefreshKey, t, showDeferredHeaderContent],
   );
   const scrollContentStyle = useMemo(
     () => [styles.scrollContent, { paddingBottom: 20 + TEDDY_FAB_SCROLL_PADDING }],
@@ -533,9 +531,6 @@ const styles = StyleSheet.create({
     marginLeft: 0,
     marginRight: 0,
   },
-  headerDeferredPlaceholder: {
-    height: 16,
-  },
   warmupContainer: {
     paddingHorizontal: 20,
     paddingTop: 4,
@@ -586,7 +581,8 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   section: {
-    marginVertical: 20,
+    marginTop: 8,
+    marginBottom: 0,
   },
   sectionHeader: {
     marginHorizontal: 20,
@@ -596,14 +592,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#2c3e50',
-    marginBottom: 5,
   },
   exploreSection: {
     marginBottom: 14,
   },
   exploreIntroHeader: {
     paddingHorizontal: EXPLORE_GUTTER,
-    marginBottom: 15,
+    marginBottom: 4,
   },
   exploreSectionHeader: {
     flexDirection: 'row',

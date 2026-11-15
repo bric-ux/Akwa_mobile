@@ -71,8 +71,47 @@ export function buildLayoutSections<T>(groups: CityGroup<T>[]): LayoutSection<T>
       pairedChunks[pairedChunks.length - 1].push(orphan);
     }
   }
-  return [
+  return ensureAtLeastThree([
     ...large.map((group) => ({ kind: 'large' as const, group })),
     ...pairedChunks.map((chunk) => ({ kind: 'paired' as const, groups: chunk })),
-  ];
+  ]);
+}
+
+function sectionGroups<T>(section: LayoutSection<T>): CityGroup<T>[] {
+  return section.kind === 'large' ? [section.group] : section.groups;
+}
+
+function sectionFromGroups<T>(groups: CityGroup<T>[]): LayoutSection<T> {
+  return groups.length === 1
+    ? { kind: 'large', group: groups[0] }
+    : { kind: 'paired', groups };
+}
+
+/** Une ligne d’accueil ne reste pas à 1 ou 2 cartes : on la rattache à la voisine. */
+function ensureAtLeastThree<T>(sections: LayoutSection<T>[]): LayoutSection<T>[] {
+  const buckets = sections.map((section) => sectionGroups(section));
+  const merged: CityGroup<T>[][] = [];
+
+  for (const groups of buckets) {
+    const count = groups.reduce((sum, group) => sum + group.properties.length, 0);
+    const prev = merged[merged.length - 1];
+    const prevCount = prev
+      ? prev.reduce((sum, group) => sum + group.properties.length, 0)
+      : 0;
+    if (prev && (count < 3 || prevCount < 3)) {
+      prev.push(...groups);
+      continue;
+    }
+    merged.push([...groups]);
+  }
+
+  if (merged.length >= 2) {
+    const last = merged[merged.length - 1];
+    const lastCount = last.reduce((sum, group) => sum + group.properties.length, 0);
+    if (lastCount < 3) {
+      merged[merged.length - 2].push(...merged.pop()!);
+    }
+  }
+
+  return merged.map(sectionFromGroups);
 }
