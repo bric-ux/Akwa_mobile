@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +27,44 @@ function formatDay(value?: string | null): string {
 
 function formatFcfa(amount: number): string {
   return `${Math.round(amount).toLocaleString('fr-FR')} F`;
+}
+
+function openContact(kind: 'tel' | 'mailto', value: string) {
+  const href = kind === 'tel' ? `tel:${value.replace(/\s/g, '')}` : `mailto:${value}`;
+  void Linking.openURL(href);
+}
+
+function ContactLines({
+  label,
+  name,
+  phone,
+  email,
+}: {
+  label: string;
+  name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+}) {
+  return (
+    <View style={styles.contactBlock}>
+      <Text style={styles.contactLabel}>{label}</Text>
+      <Text style={styles.line}>{name?.trim() || '—'}</Text>
+      {phone ? (
+        <Text style={styles.link} onPress={() => openContact('tel', phone)}>
+          {phone}
+        </Text>
+      ) : (
+        <Text style={styles.missing}>Téléphone non renseigné</Text>
+      )}
+      {email ? (
+        <Text style={styles.link} onPress={() => openContact('mailto', email)}>
+          {email}
+        </Text>
+      ) : (
+        <Text style={styles.missing}>E-mail non renseigné</Text>
+      )}
+    </View>
+  );
 }
 
 const AdminBookingStatusListScreen: React.FC = () => {
@@ -90,6 +129,22 @@ const AdminBookingStatusListScreen: React.FC = () => {
               <Text style={styles.line}>Payé {formatFcfa(item.paid)}</Text>
               <Text style={styles.line}>Frais AkwaHome {formatFcfa(item.akwaFee)}</Text>
               <Text style={styles.line}>Propriétaire {formatFcfa(item.hostNet)}</Text>
+              {service === 'residences' ? (
+                <View style={styles.contacts}>
+                  <ContactLines
+                    label="Voyageur"
+                    name={item.guestName}
+                    phone={item.guestPhone}
+                    email={item.guestEmail}
+                  />
+                  <ContactLines
+                    label="Hôte"
+                    name={item.hostName}
+                    phone={item.hostPhone}
+                    email={item.hostEmail}
+                  />
+                </View>
+              ) : null}
               {item.modified ? <Text style={styles.modified}>Modifiée</Text> : null}
             </View>
           )}
@@ -133,6 +188,23 @@ const styles = StyleSheet.create({
   listing: { marginTop: 2, fontSize: 13, color: '#334155' },
   meta: { marginTop: 4, fontSize: 12, color: '#64748b' },
   line: { marginTop: 2, fontSize: 13, color: '#0f172a' },
+  contacts: {
+    marginTop: 10,
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    paddingTop: 10,
+  },
+  contactBlock: { gap: 2 },
+  contactLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: '#64748b',
+  },
+  link: { marginTop: 2, fontSize: 13, fontWeight: '600', color: '#c2410c' },
+  missing: { marginTop: 2, fontSize: 12, color: '#94a3b8' },
   modified: { marginTop: 6, fontSize: 12, fontWeight: '700', color: '#c2410c' },
 });
 

@@ -17,6 +17,7 @@ import SearchButton from './SearchButton';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { MONTHLY_RENTAL_COLORS, HOTEL_COLORS } from '../constants/colors';
+import { RotatingCityHint } from './RotatingCityHint';
 
 export type StaySearchType = 'short_term' | 'monthly' | 'hotel';
 
@@ -222,12 +223,18 @@ const SearchFormModal: React.FC<Props> = ({
               accessibilityLabel={t('search.chooseDestination')}
             >
               <Ionicons name="location" size={20} color={hasDestination ? '#2E7D32' : '#9ca3af'} />
-              <Text
-                style={[styles.destinationPickerText, !hasDestination && styles.destinationPickerPlaceholder]}
-                numberOfLines={1}
-              >
-                {hasDestination ? destinationQuery : t('search.cityPlaceholder')}
-              </Text>
+              {hasDestination ? (
+                <Text style={styles.destinationPickerText} numberOfLines={1}>
+                  {destinationQuery}
+                </Text>
+              ) : (
+                <View style={styles.destinationHintRow}>
+                  <Text style={styles.destinationHintLabel} numberOfLines={1}>
+                    {t('search.whereToGo')}
+                  </Text>
+                  <RotatingCityHint style={styles.destinationHintCity} />
+                </View>
+              )}
               <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
             </TouchableOpacity>
           </View>
@@ -364,7 +371,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
   },
   destinationPickerText: { flex: 1, fontSize: 15, color: '#111' },
-  destinationPickerPlaceholder: { color: '#9ca3af' },
+  destinationHintRow: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  destinationHintLabel: { fontSize: 15, fontWeight: '500', color: '#111' },
+  destinationHintCity: { flexShrink: 1, fontSize: 15, fontWeight: '500', color: '#64748b' },
   datesGuestsField: { marginTop: 0 },
   monthlyHint: { fontSize: 14, lineHeight: 20, color: '#64748b' },
 });

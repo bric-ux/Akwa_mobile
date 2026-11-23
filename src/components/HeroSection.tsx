@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,26 +6,13 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   PixelRatio,
-  Animated,
-  Easing,
-  AccessibilityInfo,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
+import { RotatingCityHint } from './RotatingCityHint';
 
 const HERO_SOURCE = require('../../assets/images/hero-cote-ivoire.jpg');
-
-const DESTINATION_HINTS = [
-  'Abidjan',
-  'Assinie',
-  'Grand-Bassam',
-  'Bouaké',
-  'Yamoussoukro',
-  'San-Pédro',
-  'Man',
-  'Korhogo',
-] as const;
 
 interface HeroSectionProps {
   onSearchPress?: () => void;
@@ -46,58 +33,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   const fontScale = PixelRatio.getFontScale();
   const { t } = useLanguage();
 
-  const hintOpacity = useRef(new Animated.Value(1)).current;
-  const hintTranslate = useRef(new Animated.Value(0)).current;
-
-  const [hintIndex, setHintIndex] = useState(0);
-  const [reduceMotion, setReduceMotion] = useState(false);
-
   const veryCompact = height < 600;
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => sub.remove();
-  }, []);
-
-  useEffect(() => {
-    if (reduceMotion || destination?.trim()) return;
-
-    const interval = setInterval(() => {
-      Animated.parallel([
-        Animated.timing(hintOpacity, {
-          toValue: 0,
-          duration: 280,
-          useNativeDriver: true,
-        }),
-        Animated.timing(hintTranslate, {
-          toValue: -8,
-          duration: 280,
-          useNativeDriver: true,
-        }),
-      ]).start(({ finished }) => {
-        if (!finished) return;
-        setHintIndex((current) => (current + 1) % DESTINATION_HINTS.length);
-        hintTranslate.setValue(10);
-        Animated.parallel([
-          Animated.timing(hintOpacity, {
-            toValue: 1,
-            duration: 420,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-          Animated.timing(hintTranslate, {
-            toValue: 0,
-            duration: 420,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-        ]).start();
-      });
-    }, 2800);
-
-    return () => clearInterval(interval);
-  }, [destination, hintOpacity, hintTranslate, reduceMotion]);
 
   const heroHeight = useMemo(() => {
     const fontBoost = fontScale > 1.1 ? Math.round((fontScale - 1) * 28) : 0;
@@ -126,14 +62,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             <Text style={styles.searchTitle} numberOfLines={1}>
               {t('search.whereToGo')}
             </Text>
-            {showHint ? (
-              <Animated.Text
-                style={[styles.searchHint, { opacity: hintOpacity, transform: [{ translateY: hintTranslate }] }]}
-                numberOfLines={1}
-              >
-                {DESTINATION_HINTS[hintIndex]}
-              </Animated.Text>
-            ) : null}
+            {showHint ? <RotatingCityHint style={styles.searchHint} /> : null}
           </View>
         )}
       </View>

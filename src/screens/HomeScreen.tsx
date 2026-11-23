@@ -48,8 +48,8 @@ const CAROUSEL_IMAGE_DEFS = [
   { id: '6', source: require('../../assets/images/plages-assinie.jpg'), titleKey: 'home.carousel.assinie.title', descKey: 'home.carousel.assinie.desc', weatherCity: 'Grand-Bassam' },
 ] as const;
 
-/** Espace sous la liste pour le FAB Teddy (remplace l’ancien bouton +) */
-const TEDDY_FAB_SCROLL_PADDING = 72;
+/** Mince marge sous les deux encarts, au-dessus du menu du bas. */
+const BOTTOM_NAV_GAP = 16;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -402,7 +402,7 @@ const HomeScreen: React.FC = () => {
     [navigation, openKeyboxWhatsApp, bottomServiceCardSize, windowWidth, homeShelfRefreshKey, t, showDeferredHeaderContent],
   );
   const scrollContentStyle = useMemo(
-    () => [styles.scrollContent, { paddingBottom: 20 + TEDDY_FAB_SCROLL_PADDING }],
+    () => [styles.scrollContent, { paddingBottom: BOTTOM_NAV_GAP }],
     []
   );
 

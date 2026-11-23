@@ -48,6 +48,7 @@ import { useNetwork } from '../contexts/NetworkContext';
 import { classifyLoadError, type LoadFailureKind } from '../utils/loadError';
 import LoadErrorCard from '../components/LoadErrorCard';
 import { getPropertyCardLocationLabel } from '../utils/locationLabel';
+import { hostReplyPhrase } from '../lib/hostReplyTime';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
 
@@ -80,6 +81,7 @@ const PropertyDetailsScreen: React.FC = () => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   const [virtualTourOpen, setVirtualTourOpen] = useState(false);
+  const [hostReplyLabel, setHostReplyLabel] = useState<string | null>(null);
 
   // Utiliser les dates de la route si disponibles, sinon utiliser les dates du context
   // Utiliser useMemo pour recalculer quand les valeurs changent
@@ -90,6 +92,29 @@ const PropertyDetailsScreen: React.FC = () => {
   const babies = React.useMemo(() => routeBabies !== undefined ? routeBabies : (searchDates.babies || 0), [routeBabies, searchDates.babies]);
   
   const isHost = property && user?.id === property.host_id;
+
+  useEffect(() => {
+    const hostId = property?.host_id;
+    if (!hostId) {
+      setHostReplyLabel(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase.rpc('host_typical_reply_minutes', {
+        p_host_id: hostId,
+      });
+      if (cancelled) return;
+      if (error || data == null) {
+        setHostReplyLabel(null);
+        return;
+      }
+      setHostReplyLabel(hostReplyPhrase(Number(data), t));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [property?.host_id, language, t]);
 
   // Log pour déboguer
   useEffect(() => {
@@ -641,6 +666,9 @@ const PropertyDetailsScreen: React.FC = () => {
                     {hostProfile ? `${hostProfile.first_name} ${hostProfile.last_name}` : t('common.loading')}
                   </Text>
                   <Text style={styles.hostTitle}>{t('property.hostOnAkwaHome')}</Text>
+                  {hostReplyLabel ? (
+                    <Text style={styles.hostReply}>{hostReplyLabel}</Text>
+                  ) : null}
                   
                   {/* Statistiques rapides */}
                   {hostProfile && ((hostProfile.total_properties != null && hostProfile.total_properties > 0) || (hostProfile.average_rating != null && hostProfile.average_rating > 0)) && (
@@ -1263,6 +1291,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2E7D32',
     fontWeight: '600',
+    marginBottom: 4,
+  },
+  hostReply: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#475569',
     marginBottom: 4,
   },
   hostLoadingRow: {

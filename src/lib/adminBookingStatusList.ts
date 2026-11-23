@@ -11,6 +11,11 @@ export type AdminBookingStatusKey =
 export type AdminBookingSummary = {
   id: string;
   guestName: string;
+  guestPhone: string | null;
+  guestEmail: string | null;
+  hostName: string | null;
+  hostPhone: string | null;
+  hostEmail: string | null;
   listingTitle: string;
   nights: number;
   checkIn: string;
@@ -19,6 +24,12 @@ export type AdminBookingSummary = {
   akwaFee: number;
   hostNet: number;
   modified: boolean;
+};
+
+type PersonContact = {
+  name: string;
+  phone: string | null;
+  email: string | null;
 };
 
 const STATUS_LABELS: Record<AdminBookingStatusKey, string> = {
@@ -59,20 +70,50 @@ function money(value: unknown): number {
   return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
-async function guestNames(ids: string[]): Promise<Map<string, string>> {
+function personName(row: { first_name?: string | null; last_name?: string | null }): string {
+  return [row.first_name, row.last_name].filter(Boolean).join(' ').trim();
+}
+
+async function loadContacts(ids: string[]): Promise<Map<string, PersonContact>> {
   const unique = [...new Set(ids.filter(Boolean))];
-  const map = new Map<string, string>();
+  const map = new Map<string, PersonContact>();
   if (unique.length === 0) return map;
-  const { data } = await supabase
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('user_id, first_name, last_name, email, phone')
+    .in('user_id', unique);
+
+  if (!error && data?.length) {
+    for (const row of data) {
+      if (!row.user_id) continue;
+      map.set(row.user_id, {
+        name: personName(row),
+        phone: row.phone || null,
+        email: row.email || null,
+      });
+    }
+    return map;
+  }
+
+  const { data: publicRows } = await supabase
     .from('public_profiles')
     .select('user_id, first_name, last_name')
     .in('user_id', unique);
-  for (const row of data || []) {
-    const name = [row.first_name, row.last_name].filter(Boolean).join(' ').trim();
-    if (row.user_id && name) map.set(row.user_id, name);
+  for (const row of publicRows || []) {
+    if (!row.user_id) continue;
+    map.set(row.user_id, { name: personName(row), phone: null, email: null });
   }
   return map;
 }
+
+const emptyContacts = {
+  guestPhone: null,
+  guestEmail: null,
+  hostName: null,
+  hostPhone: null,
+  hostEmail: null,
+};
 
 async function feeByBooking(
   bookingType: 'property' | 'vehicle' | 'hotel',
@@ -124,7 +165,9 @@ export async function fetchAdminBookingStatusList(
   if (service === 'residences') {
     let query = supabase
       .from('bookings')
-      .select('id, guest_id, check_in_date, check_out_date, total_price, host_net_amount, properties(title)')
+      .select(
+        'id, guest_id, check_in_date, check_out_date, total_price, host_net_amount, properties(title, host_id)',
+      )
       .eq('status', dbStatus)
       .order('check_in_date', { ascending: false })
       .limit(80);
@@ -135,17 +178,28 @@ export async function fetchAdminBookingStatusList(
     if (error) queryError(error);
     const rows = data || [];
     const ids = rows.map((row) => row.id);
-    const [names, mods, fees] = await Promise.all([
-      guestNames(rows.map((row) => row.guest_id)),
+    const hostIds = rows.map(
+      (row) => (row.properties as { host_id?: string } | null)?.host_id || '',
+    );
+    const [contacts, mods, fees] = await Promise.all([
+      loadContacts([...rows.map((row) => row.guest_id), ...hostIds]),
       modifiedIds('booking_modification_requests', ids),
       feeByBooking('property', ids),
     ]);
     return rows.map((row) => {
       const fee = fees.get(row.id);
+      const property = row.properties as { title?: string; host_id?: string } | null;
+      const guest = contacts.get(row.guest_id);
+      const host = property?.host_id ? contacts.get(property.host_id) : undefined;
       return {
         id: row.id,
-        guestName: names.get(row.guest_id) || 'Voyageur',
-        listingTitle: (row.properties as { title?: string } | null)?.title || 'Résidence',
+        guestName: guest?.name || 'Voyageur',
+        guestPhone: guest?.phone || null,
+        guestEmail: guest?.email || null,
+        hostName: host?.name || null,
+        hostPhone: host?.phone || null,
+        hostEmail: host?.email || null,
+        listingTitle: property?.title || 'Résidence',
         nights: nightsBetween(row.check_in_date, row.check_out_date),
         checkIn: row.check_in_date,
         checkOut: row.check_out_date,
@@ -173,8 +227,8 @@ export async function fetchAdminBookingStatusList(
     if (error) queryError(error);
     const rows = data || [];
     const ids = rows.map((row) => row.id);
-    const [names, mods, fees] = await Promise.all([
-      guestNames(rows.map((row) => row.renter_id)),
+    const [contacts, mods, fees] = await Promise.all([
+      loadContacts(rows.map((row) => row.renter_id)),
       modifiedIds('vehicle_booking_modification_requests', ids),
       feeByBooking('vehicle', ids),
     ]);
@@ -188,7 +242,8 @@ export async function fetchAdminBookingStatusList(
       const span = nightsBetween(row.start_date, row.end_date);
       return {
         id: row.id,
-        guestName: names.get(row.renter_id) || 'Locataire',
+        guestName: contacts.get(row.renter_id)?.name || 'Locataire',
+        ...emptyContacts,
         listingTitle: title,
         nights: span > 0 ? span : Math.max(1, Number(row.rental_days) || 1),
         checkIn: row.start_date,
@@ -216,15 +271,16 @@ export async function fetchAdminBookingStatusList(
   if (error) queryError(error);
   const rows = data || [];
   const ids = rows.map((row) => row.id);
-  const [names, fees] = await Promise.all([
-    guestNames(rows.map((row) => row.guest_id)),
+  const [contacts, fees] = await Promise.all([
+    loadContacts(rows.map((row) => row.guest_id)),
     feeByBooking('hotel', ids),
   ]);
   return rows.map((row) => {
     const fee = fees.get(row.id);
     return {
       id: row.id,
-      guestName: names.get(row.guest_id) || 'Voyageur',
+      guestName: contacts.get(row.guest_id)?.name || 'Voyageur',
+      ...emptyContacts,
       listingTitle: (row.hotel_establishments as { title?: string } | null)?.title || 'Hôtel',
       nights: nightsBetween(row.check_in_date, row.check_out_date),
       checkIn: row.check_in_date,
