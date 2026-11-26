@@ -204,10 +204,10 @@ const styles = StyleSheet.create({
   frameWrap: {
     width: '100%',
     shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 5,
     backgroundColor: 'transparent',
   },
   frameWrapList: {

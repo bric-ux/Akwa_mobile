@@ -428,6 +428,12 @@ const styles = StyleSheet.create({
   listCardOuter: {
     marginHorizontal: 16,
     marginBottom: 22,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 5,
+    backgroundColor: 'transparent',
   },
   listImageWrap: {
     position: 'relative',

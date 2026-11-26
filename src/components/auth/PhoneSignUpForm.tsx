@@ -13,7 +13,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../services/supabase';
 import PhoneNumberField from '../PhoneNumberField';
 import DateOfBirthField from '../DateOfBirthField';
-import PasswordValidation from '../PasswordValidation';
 import {
   buildE164,
   dateDdMmYyyyToIso,
@@ -190,11 +189,9 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
   if (step === 'verify') {
     return (
       <View style={styles.wrap}>
-        <View style={styles.infoBox}>
-          <Text style={styles.infoText}>
-            Un code à 6 chiffres a été envoyé à <Text style={styles.bold}>{normalizedPhone}</Text>.
-          </Text>
-        </View>
+        <Text style={styles.infoText}>
+          Code envoyé au <Text style={styles.bold}>{normalizedPhone}</Text>
+        </Text>
         <Text style={styles.label}>Code de vérification</Text>
         <TextInput
           style={[styles.otpInput, authFormInputTextStyle]}
@@ -263,12 +260,10 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
         onDialChange={(v) => setForm((p) => ({ ...p, dial: v }))}
         onLocalChange={(v) => setForm((p) => ({ ...p, localPhone: v }))}
       />
-      <Text style={styles.hint}>Côte d&apos;Ivoire ou Europe — un code SMS sera envoyé.</Text>
 
       <DateOfBirthField
         variant="signup"
         label="Date de naissance"
-        hint="18 ans minimum"
         value={form.dateOfBirth}
         onChange={(ddMmYyyy) => setForm((p) => ({ ...p, dateOfBirth: ddMmYyyy }))}
         onErrorChange={setDateError}
@@ -292,8 +287,6 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
           <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#666" />
         </TouchableOpacity>
       </View>
-      <Text style={styles.hint}>Ex. {PASSWORD_EXAMPLE} — 8 car. min., maj., min., chiffre, @$!%*?&</Text>
-      <PasswordValidation password={form.password} />
 
       <Text style={styles.label}>Confirmer le mot de passe</Text>
       <View style={styles.inputRow}>
@@ -338,13 +331,13 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
 const styles = StyleSheet.create({
   wrap: { gap: 10 },
   infoBox: {
-    backgroundColor: '#fff7ed',
+    backgroundColor: '#f8fafc',
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#fed7aa',
+    borderColor: '#e2e8f0',
   },
-  infoText: { fontSize: 14, color: '#9a3412', lineHeight: 20 },
+  infoText: { fontSize: 14, color: '#334155', lineHeight: 20 },
   bold: { fontWeight: '700' },
   nameRow: { flexDirection: 'row', gap: 10 },
   nameCol: { flex: 1 },
@@ -396,7 +389,7 @@ const styles = StyleSheet.create({
   },
   checkboxOn: { backgroundColor: '#2E7D32', borderColor: '#2E7D32' },
   termsText: { flex: 1, fontSize: 14, color: '#374151', lineHeight: 20 },
-  termsLink: { color: '#ea580c', fontWeight: '600' },
+  termsLink: { color: '#2E7D32', fontWeight: '600' },
   primaryBtn: {
     backgroundColor: '#2E7D32',
     borderRadius: 12,
@@ -408,7 +401,7 @@ const styles = StyleSheet.create({
   primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   rowLinks: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   link: { fontSize: 14, color: '#666' },
-  linkAccent: { color: '#ea580c', fontWeight: '600' },
+  linkAccent: { color: '#2E7D32', fontWeight: '600' },
 });
 
 export default PhoneSignUpForm;

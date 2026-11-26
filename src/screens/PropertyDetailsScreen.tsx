@@ -82,6 +82,7 @@ const PropertyDetailsScreen: React.FC = () => {
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   const [virtualTourOpen, setVirtualTourOpen] = useState(false);
   const [hostReplyLabel, setHostReplyLabel] = useState<string | null>(null);
+  const [amenitiesExpanded, setAmenitiesExpanded] = useState(false);
 
   // Utiliser les dates de la route si disponibles, sinon utiliser les dates du context
   // Utiliser useMemo pour recalculer quand les valeurs changent
@@ -486,18 +487,17 @@ const PropertyDetailsScreen: React.FC = () => {
           ) : null;
         })()}
 
-        {/* Avis et commentaires */}
-        <PropertyReviews propertyId={property.id} hostId={property.host_id} />
+        {(Number(property.review_count) || 0) > 0 ? (
+          <PropertyReviews propertyId={property.id} hostId={property.host_id} />
+        ) : null}
 
-        {/* Équipements */}
         {property.amenities && property.amenities.length > 0 ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('property.amenities')}</Text>
             <View style={styles.amenitiesGrid}>
-              {/* Tous les équipements (standards + personnalisés sont déjà fusionnés dans amenities) */}
-              {property.amenities.map((amenity, idx) => (
-                <View 
-                  key={amenity.id || idx} 
+              {(amenitiesExpanded ? property.amenities : property.amenities.slice(0, 6)).map((amenity, idx) => (
+                <View
+                  key={amenity.id || idx}
                   style={[
                     styles.amenityItem,
                     amenity.icon === '➕' && styles.customAmenityItem
@@ -508,6 +508,29 @@ const PropertyDetailsScreen: React.FC = () => {
                 </View>
               ))}
             </View>
+            {property.amenities.length > 6 ? (
+              <TouchableOpacity
+                style={styles.amenitiesMoreBtn}
+                onPress={() => setAmenitiesExpanded((open) => !open)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  amenitiesExpanded
+                    ? 'Réduire les équipements'
+                    : `Voir ${property.amenities.length - 6} équipements de plus`
+                }
+              >
+                <Text style={styles.amenitiesMoreBtnText}>
+                  {amenitiesExpanded
+                    ? 'Réduire'
+                    : `+${property.amenities.length - 6} équipement${property.amenities.length - 6 > 1 ? 's' : ''}`}
+                </Text>
+                <Ionicons
+                  name={amenitiesExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color="#1e293b"
+                />
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : null}
 
@@ -1129,6 +1152,24 @@ const styles = StyleSheet.create({
   customAmenityItem: {
     borderLeftWidth: 3,
     borderLeftColor: '#e67e22',
+  },
+  amenitiesMoreBtn: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  amenitiesMoreBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
   },
   rulesCard: {
     backgroundColor: '#fff',

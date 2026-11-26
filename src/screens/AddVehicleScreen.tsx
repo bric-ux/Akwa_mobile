@@ -195,15 +195,8 @@ const AddVehicleScreen: React.FC = () => {
   const [tempInsuranceDate, setTempInsuranceDate] = useState<Date | null>(null);
   const [showLicenseYearsPicker, setShowLicenseYearsPicker] = useState(false);
 
-  const TOTAL_VEHICLE_STEPS = 6;
-  const VEHICLE_STEP_LABELS = [
-    'Annonce',
-    'Technique & lieu',
-    'Tarifs',
-    'Assurance',
-    'Options & promos',
-    'Photos & fin',
-  ] as const;
+  const TOTAL_VEHICLE_STEPS = 3;
+  const VEHICLE_STEP_LABELS = ['Véhicule', 'Tarifs', 'Photos'] as const;
   const [guidedStep, setGuidedStep] = useState(0);
 
   const handleInputChange = (field: string, value: string | boolean) => {
@@ -551,12 +544,10 @@ const AddVehicleScreen: React.FC = () => {
         ) {
           return 'Veuillez saisir une année valide';
         }
-        return null;
-      case 1:
         if (!formData.seats || parseInt(formData.seats, 10) < 1) return 'Nombre de places invalide';
         if (!formData.location_name) return 'Veuillez sélectionner une localisation';
         return null;
-      case 2:
+      case 1:
         if (!formData.price_per_day || parseFloat(formData.price_per_day) <= 0) {
           if (
             !formData.hourly_rental_enabled ||
@@ -582,8 +573,6 @@ const AddVehicleScreen: React.FC = () => {
             return 'Prix par heure hors ville obligatoire';
           }
         }
-        return null;
-      case 3:
         if (!formData.has_insurance) {
           return 'Assurance obligatoire : cochez « Véhicule assuré » et renseignez les informations';
         }
@@ -592,9 +581,7 @@ const AddVehicleScreen: React.FC = () => {
           return 'La date d’expiration de l’assurance ne peut pas être dans le passé';
         }
         return null;
-      case 4:
-        return null;
-      case 5:
+      case 2:
         if (selectedImages.length === 0) return 'Ajoutez au moins une photo ou une vidéo';
         if (!selectedImages.some((img) => !isMediaRowVideo(img))) {
           return 'Ajoutez au moins une image pour la vignette du véhicule';
@@ -1042,7 +1029,7 @@ const AddVehicleScreen: React.FC = () => {
           </View>
           )}
 
-          {guidedStep === 1 && (
+          {guidedStep === 0 && (
           <>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Caractéristiques</Text>
@@ -1129,7 +1116,7 @@ const AddVehicleScreen: React.FC = () => {
           </>
           )}
 
-          {guidedStep === 2 && (
+          {guidedStep === 1 && (
           <>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Tarification</Text>
@@ -1324,7 +1311,7 @@ const AddVehicleScreen: React.FC = () => {
           </>
           )}
 
-          {guidedStep === 3 && (
+          {guidedStep === 1 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Assurance *</Text>
             
@@ -1405,7 +1392,7 @@ const AddVehicleScreen: React.FC = () => {
           </View>
           )}
 
-          {guidedStep === 4 && (
+          {guidedStep === 1 && (
           <>
           {/* Options et exigences */}
           <View style={styles.section}>
@@ -1596,7 +1583,7 @@ const AddVehicleScreen: React.FC = () => {
           </>
           )}
 
-          {guidedStep === 5 && (
+          {guidedStep === 2 && (
           <>
           {/* Photos */}
           <View style={styles.section}>

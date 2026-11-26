@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,31 +51,13 @@ const PropertyReviews: React.FC<PropertyReviewsProps> = ({ propertyId, hostId })
   };
 
   if (loading) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Avis des voyageurs</Text>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2E7D32" />
-        </View>
-      </View>
-    );
+    return null;
   }
 
-  // Filtrer uniquement les avis approuvés
   const approvedReviews = reviews.filter(r => r.approved === true);
 
   if (approvedReviews.length === 0) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Avis des voyageurs</Text>
-        <View style={styles.emptyContainer}>
-          <Ionicons name="star-outline" size={48} color="#6c757d" />
-          <Text style={styles.emptyText}>
-            Aucun avis pour le moment. Soyez le premier à laisser un avis !
-          </Text>
-        </View>
-      </View>
-    );
+    return null;
   }
 
   const averageRating = approvedReviews.reduce((sum, review) => sum + review.rating, 0) / approvedReviews.length;

@@ -277,17 +277,17 @@ const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
 const styles = StyleSheet.create({
   wrap: { gap: 12 },
   infoBox: {
-    backgroundColor: '#fff7ed',
+    backgroundColor: '#f8fafc',
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#fed7aa',
+    borderColor: '#e2e8f0',
   },
-  infoText: { fontSize: 14, color: '#9a3412', lineHeight: 20 },
+  infoText: { fontSize: 14, color: '#334155', lineHeight: 20 },
   bold: { fontWeight: '700' },
   label: { fontSize: 14, fontWeight: '600', color: '#374151', marginTop: 4 },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  forgotLink: { fontSize: 13, fontWeight: '600', color: '#ea580c' },
+  forgotLink: { fontSize: 13, fontWeight: '600', color: '#475569' },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',

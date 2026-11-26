@@ -8,7 +8,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../types';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
-import PasswordValidation from '../components/PasswordValidation';
 import EmailVerificationModal from '../components/EmailVerificationModal';
 import PasswordResetModal from '../components/PasswordResetModal';
 import { PASSWORD_EXAMPLE } from '../lib/phoneAuth';
@@ -24,6 +23,7 @@ import { useEmailVerification } from '../hooks/useEmailVerification';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import { runAfterInteractions } from '../utils/runAfterInteractions';
+import { useToast } from '../contexts/ToastContext';
 
 type AuthScreenRouteProp = RouteProp<RootStackParamList, 'Auth'>;
 
@@ -36,6 +36,7 @@ const AuthScreen: React.FC = () => {
   const { returnTo, returnParams, mode: authModeParam } = route.params || {};
   const { signIn, signUp } = useAuth();
   const { monthlyRental } = useFeatureFlags();
+  const { showToast } = useToast();
 
   const [isLogin, setIsLogin] = useState(authModeParam !== 'signup');
   /** Aligné site web : téléphone par défaut */
@@ -330,6 +331,7 @@ const AuthScreen: React.FC = () => {
           last_name: lastName,
           date_of_birth: dateOfBirthISO || dateOfBirth
         });
+        showToast('Bonne arrivée !', 'teddy');
 
         // Créer ou mettre à jour le profil dans la table profiles
         try {
@@ -525,19 +527,18 @@ const AuthScreen: React.FC = () => {
           automaticallyAdjustKeyboardInsets={Platform.OS === 'android'}
           overScrollMode="always"
         >
-          {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity 
-              style={styles.backButton} 
+            <TouchableOpacity
+              style={styles.backButton}
               onPress={handleBack}
             >
               <Ionicons name="arrow-back" size={24} color="#2E7D32" />
               <Text style={styles.backButtonText}>{t('common.back')}</Text>
             </TouchableOpacity>
-            
+
             <View style={styles.logoContainer}>
-              <Image 
-                source={require('../../assets/icon.png')} 
+              <Image
+                source={require('../../assets/icon.png')}
                 style={styles.logoImage}
                 resizeMode="contain"
               />
@@ -546,16 +547,13 @@ const AuthScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Form */}
           <View style={styles.formContainer}>
             <Text style={styles.title}>
               {isLogin ? t('auth.login') : t('auth.createAccount')}
             </Text>
-            <Text style={styles.subtitle}>
-              {isLogin
-                ? t('auth.loginSubtitle')
-                : t('auth.signupSubtitle')}
-            </Text>
+            {isLogin ? (
+              <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
+            ) : null}
 
             {authMethod === 'phone' ? (
               isLogin ? (
@@ -615,14 +613,16 @@ const AuthScreen: React.FC = () => {
                   />
                 </View>
 
-                <DateOfBirthField
-                  variant="auth"
-                  placeholder={t('auth.dateOfBirth')}
-                  value={dateOfBirth}
-                  onChange={setDateOfBirth}
-                  onErrorChange={setDateError}
-                  error={dateError}
-                />
+                <View style={styles.dobWrap}>
+                  <DateOfBirthField
+                    variant="auth"
+                    placeholder={t('auth.dateOfBirth')}
+                    value={dateOfBirth}
+                    onChange={setDateOfBirth}
+                    onErrorChange={setDateError}
+                    error={dateError}
+                  />
+                </View>
               </>
             )}
 
@@ -669,10 +669,6 @@ const AuthScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
             
-            {/* Validation du mot de passe - seulement pour l'inscription */}
-            {!isLogin && (
-              <PasswordValidation password={password} />
-            )}
 
             {!isLogin && (
               <View style={styles.inputContainer}>
@@ -716,8 +712,7 @@ const AuthScreen: React.FC = () => {
                     </View>
                     <Text style={styles.termsText}>
                       {t('auth.acceptTerms')}{' '}
-                      <Text style={styles.termsLink} onPress={openTerms}>{t('auth.termsOfService')}</Text>
-                      {' '}{t('auth.ofAkwaHome')}
+                      <Text style={styles.termsLink} onPress={openTerms}>CGU</Text>
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -740,30 +735,23 @@ const AuthScreen: React.FC = () => {
               </>
             )}
 
-            <View style={styles.altMethodBlock}>
-              <View style={styles.altMethodDivider}>
-                <View style={styles.altMethodLine} />
-                <Text style={styles.altMethodOr}>{t('auth.or')}</Text>
-                <View style={styles.altMethodLine} />
-              </View>
-              <TouchableOpacity
-                style={styles.altMethodButton}
-                onPress={() => setAuthMethod(authMethod === 'phone' ? 'email' : 'phone')}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  authMethod === 'phone' ? t('auth.switchToEmail') : t('auth.switchToPhone')
-                }
-              >
-                <Ionicons
-                  name={authMethod === 'phone' ? 'mail-outline' : 'call-outline'}
-                  size={20}
-                  color="#2E7D32"
-                />
-                <Text style={styles.altMethodButtonText}>
-                  {authMethod === 'phone' ? t('auth.switchToEmail') : t('auth.switchToPhone')}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.altMethodLink}
+              onPress={() => setAuthMethod(authMethod === 'phone' ? 'email' : 'phone')}
+              accessibilityRole="button"
+              accessibilityLabel={
+                authMethod === 'phone' ? t('auth.switchToEmail') : t('auth.switchToPhone')
+              }
+            >
+              <Ionicons
+                name={authMethod === 'phone' ? 'mail-outline' : 'call-outline'}
+                size={15}
+                color="#475569"
+              />
+              <Text style={styles.altMethodLinkText}>
+                {authMethod === 'phone' ? t('auth.switchToEmail') : t('auth.switchToPhone')}
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity style={styles.toggleButton} onPress={toggleAuthMode}>
               <Text style={styles.toggleButtonText}>
@@ -772,15 +760,6 @@ const AuthScreen: React.FC = () => {
                   : t('auth.alreadyHaveAccount') + ' ' + t('auth.login')}
               </Text>
             </TouchableOpacity>
-          </View>
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              {t('auth.byContinuing')}{' '}
-              <Text style={styles.linkText}>{t('auth.termsOfService')}</Text> {t('auth.and')}{' '}
-              <Text style={styles.linkText}>{t('settings.privacyPolicy')}</Text>
-            </Text>
           </View>
         </AuthScrollView>
       </KeyboardAvoidingView>
@@ -883,7 +862,7 @@ const AuthScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
   },
   keyboardView: {
     flex: 1,
@@ -945,17 +924,7 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 25,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    paddingBottom: 24,
   },
   title: {
     fontSize: 24,
@@ -971,45 +940,22 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 22,
   },
-  altMethodBlock: {
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  altMethodDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 12,
-  },
-  altMethodLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#e2e8f0',
-  },
-  altMethodOr: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#94a3b8',
-    textTransform: 'lowercase',
-  },
-  altMethodButton: {
+  altMethodLink: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    backgroundColor: '#fff',
+    gap: 6,
+    paddingVertical: 8,
+    marginTop: 4,
+    marginBottom: 4,
   },
-  altMethodButtonText: {
-    fontSize: 15,
+  altMethodLinkText: {
+    fontSize: 14,
     fontWeight: '600',
-    color: '#2E7D32',
-    textAlign: 'center',
-    flexShrink: 1,
+    color: '#334155',
+  },
+  dobWrap: {
+    marginBottom: 15,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -1083,25 +1029,6 @@ const styles = StyleSheet.create({
   toggleButton: {
     alignItems: 'center',
     paddingVertical: 10,
-  },
-  toggleButtonText: {
-    color: '#2E7D32',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  footer: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  footerText: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  linkText: {
-    color: '#2E7D32',
-    fontWeight: '500',
   },
   toggleButtonText: {
     color: '#2E7D32',
